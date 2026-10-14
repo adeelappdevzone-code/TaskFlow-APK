@@ -1,8 +1,10 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'core/theme.dart';
 import 'data/app_store.dart';
+import 'firebase_options.dart';
 import 'screens/auth_screens.dart';
 import 'screens/main_shell.dart';
 
@@ -13,6 +15,7 @@ Future<void> main() async {
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
   ));
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await AppStore.instance.init();
   runApp(const TaskFlowApp());
 }

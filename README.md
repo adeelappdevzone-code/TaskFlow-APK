@@ -1,6 +1,12 @@
-# TaskFlow (Offline version 1.0)
+# TaskFlow (version 1.1 – Firebase)
 
-Flutter task management app. Saara data **phone ki local SQLite database** mein save hota hai. Koi server, cloud ya internet ki zaroorat nahi.
+Flutter task management app. Login **Firebase Authentication** (email + password) se, aur data **Cloud Firestore** mein `users/{uid}/...` ke andar. Firestore phone par offline copy bhi rakhta hai, is liye app bina internet ke bhi chalti hai.
+
+Security rules: `firestore.rules` (Firebase Console → Firestore → Rules mein paste karni hain).
+
+APK link: https://github.com/adeelappdevzone-code/TaskFlow-APK/releases/latest/download/TaskFlow.apk
+
+CI log: har build ka log aur result `ci-logs` branch mein save hota hai.
 
 ---
 

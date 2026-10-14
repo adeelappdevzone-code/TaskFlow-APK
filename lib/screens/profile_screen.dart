@@ -110,12 +110,12 @@ class ProfileScreen extends StatelessWidget {
                 onTap: () => showAboutDialog(
                   context: context,
                   applicationName: 'TaskFlow',
-                  applicationVersion: '1.0.0 (offline)',
+                  applicationVersion: '1.1.0',
                   applicationIcon: const AppLogo(size: 44),
                   children: const [
-                    Text('Offline-first task manager. All data is stored on this '
-                        'phone in a local SQLite database. Cloud sync and multi-device '
-                        'login will come in a later version.'),
+                    Text('Task manager with cloud sync. Your data is saved to your '
+                        'account (Firebase) and also kept on the phone, so the app '
+                        'works offline and syncs when internet is back.'),
                   ],
                 ),
               ),
@@ -126,7 +126,7 @@ class ProfileScreen extends StatelessWidget {
                   onPressed: () async {
                     final ok = await confirmDialog(context,
                         title: 'Logout?',
-                        message: 'Your data stays on this phone. Log in again to see it.',
+                        message: 'Your data is saved in your account. Log in again (on any phone) to see it.',
                         confirmLabel: 'Logout',
                         danger: true);
                     if (ok) await store.logout();
@@ -240,23 +240,30 @@ class _AccountScreenState extends State<AccountScreen> {
     if (!_formKey.currentState!.validate()) return;
     final store = AppStore.instance;
     final user = store.currentUser!;
-    final emailChanged = _email.text.trim().toLowerCase() != user.email;
+    final emailChanged =
+        _email.text.trim().toLowerCase() != user.email.toLowerCase();
     final passwordChanged = _password.text.isNotEmpty;
-    if (emailChanged && !passwordChanged) {
-      showSnack(context, 'Please also enter a new password when changing email.');
-      return;
-    }
     setState(() => _saving = true);
     final messenger = ScaffoldMessenger.of(context);
-    if (emailChanged || passwordChanged) {
-      await store.changeEmailAndPassword(_name.text, _email.text, _password.text);
-    } else {
-      await store.updateProfile(_name.text, user.email);
+    final notes = <String>[];
+
+    await store.updateName(_name.text);
+    if (passwordChanged) {
+      final err = await store.changePassword(_password.text);
+      notes.add(err ?? 'Password changed.');
+    }
+    if (emailChanged) {
+      final err = await store.changeEmail(_email.text);
+      notes.add(err ??
+          'We sent a link to ${_email.text.trim()}. Your email changes after you open it.');
     }
     if (!mounted) return;
     Navigator.pop(context);
-    messenger.showSnackBar(const SnackBar(
-        content: Text('Profile updated'), behavior: SnackBarBehavior.floating));
+    messenger.showSnackBar(SnackBar(
+      content: Text(notes.isEmpty ? 'Profile updated' : notes.join('\n')),
+      behavior: SnackBarBehavior.floating,
+      duration: Duration(seconds: notes.isEmpty ? 3 : 6),
+    ));
   }
 
   @override
@@ -468,8 +475,8 @@ class MembersScreen extends StatelessWidget {
               const Padding(
                 padding: EdgeInsets.only(bottom: 14),
                 child: Text(
-                  'In this offline version members are just names you can assign '
-                  'tasks to. In the cloud version they will be real accounts that '
+                  'For now members are just names you can assign tasks to. Later '
+                  'they can become real accounts that '
                   'get notified on their own phone.',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 13, height: 1.4),
                 ),
@@ -548,7 +555,7 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Paste the backup text below. This will REPLACE all data on this phone.',
+              'Paste the backup text below. Its tasks and projects will be added to your account.',
               style: TextStyle(fontSize: 13, color: AppColors.textMuted),
             ),
             const SizedBox(height: 12),
@@ -592,8 +599,8 @@ class SettingsScreen extends StatelessWidget {
     final ok = await confirmDialog(context,
         title: 'Reset all data?',
         message:
-            'Your account, tasks, projects and everything else will be permanently '
-            'deleted from this phone. Make a backup first if you need it.',
+            'All your tasks, projects, categories, members and notifications will be '
+            'permanently deleted from your account. Your login stays. Make a backup first if you need it.',
         confirmLabel: 'Delete everything',
         danger: true);
     if (!ok) return;
@@ -639,12 +646,12 @@ class SettingsScreen extends StatelessWidget {
           WhiteCard(
             child: const Row(
               children: [
-                Icon(Icons.phone_android_rounded, color: AppColors.primary),
+                Icon(Icons.cloud_done_rounded, color: AppColors.primary),
                 SizedBox(width: 14),
                 Expanded(
                   child: Text(
-                    'Storage: this phone only (offline). If the app is uninstalled, '
-                    'data is lost, so keep a backup.',
+                    'Storage: your account in the cloud (Firebase), with an offline '
+                    'copy on this phone. Log in on any phone to see your data.',
                     style: TextStyle(fontSize: 13, height: 1.4),
                   ),
                 ),
@@ -655,9 +662,9 @@ class SettingsScreen extends StatelessWidget {
           tile(Icons.copy_all_rounded, 'Copy backup',
               'Copies all data as text to the clipboard', () => _copyBackup(context)),
           tile(Icons.restore_rounded, 'Restore backup',
-              'Paste a backup to replace current data', () => _restore(context)),
+              'Paste a backup to add its data to your account', () => _restore(context)),
           tile(Icons.delete_forever_rounded, 'Reset all data',
-              'Delete everything on this phone', () => _reset(context),
+              'Delete all your tasks and projects', () => _reset(context),
               color: AppColors.danger),
         ],
       ),
@@ -682,12 +689,11 @@ class HelpScreen extends StatelessWidget {
     ],
     [
       'Where is my data saved?',
-      'Only on this phone, in a local database. Nothing is uploaded.'
+      'In your account in the cloud (Google Firebase), plus an offline copy on the phone.'
     ],
     [
       'Can I use my account on another phone?',
-      'Not yet. Use Settings > Copy backup, then Restore backup on the other phone. '
-          'Real cloud login is planned for the next version.'
+      'Yes. Just log in with the same email and password on the other phone.'
     ],
     [
       'Do I get reminders?',

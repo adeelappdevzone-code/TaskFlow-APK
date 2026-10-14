@@ -44,14 +44,9 @@ class OnboardingScreen extends StatelessWidget {
                 onPressed: () async {
                   await AppStore.instance.markOnboardingSeen();
                   if (!context.mounted) return;
-                  final hasAccount = await AppStore.instance.hasAccount();
-                  if (!context.mounted) return;
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          hasAccount ? const LoginScreen() : const RegisterScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const RegisterScreen()),
                   );
                 },
               ),
@@ -300,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 52,
                   child: OutlinedButton(
                     onPressed: () => showSnack(context,
-                        'Google sign-in will be available in the cloud version.'),
+                        'Google sign-in is coming soon. Please use email for now.'),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.border),
                       shape: RoundedRectangleBorder(
@@ -423,7 +418,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const Text('Create account',
                     style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
                 const SizedBox(height: 6),
-                const Text('Your account and tasks are saved on this phone.',
+                const Text('Your tasks are saved to your account and also work offline.',
                     style: TextStyle(color: AppColors.textMuted)),
                 const SizedBox(height: 26),
                 TextFormField(
@@ -518,9 +513,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
 Future<void> showForgotPasswordDialog(BuildContext context) async {
   final email = TextEditingController();
-  final pass = TextEditingController();
   final formKey = GlobalKey<FormState>();
   String? error;
+  bool sending = false;
 
   await showDialog<void>(
     context: context,
@@ -533,7 +528,7 @@ Future<void> showForgotPasswordDialog(BuildContext context) async {
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                'Your account is stored on this phone, so you can set a new password here.',
+                'Enter your account email. We will send you a link to set a new password.',
                 style: TextStyle(fontSize: 13, color: AppColors.textMuted),
               ),
               const SizedBox(height: 14),
@@ -543,14 +538,6 @@ Future<void> showForgotPasswordDialog(BuildContext context) async {
                 decoration: fieldDecoration('Account email'),
                 validator: (v) =>
                     (v == null || !_emailRegex.hasMatch(v.trim())) ? 'Enter a valid email' : null,
-              ),
-              const SizedBox(height: 10),
-              TextFormField(
-                controller: pass,
-                obscureText: true,
-                decoration: fieldDecoration('New password'),
-                validator: (v) =>
-                    (v == null || v.length < 6) ? 'At least 6 characters' : null,
               ),
               if (error != null) ...[
                 const SizedBox(height: 10),
@@ -562,19 +549,26 @@ Future<void> showForgotPasswordDialog(BuildContext context) async {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
-            onPressed: () async {
-              if (!formKey.currentState!.validate()) return;
-              final err = await AppStore.instance.resetPassword(email.text, pass.text);
-              if (err != null) {
-                setLocal(() => error = err);
-                return;
-              }
-              if (ctx.mounted) Navigator.pop(ctx);
-              if (context.mounted) {
-                showSnack(context, 'Password updated. You can log in now.');
-              }
-            },
-            child: const Text('Reset'),
+            onPressed: sending
+                ? null
+                : () async {
+                    if (!formKey.currentState!.validate()) return;
+                    setLocal(() => sending = true);
+                    final err = await AppStore.instance.sendPasswordReset(email.text);
+                    if (err != null) {
+                      setLocal(() {
+                        sending = false;
+                        error = err;
+                      });
+                      return;
+                    }
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    if (context.mounted) {
+                      showSnack(context,
+                          'Reset link sent. Check your email (also the spam folder).');
+                    }
+                  },
+            child: Text(sending ? 'Sending...' : 'Send link'),
           ),
         ],
       ),

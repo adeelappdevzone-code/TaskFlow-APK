@@ -32,6 +32,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   late TimeOfDay _start;
   late TimeOfDay _end;
   List<ChecklistItem> _checklist = [];
+  String? _originalAssigneeId;
   bool _saving = false;
 
   bool get _isNew => widget.task == null;
@@ -47,6 +48,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       _categoryId = t.categoryId;
       _projectId = t.projectId;
       _assigneeId = t.assigneeId;
+      _originalAssigneeId = t.assigneeId;
       _priority = t.priority;
       _date = dateOnly(t.startAt);
       _start = TimeOfDay.fromDateTime(t.startAt);
@@ -192,7 +194,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
 
     final messenger = ScaffoldMessenger.of(context);
     final wasNew = _isNew;
-    await store.saveTask(task, items, isNew: wasNew);
+    await store.saveTask(task, items,
+        isNew: wasNew, previousAssigneeId: _originalAssigneeId);
     if (!mounted) return;
     Navigator.pop(context, true);
     messenger.showSnackBar(SnackBar(

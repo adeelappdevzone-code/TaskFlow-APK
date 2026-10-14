@@ -2,14 +2,18 @@ name: Build APK
 
 on:
   push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
-  contents: write   # needed to publish the APK as a Release
+  contents: write   # publish the APK as a Release + save CI log branch
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash   # bash with -e -o pipefail, so "| tee" keeps failures
     steps:
       - uses: actions/checkout@v4
 
@@ -21,17 +25,19 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.24.5
           cache: true
+
+      - name: Flutter version
+        run: flutter --version 2>&1 | tee -a ci.log
 
       - name: Generate Android project files
         run: |
           if [ ! -d android ]; then
-            flutter create --platforms=android --org com.potens --project-name taskflow .
+            flutter create --platforms=android --org com.potens --project-name taskflow . 2>&1 | tee -a ci.log
           fi
 
-      - name: Set app name and icon
-        run: bash tool/setup_android.sh
+      - name: Set app name, icon, minSdk
+        run: bash tool/setup_android.sh 2>&1 | tee -a ci.log
 
       # Same signing key on every build, so a new APK installs as an UPDATE
       # over the old one (data is kept). Test-only key, not for Play Store.
@@ -41,14 +47,14 @@ jobs:
           cp tool/debug.keystore ~/.android/debug.keystore
 
       - name: Get packages
-        run: flutter pub get
+        run: flutter pub get 2>&1 | tee -a ci.log
 
       - name: Analyze
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib 2>&1 | tee -a ci.log
 
       - name: Build APK
         run: |
-          flutter build apk --release --build-number=${{ github.run_number }}
+          flutter build apk --release --build-number=${{ github.run_number }} 2>&1 | tee -a ci.log
           cp build/app/outputs/flutter-apk/app-release.apk TaskFlow.apk
 
       - name: Upload APK (Actions artifact)
@@ -65,3 +71,22 @@ jobs:
           body: "Commit: ${{ github.sha }}"
           files: TaskFlow.apk
           make_latest: true
+
+      # Saves the log + result to the "ci-logs" branch so problems can be
+      # read and fixed without screenshots.
+      - name: Save CI log
+        if: always()
+        env:
+          STATUS: ${{ job.status }}
+        run: |
+          mkdir -p /tmp/ci
+          cp ci.log /tmp/ci/build.log 2>/dev/null || echo "no log" > /tmp/ci/build.log
+          echo "run=${{ github.run_number }} status=$STATUS commit=${{ github.sha }}" > /tmp/ci/status.txt
+          cd /tmp/ci
+          git init -q
+          git checkout -q -b ci-logs
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add .
+          git commit -qm "CI run ${{ github.run_number }}: $STATUS"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-logs
