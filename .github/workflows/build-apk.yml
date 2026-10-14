@@ -1,0 +1,46 @@
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.24.5
+          cache: true
+
+      - name: Generate Android project files
+        run: |
+          if [ ! -d android ]; then
+            flutter create --platforms=android --org com.potens --project-name taskflow .
+          fi
+
+      - name: Set app name and icon
+        run: bash tool/setup_android.sh
+
+      - name: Get packages
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib
+
+      - name: Build APK
+        run: flutter build apk --release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskFlow-APK
+          path: build/app/outputs/flutter-apk/app-release.apk
