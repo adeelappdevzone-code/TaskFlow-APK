@@ -12,6 +12,8 @@ import 'package:cloud_firestore/cloud_firestore.dart'
         WriteBatch;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
+import 'package:google_sign_in/google_sign_in.dart'
+    show GoogleSignIn, GoogleSignInException, GoogleSignInExceptionCode;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
@@ -290,6 +292,59 @@ class AppStore extends ChangeNotifier {
     }
   }
 
+  // ------------------------------------------------------------ Google
+
+  /// OAuth "Web client ID" of the Firebase project (Authentication → Google →
+  /// Web SDK configuration). Needed so Google returns a token Firebase accepts.
+  static const _googleServerClientId =
+      '791768449553-0mvkrt16ogepku39do8thcs7tpaidg5t.apps.googleusercontent.com';
+
+  /// Returned by [signInWithGoogle] when the user closes the account picker.
+  static const googleCancelled = '__cancelled__';
+
+  bool _googleReady = false;
+
+  Future<void> _ensureGoogle() async {
+    if (_googleReady) return;
+    await GoogleSignIn.instance.initialize(serverClientId: _googleServerClientId);
+    _googleReady = true;
+  }
+
+  /// Returns null on success, [googleCancelled] if the user backed out,
+  /// otherwise an error message.
+  Future<String?> signInWithGoogle() async {
+    try {
+      await _ensureGoogle();
+      final account = await GoogleSignIn.instance.authenticate();
+      final idToken = account.authentication.idToken;
+      if (idToken == null) {
+        return 'Google did not return a login token. Please try again.';
+      }
+      final result = await _auth
+          .signInWithCredential(fb.GoogleAuthProvider.credential(idToken: idToken));
+      final u = result.user;
+      if (u == null) return 'Google login failed. Please try again.';
+      final isNew = result.additionalUserInfo?.isNewUser ?? false;
+      _startSession(u, name: u.displayName ?? account.displayName);
+      if (isNew) {
+        _write(_userDoc.set({
+          'name': currentUser!.name,
+          'email': u.email ?? account.email,
+          'created_at': nowMs(),
+        }, SetOptions(merge: true)));
+        _seedDefaults(false);
+      }
+      return null;
+    } on GoogleSignInException catch (e) {
+      if (e.code == GoogleSignInExceptionCode.canceled) return googleCancelled;
+      return 'Google sign-in failed (${e.code.name}). ${e.description ?? ''}'.trim();
+    } on fb.FirebaseAuthException catch (e) {
+      return _authError(e);
+    } catch (e) {
+      return 'Google sign-in failed: $e';
+    }
+  }
+
   /// Sends Firebase's password-reset email.
   Future<String?> sendPasswordReset(String email) async {
     try {
@@ -352,6 +407,12 @@ class AppStore extends ChangeNotifier {
       await _auth.signOut();
     } catch (e) {
       debugPrint('Sign out: $e');
+    }
+    // So next time the user can pick a different Google account.
+    if (_googleReady) {
+      try {
+        await GoogleSignIn.instance.signOut();
+      } catch (_) {}
     }
   }
 

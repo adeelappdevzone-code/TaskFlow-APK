@@ -290,33 +290,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: OutlinedButton(
-                    onPressed: () => showSnack(context,
-                        'Google sign-in is coming soon. Please use email for now.'),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: AppColors.border),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14)),
-                      foregroundColor: AppColors.text,
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('G',
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF4285F4))),
-                        SizedBox(width: 10),
-                        Text('Continue with Google',
-                            style: TextStyle(fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                  ),
-                ),
+                const GoogleSignInButton(),
                 const SizedBox(height: 30),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -485,6 +459,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 18),
                 PrimaryButton(
                     label: 'Create account', loading: _loading, onPressed: _submit),
+                const SizedBox(height: 14),
+                const GoogleSignInButton(),
                 const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -574,4 +550,65 @@ Future<void> showForgotPasswordDialog(BuildContext context) async {
       ),
     ),
   );
+}
+
+// ======================================================== Google button
+
+/// "Continue with Google" button used on Login and Register.
+class GoogleSignInButton extends StatefulWidget {
+  const GoogleSignInButton({super.key});
+
+  @override
+  State<GoogleSignInButton> createState() => _GoogleSignInButtonState();
+}
+
+class _GoogleSignInButtonState extends State<GoogleSignInButton> {
+  bool _loading = false;
+
+  Future<void> _signIn() async {
+    setState(() => _loading = true);
+    final err = await AppStore.instance.signInWithGoogle();
+    if (!mounted) return;
+    if (err == null) {
+      Navigator.of(context).popUntil((r) => r.isFirst);
+      return;
+    }
+    setState(() => _loading = false);
+    if (err != AppStore.googleCancelled) showSnack(context, err);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: _loading ? null : _signIn,
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: AppColors.border),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          foregroundColor: AppColors.text,
+        ),
+        child: _loading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('G',
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF4285F4))),
+                  SizedBox(width: 10),
+                  Text('Continue with Google',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                ],
+              ),
+      ),
+    );
+  }
 }
