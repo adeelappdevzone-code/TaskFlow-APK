@@ -5,6 +5,22 @@ aksar akela kaam karta hai, PR/merge nahi chahta: **changes seedha `main` par pu
 (branch `claude/cool-maxwell-b6rodp` bhi sath update karo). Test pehle khud karo, phir push.
 **Jawab chhota rakho:** kaam ke dauran updates/tafseel nahi, aakhir mein sirf 3-5 lines (kya bana, tests pass, push/CI ok).
 
+## REDESIGN chal raha hai (Oct 2026) — pehle ye parho
+
+Testing team ne app reject ki: tasks do jagah bikhre hue, har page par wahi stats. Naya plan:
+- **Ek task system:** storage wahi (`users/{uid}/tasks` + `teams/{id}/tasks`), lekin app mein ek
+  `TaskRepository` sab tasks ek list mein deta hai (task + team ya null). Ek Create sheet
+  (Personal / kaunsi Team), ek Task detail har jagah.
+- **Home** = aaj ka focus (My Day, Needs attention, Upcoming). **My Tasks** = personal + mujhe
+  assigned team tasks (+ "Assigned by me" filter). **Calendar** mein assigned team tasks bhi.
+  **Team** = Tasks (List/Board) / Members / Overview (sirf admin, weekly report yahin).
+  **Profile** = sirf account + settings (stats hatao). Sidebar: Home, My Tasks, Calendar, Teams
+  (har team ka link), Notifications, Profile, + New Task.
+- **Member bhi team mein task bana sakta hai** (apne liye) — rules badalne honge.
+- Owner screen by screen UI dega (10 screens). **Jab tak 10 screens poori na hon, `main` par push
+  NAHI** (main par push = APK + web build). Kaam sirf branch `claude/cool-maxwell-b6rodp` par
+  push karo; 10 poori hone par ek dafa `main` par, phir mobile + desktop test.
+
 ## Setup (sab chal raha hai)
 
 - **App:** Flutter 3.47.7 (CI mein fix), Firebase project `taskflow-ce905` (Spark/free plan, card nahi).
