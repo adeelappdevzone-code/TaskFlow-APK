@@ -51,8 +51,8 @@ void main() {
       ..invites = []
       ..setForTest(uid: 'own');
     await tester.pumpWidget(app(const MainShell()));
-    expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.text('New task'), findsOneWidget);
+    expect(find.text('New Task'), findsOneWidget);
+    expect(find.text('My Tasks'), findsOneWidget);
 
     await tester.tap(find.text('Plan the week'));
     await tester.pumpAndSettle();

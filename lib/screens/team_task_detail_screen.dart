@@ -95,7 +95,7 @@ class TeamTaskDetailScreen extends StatelessWidget {
             ),
           );
         }
-        final admin = store.isAdmin(team);
+        final canEdit = store.canEdit(team, task);
         final canComplete = store.canComplete(team, task);
         final priorityColor = switch (task.priority) {
           Priority.low => AppColors.success,
@@ -117,7 +117,7 @@ class TeamTaskDetailScreen extends StatelessWidget {
             automaticallyImplyLeading: onClose == null,
             title: Text(team.name, style: const TextStyle(fontSize: 15)),
             actions: [
-              if (admin)
+              if (canEdit)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert_rounded),
                   onSelected: (a) => _onMenu(context, a, team, task),

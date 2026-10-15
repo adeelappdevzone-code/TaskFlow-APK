@@ -45,7 +45,16 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   bool _saving = false;
 
   bool get _isNew => widget.task == null;
-  Team? get _team => widget.team;
+
+  /// Where the task belongs: a team, or null for a personal task. Can be
+  /// changed while creating a task.
+  late Team? _team = widget.team;
+
+  /// A plain member can only add tasks for themselves in a team.
+  bool get _assignLocked {
+    final t = _team;
+    return t != null && !TeamStore.instance.isAdmin(t);
+  }
 
   @override
   void initState() {
@@ -91,7 +100,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       }
       _end = TimeOfDay(hour: (_start.hour + 1) % 24, minute: _start.minute);
       _projectId = widget.initialProjectId;
-      if (_team == null && store.categories.isNotEmpty) {
+      if (_team != null && _assignLocked) _assigneeId = TeamStore.instance.uid;
+      if (store.categories.isNotEmpty) {
         _categoryId = store.categories.first.id;
       }
     }
@@ -186,7 +196,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       ..description = _desc.text.trim()
       ..categoryId = _categoryId
       ..projectId = _projectId
-      ..assigneeId = _assigneeId
+      ..assigneeId = _team == null ? null : (_assignLocked ? TeamStore.instance.uid : _assigneeId)
+      ..categoryId = _team == null ? _categoryId : null
+      ..projectId = _team == null ? _projectId : null
       ..priority = _priority
       ..startAt = startAt
       ..endAt = endAt
@@ -273,7 +285,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
 
   Future<void> _pickAssignee() async {
     final team = _team;
-    if (team != null) {
+    if (team != null && !_assignLocked) {
       final result = await _showOptions<String>(
         title: 'Assign to',
         options: [
@@ -286,25 +298,77 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       if (result != null) setState(() => _assigneeId = result == _noneKey ? null : result);
       return;
     }
-    final store = AppStore.instance;
+  }
+
+  /// Personal or one of my teams.
+  Future<void> _pickTeam() async {
+    final teams = TeamStore.instance.teams;
     final result = await _showOptions<String>(
-      title: 'Assign to',
+      title: 'Team',
       options: [
-        const _Option(_noneKey, 'Nobody (me)', icon: Icons.person_off_outlined),
-        for (final m in store.members) _Option(m.id, m.name, icon: Icons.person_rounded),
+        for (final t in teams)
+          _Option(t.id, t.name, color: Color(t.color), icon: Icons.groups_rounded),
       ],
-      selected: _assigneeId ?? _noneKey,
-      addLabel: 'Add team member',
+      selected: _team?.id,
     );
     if (result == null) return;
-    if (result == _addKey) {
-      final name = await textInputDialog(context, title: 'Team member', hint: 'Member name');
-      if (name == null) return;
-      final m = await store.addMember(name);
-      setState(() => _assigneeId = m.id);
-    } else {
-      setState(() => _assigneeId = result == _noneKey ? null : result);
-    }
+    _setTeam(TeamStore.instance.teamById(result));
+  }
+
+  void _setTeam(Team? team) {
+    setState(() {
+      _team = team;
+      _assigneeId = team == null ? null : (_assignLocked ? TeamStore.instance.uid : null);
+    });
+  }
+
+  Widget _belongsTo() {
+    final teams = TeamStore.instance.teams;
+    final team = _team;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _Label('Where does this task belong?'),
+        Row(
+          children: [
+            _ChoiceCard(
+              icon: Icons.person_rounded,
+              title: 'Personal',
+              subtitle: 'Only for me',
+              selected: team == null,
+              onTap: () => _setTeam(null),
+            ),
+            const SizedBox(width: 10),
+            _ChoiceCard(
+              icon: Icons.groups_rounded,
+              title: 'Team',
+              subtitle: teams.isEmpty ? 'Create a team first' : 'Shared workspace',
+              selected: team != null,
+              onTap:
+                  teams.isEmpty ? null : () => team == null ? _setTeam(teams.first) : _pickTeam(),
+            ),
+          ],
+        ),
+        if (team != null) ...[
+          const SizedBox(height: 10),
+          _SelectField(
+            icon: Icons.groups_rounded,
+            iconColor: Color(team.color),
+            text: team.name,
+            onTap: _pickTeam,
+          ),
+        ],
+        const SizedBox(height: 6),
+        Text(
+            team == null
+                ? 'This task will be private to you.'
+                : _assignLocked
+                    ? 'Visible to ${team.name}. You can add tasks for yourself.'
+                    : 'Visible to everyone in ${team.name}.',
+            style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+        const SizedBox(height: 18),
+      ],
+    );
   }
 
   Future<void> _pickRepeat() async {
@@ -397,8 +461,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                 if (store.templates.isEmpty)
                   const Padding(
                     padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
-                    child: Text('No templates yet.',
-                        style: TextStyle(color: AppColors.textMuted)),
+                    child: Text('No templates yet.', style: TextStyle(color: AppColors.textMuted)),
                   ),
                 for (final t in store.templates)
                   ListTile(
@@ -495,9 +558,11 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     final cat = store.categoryById(_categoryId);
     final project = store.projectById(_projectId);
     final team = _team;
-    final assigneeName = team != null
-        ? (_assigneeId == null ? null : team.nameOf(_assigneeId))
-        : store.memberById(_assigneeId)?.name;
+    final assigneeName = team == null || _assigneeId == null
+        ? null
+        : (_assigneeId == TeamStore.instance.uid
+            ? 'Me (${team.nameOf(_assigneeId)})'
+            : team.nameOf(_assigneeId));
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -509,7 +574,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         ),
         title: Text(
             team != null
-                ? (_isNew ? 'New task • ${team.name}' : 'Edit task • ${team.name}')
+                ? (_isNew ? 'New task' : 'Edit task • ${team.name}')
                 : (_isNew ? 'Add Task' : 'Edit Task'),
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
         actions: [
@@ -520,184 +585,189 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           ),
         ],
       ),
-      body: CenteredContent(maxWidth: 720, child: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
-          children: [
-            const _Label('Task title', required: true),
-            TextFormField(
-              controller: _title,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: fieldDecoration('Enter task title'),
-              inputFormatters: [LengthLimitingTextInputFormatter(200)],
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
-            ),
-            const SizedBox(height: 18),
-            const _Label('Description'),
-            TextFormField(
-              controller: _desc,
-              minLines: 3,
-              maxLines: 6,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: fieldDecoration('Add a description (optional)'),
-              inputFormatters: [LengthLimitingTextInputFormatter(5000)],
-            ),
-            if (team == null) ...[
-              const SizedBox(height: 18),
-              const _Label('Category'),
-              _SelectField(
-                icon: Icons.label_outline_rounded,
-                iconColor: cat == null ? null : Color(cat.color),
-                text: cat?.name ?? 'Select category',
-                muted: cat == null,
-                onTap: _pickCategory,
-              ),
-            ],
-            const SizedBox(height: 18),
-            const _Label('Priority'),
-            Row(
+      body: CenteredContent(
+          maxWidth: 720,
+          child: Form(
+            key: _formKey,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
               children: [
-                _PriorityChip(
-                  label: 'Low',
-                  icon: Icons.trending_down_rounded,
-                  color: AppColors.success,
-                  selected: _priority == Priority.low,
-                  onTap: () => setState(() => _priority = Priority.low),
+                if (_isNew) _belongsTo(),
+                const _Label('Task title', required: true),
+                TextFormField(
+                  controller: _title,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: fieldDecoration('Enter task title'),
+                  inputFormatters: [LengthLimitingTextInputFormatter(200)],
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
                 ),
-                const SizedBox(width: 8),
-                _PriorityChip(
-                  label: 'Medium',
-                  icon: Icons.drag_handle_rounded,
-                  color: AppColors.primary,
-                  selected: _priority == Priority.medium,
-                  onTap: () => setState(() => _priority = Priority.medium),
+                const SizedBox(height: 18),
+                const _Label('Description'),
+                TextFormField(
+                  controller: _desc,
+                  minLines: 3,
+                  maxLines: 6,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: fieldDecoration('Add a description (optional)'),
+                  inputFormatters: [LengthLimitingTextInputFormatter(5000)],
                 ),
-                const SizedBox(width: 8),
-                _PriorityChip(
-                  label: 'High',
-                  icon: Icons.local_fire_department_rounded,
-                  color: AppColors.danger,
-                  selected: _priority == Priority.high,
-                  onTap: () => setState(() => _priority = Priority.high),
-                ),
-              ],
-            ),
-            const SizedBox(height: 18),
-            const _Label('Date & time'),
-            _SelectField(
-              icon: Icons.calendar_today_outlined,
-              text: formatFullDate(_date),
-              onTap: _pickDate,
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: _SelectField(
-                    icon: Icons.schedule_rounded,
-                    text: 'Start  ${_start.format(context)}',
-                    onTap: () => _pickTime(true),
+                if (team == null) ...[
+                  const SizedBox(height: 18),
+                  const _Label('Category'),
+                  _SelectField(
+                    icon: Icons.label_outline_rounded,
+                    iconColor: cat == null ? null : Color(cat.color),
+                    text: cat?.name ?? 'Select category',
+                    muted: cat == null,
+                    onTap: _pickCategory,
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: _SelectField(
-                    icon: Icons.schedule_outlined,
-                    text: 'End  ${_end.format(context)}',
-                    onTap: () => _pickTime(false),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            _SelectField(
-              icon: Icons.repeat_rounded,
-              iconColor: _repeat == Repeat.none ? null : AppColors.primary,
-              text: _repeat == Repeat.none ? 'Does not repeat' : Repeat.label(_repeat),
-              muted: _repeat == Repeat.none,
-              onTap: _pickRepeat,
-            ),
-            if (team == null) ...[
-              const SizedBox(height: 18),
-              const _Label('Project'),
-              _SelectField(
-                icon: Icons.folder_outlined,
-                iconColor: project == null ? null : Color(project.color),
-                text: project?.name ?? 'No project (optional)',
-                muted: project == null,
-                onTap: _pickProject,
-              ),
-            ],
-            const SizedBox(height: 18),
-            const _Label('Assign to'),
-            _SelectField(
-              icon: Icons.person_outline_rounded,
-              text: assigneeName ??
-                  (team != null ? 'Choose a team member' : 'Select member (optional)'),
-              muted: assigneeName == null,
-              onTap: _pickAssignee,
-            ),
-            const SizedBox(height: 18),
-            const _Label('Checklist'),
-            for (var i = 0; i < _checklist.length; i++)
-              Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.only(left: 4),
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
+                ],
+                const SizedBox(height: 18),
+                const _Label('Priority'),
+                Row(
                   children: [
-                    Checkbox(
-                      value: _checklist[i].isDone,
-                      onChanged: (v) => setState(() => _checklist[i].isDone = v ?? false),
+                    _PriorityChip(
+                      label: 'Low',
+                      icon: Icons.trending_down_rounded,
+                      color: AppColors.success,
+                      selected: _priority == Priority.low,
+                      onTap: () => setState(() => _priority = Priority.low),
                     ),
-                    Expanded(child: Text(_checklist[i].title)),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.textMuted),
-                      onPressed: () => setState(() => _checklist.removeAt(i)),
+                    const SizedBox(width: 8),
+                    _PriorityChip(
+                      label: 'Medium',
+                      icon: Icons.drag_handle_rounded,
+                      color: AppColors.primary,
+                      selected: _priority == Priority.medium,
+                      onTap: () => setState(() => _priority = Priority.medium),
+                    ),
+                    const SizedBox(width: 8),
+                    _PriorityChip(
+                      label: 'High',
+                      icon: Icons.local_fire_department_rounded,
+                      color: AppColors.danger,
+                      selected: _priority == Priority.high,
+                      onTap: () => setState(() => _priority = Priority.high),
                     ),
                   ],
                 ),
-              ),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _newItem,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration:
-                        fieldDecoration('Add checklist item', icon: Icons.checklist_rounded),
-                    inputFormatters: [LengthLimitingTextInputFormatter(200)],
-                    onSubmitted: (_) => _addChecklistItem(),
-                  ),
+                const SizedBox(height: 18),
+                const _Label('Date & time'),
+                _SelectField(
+                  icon: Icons.calendar_today_outlined,
+                  text: formatFullDate(_date),
+                  onTap: _pickDate,
                 ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: _addChecklistItem,
-                  icon: const Icon(Icons.add_rounded),
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppColors.primaryLight,
-                    foregroundColor: AppColors.primary,
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _SelectField(
+                        icon: Icons.schedule_rounded,
+                        text: 'Start  ${_start.format(context)}',
+                        onTap: () => _pickTime(true),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _SelectField(
+                        icon: Icons.schedule_outlined,
+                        text: 'End  ${_end.format(context)}',
+                        onTap: () => _pickTime(false),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                _SelectField(
+                  icon: Icons.repeat_rounded,
+                  iconColor: _repeat == Repeat.none ? null : AppColors.primary,
+                  text: _repeat == Repeat.none ? 'Does not repeat' : Repeat.label(_repeat),
+                  muted: _repeat == Repeat.none,
+                  onTap: _pickRepeat,
+                ),
+                if (team == null) ...[
+                  const SizedBox(height: 18),
+                  const _Label('Project'),
+                  _SelectField(
+                    icon: Icons.folder_outlined,
+                    iconColor: project == null ? null : Color(project.color),
+                    text: project?.name ?? 'No project (optional)',
+                    muted: project == null,
+                    onTap: _pickProject,
                   ),
+                ],
+                if (team != null) ...[
+                  const SizedBox(height: 18),
+                  const _Label('Assign to'),
+                  _SelectField(
+                    icon: _assignLocked ? Icons.lock_outline_rounded : Icons.person_outline_rounded,
+                    text: assigneeName ?? 'Choose a team member',
+                    muted: assigneeName == null,
+                    onTap: _assignLocked ? () {} : _pickAssignee,
+                  ),
+                ],
+                const SizedBox(height: 18),
+                const _Label('Checklist'),
+                for (var i = 0; i < _checklist.length; i++)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.only(left: 4),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.border),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: _checklist[i].isDone,
+                          onChanged: (v) => setState(() => _checklist[i].isDone = v ?? false),
+                        ),
+                        Expanded(child: Text(_checklist[i].title)),
+                        IconButton(
+                          icon:
+                              const Icon(Icons.close_rounded, size: 20, color: AppColors.textMuted),
+                          onPressed: () => setState(() => _checklist.removeAt(i)),
+                        ),
+                      ],
+                    ),
+                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _newItem,
+                        textCapitalization: TextCapitalization.sentences,
+                        decoration:
+                            fieldDecoration('Add checklist item', icon: Icons.checklist_rounded),
+                        inputFormatters: [LengthLimitingTextInputFormatter(200)],
+                        onSubmitted: (_) => _addChecklistItem(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      onPressed: _addChecklistItem,
+                      icon: const Icon(Icons.add_rounded),
+                      style: IconButton.styleFrom(
+                        backgroundColor: AppColors.primaryLight,
+                        foregroundColor: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                const _Label('Links'),
+                LinksEditor(links: _links, onChanged: (l) => setState(() => _links = l)),
+                const SizedBox(height: 28),
+                PrimaryButton(
+                  label: 'Save',
+                  icon: Icons.check_rounded,
+                  loading: _saving,
+                  onPressed: _save,
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-            const _Label('Links'),
-            LinksEditor(links: _links, onChanged: (l) => setState(() => _links = l)),
-            const SizedBox(height: 28),
-            PrimaryButton(
-              label: 'Save',
-              icon: Icons.check_rounded,
-              loading: _saving,
-              onPressed: _save,
-            ),
-          ],
-        ),
-      )),
+          )),
     );
   }
 }
@@ -810,6 +880,68 @@ class _PriorityChip extends StatelessWidget {
               const SizedBox(width: 5),
               Text(label,
                   style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Big tap target for Personal / Team.
+class _ChoiceCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback? onTap;
+  const _ChoiceCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = onTap == null ? AppColors.textMuted : AppColors.primary;
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primaryLight : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: selected ? AppColors.primary : AppColors.border, width: 1.5),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: selected ? AppColors.primary : AppColors.background,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: selected ? Colors.white : color),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                    Text(subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

@@ -368,6 +368,15 @@ class TeamStore extends ChangeNotifier {
 
   bool isAdmin(Team team) => _uid != null && team.isAdmin(_uid!);
 
+  /// Any member can add tasks; a plain member only for themselves.
+  bool canCreateTask(Team team) => _uid != null && team.memberIds.contains(_uid);
+
+  /// Owner/managers edit any task; a member the ones they made for
+  /// themselves.
+  bool canEdit(Team team, TaskItem task) =>
+      _uid != null &&
+      (team.isAdmin(_uid!) || (task.createdBy == _uid && task.assigneeId == _uid));
+
   /// The assignee can mark done; owner/managers can too.
   bool canComplete(Team team, TaskItem task) =>
       _uid != null && (team.isAdmin(_uid!) || task.assigneeId == _uid);

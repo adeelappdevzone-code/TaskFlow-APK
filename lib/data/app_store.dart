@@ -668,9 +668,9 @@ class AppStore extends ChangeNotifier {
 
   // ------------------------------------------------------------------ tasks
 
-  /// Creates or updates a task together with its checklist.
-  /// [previousAssigneeId] is who the task was assigned to before editing, so
-  /// an "assigned" notification is only added when that changes.
+  /// Creates or updates a personal task together with its checklist.
+  /// (Personal tasks are not assigned to anyone; [previousAssigneeId] is
+  /// unused and kept for the shared form.)
   Future<void> saveTask(TaskItem task, List<ChecklistItem> checklist,
       {required bool isNew, String? previousAssigneeId}) async {
     final me = currentUser?.id;
@@ -682,21 +682,7 @@ class AppStore extends ChangeNotifier {
     }
     task.checklist = checklist;
     task.addHistory(isNew ? HistoryKind.created : HistoryKind.edited, me, at: now);
-    if (task.assigneeId != previousAssigneeId || (isNew && task.assigneeId != null)) {
-      task.addHistory(
-          task.assigneeId == null ? HistoryKind.unassigned : HistoryKind.assigned, me,
-          to: task.assigneeId, at: now);
-    }
     _write(_col('tasks').doc(task.id).set(_taskToMap(task)));
-
-    if (task.assigneeId != null && task.assigneeId != previousAssigneeId) {
-      final m = memberById(task.assigneeId);
-      if (m != null) {
-        _notify('task', 'assigned', 'Task assigned',
-            '"${task.title}" was assigned to ${m.name}',
-            taskId: task.id);
-      }
-    }
   }
 
   void _saveTaskDoc(TaskItem task) {

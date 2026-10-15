@@ -158,7 +158,7 @@ class _TeamScreenState extends State<TeamScreen> {
                 ],
               ),
             ),
-            floatingActionButton: admin
+            floatingActionButton: TeamStore.instance.canCreateTask(team)
                 ? FloatingActionButton.extended(
                     onPressed: () => Navigator.push(
                       context,

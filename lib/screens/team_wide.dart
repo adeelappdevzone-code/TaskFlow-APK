@@ -21,7 +21,7 @@ extension _WideTeam on _TeamScreenState {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: admin && tab == 0
+      floatingActionButton: tab == 0 && TeamStore.instance.canCreateTask(team)
           ? FloatingActionButton.extended(
               onPressed: () => Navigator.push(
                 context,

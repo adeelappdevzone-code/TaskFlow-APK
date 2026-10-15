@@ -252,11 +252,19 @@ service cloud.firestore {
               && d.status == 'pending';
         }
 
+        // Any member may keep their own tasks in the team: created by them and
+        // assigned to them (they can edit and delete those).
+        function ownTask(d) {
+          return d.created_by == request.auth.uid && d.assignee_id == request.auth.uid;
+        }
+
         allow create: if signedIn()
             && validTask(request.resource.data, taskId)
             && assigneeOk(request.resource.data, teamData(teamId))
             && ((isTeamAdmin(teamData(teamId))
                     && request.resource.data.created_by == request.auth.uid)
+                || (request.auth.uid in teamData(teamId).member_ids
+                    && ownTask(request.resource.data))
                 || ('repeat_from' in request.resource.data
                     && request.resource.data.repeat_from is string
                     && repeatCopy(teamData(teamId))));
@@ -264,8 +272,13 @@ service cloud.firestore {
             (isTeamAdmin(teamData(teamId))
                 && validTask(request.resource.data, taskId)
                 && assigneeOk(request.resource.data, teamData(teamId)))
-            || assigneeUpdate(teamData(teamId)));
-        allow delete: if signedIn() && isTeamAdmin(teamData(teamId));
+            || assigneeUpdate(teamData(teamId))
+            || (request.auth.uid in teamData(teamId).member_ids
+                && ownTask(resource.data) && ownTask(request.resource.data)
+                && request.resource.data.created_by == resource.data.created_by
+                && validTask(request.resource.data, taskId)));
+        allow delete: if signedIn() && (isTeamAdmin(teamData(teamId))
+            || (request.auth.uid in teamData(teamId).member_ids && ownTask(resource.data)));
       }
 
       // Comments on the team's tasks: any member can write (as themselves);

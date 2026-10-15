@@ -90,15 +90,13 @@ class TaskDetailScreen extends StatelessWidget {
         }
         final cat = store.categoryById(task.categoryId);
         final project = store.projectById(task.projectId);
-        final member = store.memberById(task.assigneeId);
         final priorityColor = switch (task.priority) {
           Priority.low => AppColors.success,
           Priority.medium => AppColors.primary,
           Priority.high => AppColors.danger,
         };
         final me = store.currentUser?.id;
-        String nameOf(String? id) =>
-            id == null || id == me ? 'You' : (store.memberById(id)?.name ?? 'Someone');
+        String nameOf(String? id) => 'You';
         final timeText = task.endAt == null
             ? formatTime(task.startAt)
             : '${formatTime(task.startAt)} - ${formatTime(task.endAt!)}';
@@ -175,25 +173,6 @@ class TaskDetailScreen extends StatelessWidget {
                   icon: Icons.folder_rounded,
                   iconColor: Color(project.color),
                   child: Text(project.name, style: const TextStyle(fontSize: 14)),
-                ),
-              if (member != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6, bottom: 4),
-                  child: Row(
-                    children: [
-                      Avatar(name: member.name, size: 38),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Assigned to',
-                              style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                          Text(member.name,
-                              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ],
-                  ),
                 ),
               TimeTrackerCard(task: task, me: me, nameOf: nameOf),
               TaskLinksView(links: task.links),

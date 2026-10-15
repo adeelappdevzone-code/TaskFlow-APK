@@ -20,6 +20,9 @@ Testing team ne app reject ki: tasks do jagah bikhre hue, har page par wahi stat
 - Owner screen by screen UI dega (10 screens). **Jab tak 10 screens poori na hon, `main` par push
   NAHI** (main par push = APK + web build). Kaam sirf branch `claude/cool-maxwell-b6rodp` par
   push karo; 10 poori hone par ek dafa `main` par, phir mobile + desktop test.
+- Contacts (personal task kisi naam ko assign) **hata diye** — assign sirf Teams mein.
+- Screens: 1 ✅ Home (laptop: naya sidebar + top bar search/bell/account; My Day mein team/project/
+  Personal chip). Baqi 9 owner bhejega.
 
 ## Setup (sab chal raha hai)
 

@@ -140,14 +140,14 @@ void main() {
       'tasks wide',
       (tester) async =>
           shot(tester, const Size(1600, 1000), const MainShell(), 'g_tasks_wide', then: () async {
-            await tester.tap(find.text('Tasks').first);
+            await tester.tap(find.text('My Tasks').first);
             await tester.pumpAndSettle();
           }));
   testWidgets(
       'tasks wide board',
       (tester) async =>
           shot(tester, const Size(1600, 1000), const MainShell(), 'g_tasks_board', then: () async {
-            await tester.tap(find.text('Tasks').first);
+            await tester.tap(find.text('My Tasks').first);
             await tester.pumpAndSettle();
             await tester.tap(find.byTooltip('Board view'));
             await tester.pumpAndSettle();

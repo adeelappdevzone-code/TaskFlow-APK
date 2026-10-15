@@ -71,7 +71,8 @@ void main() {
 
   testWidgets('Team task form hides category/project', (tester) async {
     await tester.pumpWidget(app(TaskFormScreen(team: team)));
-    expect(find.text('New task • SEO'), findsOneWidget);
+    expect(find.text('New task'), findsOneWidget);
+    expect(find.text('SEO'), findsWidgets); // team preselected
     expect(find.text('Category'), findsNothing);
     expect(find.text('Project'), findsNothing);
     await tester.scrollUntilVisible(find.text('Choose a team member'), 200,
@@ -151,6 +152,8 @@ void main() {
 
   testWidgets('Task form has repeat and templates', (tester) async {
     await tester.pumpWidget(app(TaskFormScreen(team: team)));
+    await tester.scrollUntilVisible(find.text('Does not repeat'), 200,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('Does not repeat'), findsOneWidget);
     expect(find.byTooltip('Templates'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -172,7 +175,7 @@ void main() {
       ],
     });
     await tester.pumpWidget(app(const Scaffold(body: HomeScreen())));
-    expect(find.text('My Day'), findsOneWidget);
+    expect(find.text('My Day (Today)'), findsOneWidget);
     expect(find.text('Write SEO blog'), findsOneWidget);
     expect(find.text('SEO'), findsOneWidget); // team chip
     expect(tester.takeException(), isNull);

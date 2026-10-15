@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import '../core/utils.dart';
+import '../data/app_store.dart';
+import '../data/task_repository.dart';
+import '../data/team_models.dart';
 import '../data/team_store.dart';
+import '../widgets/common.dart';
 import '../widgets/responsive.dart';
 import 'calendar_screen.dart';
 import 'home_screen.dart';
 import 'profile_screen.dart';
+import 'notifications_screen.dart';
+import 'projects_screen.dart';
 import 'task_form_screen.dart';
+import 'task_open.dart';
 import 'task_panel.dart';
 import 'tasks_screen.dart';
 import 'teams_screen.dart';
+
+part 'main_shell_wide.dart';
 
 /// Bottom navigation: Home | Tasks | (+) | Teams | Profile.
 /// Calendar (index 2) opens from the shortcut on Home.
@@ -19,6 +29,17 @@ class MainShell extends StatefulWidget {
   /// Lets child screens switch tabs (e.g. Home → "See all" opens Tasks).
   static void switchTab(BuildContext context, int index) {
     context.findAncestorStateOfType<_MainShellState>()?.setTab(index);
+  }
+
+  /// Opens a team's workspace: next to the side menu on a laptop, as a new
+  /// page on a phone.
+  static void openTeamWorkspace(BuildContext context, Team team) {
+    final shell = context.findAncestorStateOfType<_MainShellState>();
+    if (shell != null && isWideScreen(context)) {
+      shell._showTeam(team);
+    } else {
+      openTeam(context, team);
+    }
   }
 
   @override
@@ -33,6 +54,14 @@ class _MainShellState extends State<MainShell> {
   final _teamsNav = GlobalKey<NavigatorState>();
 
   void setTab(int i) => setState(() => _index = i);
+
+  void _showTeam(Team team) {
+    setTab(4);
+    final nav = _teamsNav.currentState;
+    if (nav == null) return;
+    nav.popUntil((r) => r.isFirst);
+    openTeam(nav.context, team);
+  }
 
   Future<void> _addTask() async {
     final day = DateTime.now();
@@ -96,7 +125,7 @@ class _MainShellState extends State<MainShell> {
                 _NavItem(
                     icon: Icons.check_box_outlined,
                     activeIcon: Icons.check_box_rounded,
-                    label: 'Tasks',
+                    label: 'My Tasks',
                     active: _index == 1,
                     onTap: () => setTab(1)),
                 const SizedBox(width: 64),
@@ -117,109 +146,6 @@ class _MainShellState extends State<MainShell> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-extension on _MainShellState {
-  // Side menu order -> index in the IndexedStack.
-  static const _railToTab = [0, 1, 2, 4, 3]; // Home, Tasks, Calendar, Teams, Profile
-
-  /// Laptop / big screen: menu on the left, pages in the middle, the chosen
-  /// task in a panel on the right.
-  Widget _buildWide(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    return Scaffold(
-      body: Row(
-        children: [
-          ListenableBuilder(
-            listenable: TeamStore.instance,
-            builder: (context, _) {
-              final invites = TeamStore.instance.invites.length;
-              return NavigationRail(
-                extended: width >= 1200,
-                minExtendedWidth: 200,
-                backgroundColor: Colors.white,
-                selectedIndex: _railToTab.indexOf(_index),
-                onDestinationSelected: (i) {
-                  final tab = _railToTab[i];
-                  // Teams again while inside a team: back to the team list.
-                  if (tab == 4 && _index == 4) {
-                    _teamsNav.currentState?.popUntil((r) => r.isFirst);
-                  }
-                  setTab(tab);
-                },
-                labelType: width >= 1200 ? null : NavigationRailLabelType.all,
-                leading: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: width >= 1200
-                      ? FloatingActionButton.extended(
-                          heroTag: 'rail-add',
-                          elevation: 1,
-                          onPressed: _addTask,
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('New task'),
-                        )
-                      : FloatingActionButton(
-                          heroTag: 'rail-add',
-                          elevation: 1,
-                          tooltip: 'New task',
-                          onPressed: _addTask,
-                          child: const Icon(Icons.add_rounded),
-                        ),
-                ),
-                destinations: [
-                  const NavigationRailDestination(
-                      icon: Icon(Icons.home_outlined),
-                      selectedIcon: Icon(Icons.home_rounded),
-                      label: Text('Home')),
-                  const NavigationRailDestination(
-                      icon: Icon(Icons.check_box_outlined),
-                      selectedIcon: Icon(Icons.check_box_rounded),
-                      label: Text('Tasks')),
-                  const NavigationRailDestination(
-                      icon: Icon(Icons.calendar_today_outlined),
-                      selectedIcon: Icon(Icons.calendar_today_rounded),
-                      label: Text('Calendar')),
-                  NavigationRailDestination(
-                      icon: Badge(
-                          isLabelVisible: invites > 0,
-                          label: Text('$invites'),
-                          child: const Icon(Icons.groups_outlined)),
-                      selectedIcon: const Icon(Icons.groups_rounded),
-                      label: const Text('Teams')),
-                  const NavigationRailDestination(
-                      icon: Icon(Icons.person_outline_rounded),
-                      selectedIcon: Icon(Icons.person_rounded),
-                      label: Text('Profile')),
-                ],
-              );
-            },
-          ),
-          const VerticalDivider(width: 1, color: AppColors.border),
-          Expanded(
-            child: DetailPanelHost(
-              panelBuilder: buildTaskPanel,
-              child: IndexedStack(
-                index: _index,
-                children: [
-                  const CenteredContent(child: HomeScreen()),
-                  const TasksScreen(), // has its own laptop layout
-                  const CenteredContent(child: CalendarScreen()),
-                  const ProfileScreen(), // has its own laptop layout
-                  Navigator(
-                    key: _teamsNav,
-                    onGenerateRoute: (_) => MaterialPageRoute(
-                      builder: (_) => const Scaffold(
-                          backgroundColor: AppColors.background, body: TeamsScreen()),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

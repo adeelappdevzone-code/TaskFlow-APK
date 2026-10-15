@@ -240,8 +240,6 @@ List<_QuickItem> _quickItems() => [
           'View and manage your projects', (c) => _push(c, const ProjectsScreen())),
       _QuickItem(Icons.label_outline_rounded, const Color(0xFFF97316), 'Categories',
           'Organize your task categories', (c) => _push(c, const CategoriesScreen())),
-      _QuickItem(Icons.group_outlined, AppColors.primary, 'Contacts',
-          'Names for your personal tasks', (c) => _push(c, const MembersScreen())),
       _QuickItem(Icons.settings_outlined, AppColors.primary, 'Settings & Backup',
           'Backup, restore and reset data', (c) => _push(c, const SettingsScreen())),
       _QuickItem(Icons.help_outline_rounded, AppColors.success, 'Help & FAQ', 'How TaskFlow works',

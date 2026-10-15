@@ -90,7 +90,16 @@ await t('team: member cannot change others name', assertFails(updateDoc(doc(adee
 await t('task: owner creates task for adeel', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/a1`), ttask('a1', 'adl'))));
 await t('task: owner creates task for sara', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/s1`), ttask('s1', 'sar'))));
 await t('task: assign to non-member denied', assertFails(setDoc(doc(owner, `teams/${T}/tasks/x1`), ttask('x1', 'out'))));
-await t('task: member cannot create', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/a2`), ttask('a2', 'adl', 'adl'))));
+await t('task: member creates own task', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/a2`), ttask('a2', 'adl', 'adl'))));
+await t('task: member cannot create for others', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/a3`), ttask('a3', 'sar', 'adl'))));
+await t('task: member cannot create unassigned', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/a4`), ttask('a4', null, 'adl'))));
+await t('task: member cannot fake creator', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/a5`), ttask('a5', 'adl', 'own'))));
+await t('task: member edits own task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a2`), { title: 'Renamed', updated_at: now })));
+await t('task: member cannot give own task away', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a2`), { assignee_id: 'sar' })));
+await t('task: other member cannot edit it', assertFails(updateDoc(doc(sara, `teams/${T}/tasks/a2`), { title: 'x' })));
+await t('task: other member cannot delete it', assertFails(deleteDoc(doc(sara, `teams/${T}/tasks/a2`))));
+await t('task: member deletes own task', assertSucceeds(deleteDoc(doc(adeel, `teams/${T}/tasks/a2`))));
+await t('task: member cannot delete assigned task', assertFails(deleteDoc(doc(adeel, `teams/${T}/tasks/a1`))));
 await t('task: member reads team tasks', assertSucceeds(getDocs(collection(adeel, `teams/${T}/tasks`))));
 await t('task: outsider cannot read', assertFails(getDocs(collection(outsider, `teams/${T}/tasks`))));
 await t('task: adeel marks own task done', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_at: now, updated_at: now })));

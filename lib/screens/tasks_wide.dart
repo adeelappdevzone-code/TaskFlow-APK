@@ -236,7 +236,6 @@ class _WideTaskRow extends StatelessWidget {
     final t = task;
     final done = t.isCompleted || t.isCancelled;
     final cat = store.categoryById(t.categoryId);
-    final member = store.memberById(t.assigneeId);
     final late = t.isOverdue;
     final when = t.endAt == null
         ? '${relativeDay(t.startAt)} • ${formatTime(t.startAt)}'
@@ -299,10 +298,6 @@ class _WideTaskRow extends StatelessWidget {
               TagChip(label: cat.name, color: Color(cat.color)),
               const SizedBox(width: 18),
             ],
-            SizedBox(
-              width: 36,
-              child: member == null ? null : Avatar(name: member.name, size: 32),
-            ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_horiz_rounded, color: AppColors.textMuted),
               onSelected: (a) async {
