@@ -144,8 +144,8 @@ void main() {
     await tester.pumpWidget(app(const TeamScreen(teamId: 'T')));
     await tester.tap(find.byTooltip('Board view'));
     await tester.pumpAndSettle();
-    expect(find.text('To do'), findsOneWidget);
-    expect(find.text('In progress'), findsOneWidget);
+    expect(find.textContaining('To Do', findRichText: true), findsOneWidget);
+    expect(find.textContaining('In Progress', findRichText: true), findsOneWidget);
     expect(find.text('Card 1'), findsOneWidget);
     expect(find.text('Card 2'), findsOneWidget);
     expect(tester.takeException(), isNull);

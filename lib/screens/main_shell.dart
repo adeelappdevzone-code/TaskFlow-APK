@@ -15,6 +15,7 @@ import 'notifications_screen.dart';
 import 'projects_screen.dart';
 import 'task_panel.dart';
 import 'tasks_screen.dart';
+import 'team_screen.dart';
 import 'teams_screen.dart';
 import 'create_task_dialog.dart';
 

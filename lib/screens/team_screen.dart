@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
-import '../core/utils.dart';
 import '../data/models.dart';
 import '../data/team_models.dart';
 import '../data/team_stats.dart';
@@ -10,12 +9,15 @@ import '../data/team_store.dart';
 import '../widgets/common.dart';
 import '../widgets/dashboard.dart';
 import '../widgets/responsive.dart';
-import '../widgets/task_board.dart';
 import 'report_screen.dart';
 import 'task_panel.dart';
 import 'task_page.dart';
 import 'teams_screen.dart';
 import 'create_task_dialog.dart';
+import 'task_open.dart';
+import 'task_ui.dart';
+import 'team_board.dart';
+import '../data/task_repository.dart';
 
 part 'team_wide.dart';
 
@@ -25,6 +27,9 @@ enum _Filter { all, mine, pending, done }
 class TeamScreen extends StatefulWidget {
   final String teamId;
   const TeamScreen({super.key, required this.teamId});
+
+  /// The team whose page is open (laptop side menu highlights it).
+  static final open = ValueNotifier<String?>(null);
 
   @override
   State<TeamScreen> createState() => _TeamScreenState();
@@ -36,10 +41,26 @@ class _TeamScreenState extends State<TeamScreen> {
 
   // Laptop layout (team_wide.dart).
   int _wideTab = 0;
-  bool _wideBoard = true;
   String _search = '';
 
   void _update(VoidCallback change) => setState(change);
+
+  @override
+  void initState() {
+    super.initState();
+    final id = widget.teamId;
+    // After the frame: the side menu listens and may not rebuild mid-build.
+    WidgetsBinding.instance.addPostFrameCallback((_) => TeamScreen.open.value = id);
+  }
+
+  @override
+  void dispose() {
+    final id = widget.teamId;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (TeamScreen.open.value == id) TeamScreen.open.value = null;
+    });
+    super.dispose();
+  }
 
   Future<void> _onMenu(String action, Team team) async {
     final store = TeamStore.instance;
@@ -162,7 +183,7 @@ class _TeamScreenState extends State<TeamScreen> {
                 ? FloatingActionButton.extended(
                     onPressed: () => showCreateTask(context, team: team),
                     icon: const Icon(Icons.add_rounded),
-                    label: const Text('Task'),
+                    label: const Text('New Task'),
                   )
                 : null,
             body: DetailPanelHost(
@@ -171,7 +192,7 @@ class _TeamScreenState extends State<TeamScreen> {
                   children: [
                     // ------------------------------------------------- tasks
                     if (_board)
-                      TaskBoard(team: team, tasks: tasks)
+                      TeamBoard(team: team, tasks: tasks)
                     else
                       ListView(
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
@@ -706,35 +727,6 @@ class _MemberLoad extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-/// The team's Kanban board (see [KanbanBoard]): owner/managers can move any
-/// card, members only their own.
-class TaskBoard extends StatelessWidget {
-  final Team team;
-  final List<TaskItem> tasks;
-
-  /// Space around the board on wide screens.
-  final EdgeInsetsGeometry padding;
-
-  const TaskBoard(
-      {super.key,
-      required this.team,
-      required this.tasks,
-      this.padding = const EdgeInsets.fromLTRB(12, 12, 12, 90)});
-
-  @override
-  Widget build(BuildContext context) {
-    final store = TeamStore.instance;
-    return KanbanBoard(
-      tasks: tasks,
-      padding: padding,
-      canMove: (t) => store.canComplete(team, t),
-      onMove: (t, column) => store.moveTo(team, t, column),
-      onOpen: (context, t) => openTeamTask(context, team, t),
-      trailing: (t) => AssigneeBadge(team: team, task: t),
     );
   }
 }

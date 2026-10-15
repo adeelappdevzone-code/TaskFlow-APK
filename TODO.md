@@ -21,7 +21,7 @@ Testing team ne app reject ki: tasks do jagah bikhre hue, har page par wahi stat
   NAHI** (main par push = APK + web build). Kaam sirf branch `claude/cool-maxwell-b6rodp` par
   push karo; 10 poori hone par ek dafa `main` par, phir mobile + desktop test.
 - Contacts (personal task kisi naam ko assign) **hata diye** — assign sirf Teams mein.
-- Screens: 1 ✅ Home, 2 ✅ My Tasks, 6 ✅ Teams list (invitations upar, grid/list, "N for you", Create new team card), 5 ✅ Calendar (Day/Week/Month, personal + assigned team tasks, khali slot par click = naya task), 4 ✅ Task page (personal + team ek hi; laptop par page ke upar khulta hai, sidebar rehta hai), 3 ✅ Create task dialog (har jagah se ek hi; bina time = All day; Google Calendar link; "More options" = poora form) (personal + assigned, filter: team/project, "Assigned by me"; table/board). Home: naya sidebar + top bar search/bell/account; My Day mein team/project/
+- Screens: 1 ✅ Home, 2 ✅ My Tasks, 7 ✅ Team page (Board/List/Members/Overview, drag & drop, column se task add; sidebar "My Teams"), 6 ✅ Teams list (invitations upar, grid/list, "N for you", Create new team card), 5 ✅ Calendar (Day/Week/Month, personal + assigned team tasks, khali slot par click = naya task), 4 ✅ Task page (personal + team ek hi; laptop par page ke upar khulta hai, sidebar rehta hai), 3 ✅ Create task dialog (har jagah se ek hi; bina time = All day; Google Calendar link; "More options" = poora form) (personal + assigned, filter: team/project, "Assigned by me"; table/board). Home: naya sidebar + top bar search/bell/account; My Day mein team/project/
   Personal chip). Baqi 9 owner bhejega.
 
 ## Setup (sab chal raha hai)

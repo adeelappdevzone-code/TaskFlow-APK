@@ -17,8 +17,9 @@ import 'task_form_screen.dart';
 /// team, a project, the calendar): a dialog on a laptop, a sheet on a phone.
 /// [team] / [projectId] / [date] fill it in for where it was opened from.
 Future<void> showCreateTask(BuildContext context,
-    {Team? team, String? projectId, DateTime? date, TimeOfDay? time}) async {
-  final form = _CreateTaskForm(team: team, projectId: projectId, date: date, time: time);
+    {Team? team, String? projectId, DateTime? date, TimeOfDay? time, String? stage}) async {
+  final form =
+      _CreateTaskForm(team: team, projectId: projectId, date: date, time: time, stage: stage);
   if (isWideScreen(context)) {
     await showDialog<void>(
       context: context,
@@ -67,7 +68,10 @@ class _CreateTaskForm extends StatefulWidget {
   final String? projectId;
   final DateTime? date;
   final TimeOfDay? time;
-  const _CreateTaskForm({this.team, this.projectId, this.date, this.time});
+
+  /// Board column to start in ([TaskStage]), when added from a team board.
+  final String? stage;
+  const _CreateTaskForm({this.team, this.projectId, this.date, this.time, this.stage});
 
   @override
   State<_CreateTaskForm> createState() => _CreateTaskFormState();
@@ -148,6 +152,7 @@ class _CreateTaskFormState extends State<_CreateTaskForm> {
       priority: _priority,
       startAt: start,
       endAt: end,
+      stage: TaskStage.all.contains(widget.stage) ? widget.stage! : TaskStage.todo,
       createdAt: now,
       updatedAt: now,
     );

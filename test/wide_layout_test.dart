@@ -85,10 +85,9 @@ void main() {
         ],
       });
     await tester.pumpWidget(app(const TeamScreen(teamId: 'T')));
-    // Laptop layout opens on the board, with the summary card on top.
-    expect(find.text('0 of 1 tasks completed'), findsOneWidget);
-    for (final col in ['To do', 'In progress', 'Review', 'Done']) {
-      expect(find.text(col), findsWidgets);
+    // Laptop layout opens on the board with all four columns.
+    for (final col in ['To Do', 'In Progress', 'Review & Feedback', 'Done']) {
+      expect(find.textContaining(col, findRichText: true), findsWidgets);
     }
     expect(find.text('Review card'), findsOneWidget);
     // The Overview tab uses two columns and shows the chart.

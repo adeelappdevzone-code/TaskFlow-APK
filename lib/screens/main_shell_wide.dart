@@ -30,6 +30,7 @@ extension on _MainShellState {
           ListenableBuilder(
             listenable: TeamStore.instance,
             builder: (context, _) => _SideMenu(
+              onOpenTeam: _showTeam,
               compact: compact,
               current: _index,
               invites: TeamStore.instance.invites.length,
@@ -91,7 +92,9 @@ class _SideMenu extends StatelessWidget {
   final int invites;
   final VoidCallback onNewTask;
   final ValueChanged<int> onSelect;
+  final ValueChanged<Team> onOpenTeam;
   const _SideMenu({
+    required this.onOpenTeam,
     required this.compact,
     required this.current,
     required this.invites,
@@ -159,14 +162,46 @@ class _SideMenu extends StatelessWidget {
                   ),
           ),
           const SizedBox(height: 20),
-          for (final e in _navEntries)
-            _SideItem(
-              entry: e,
-              compact: compact,
-              active: current == e.tab,
-              badge: e.tab == 4 ? invites : 0,
-              onTap: () => onSelect(e.tab),
+          Expanded(
+            child: ValueListenableBuilder<String?>(
+              valueListenable: TeamScreen.open,
+              builder: (context, openTeam, _) {
+                final teams = TeamStore.instance.teams;
+                final inTeam = current == 4 && openTeam != null;
+                return ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    for (final e in _navEntries)
+                      _SideItem(
+                        entry: e,
+                        compact: compact,
+                        active: current == e.tab && !(e.tab == 4 && inTeam),
+                        badge: e.tab == 4 ? invites : 0,
+                        onTap: () => onSelect(e.tab),
+                      ),
+                    if (teams.isNotEmpty) ...[
+                      const Divider(height: 28, color: AppColors.border),
+                      if (!compact)
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 0, 0, 8),
+                          child: Text('My Teams',
+                              style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+                        ),
+                      for (final t in teams)
+                        _SideItem(
+                          entry: _NavEntry(Icons.groups_outlined, Icons.groups_rounded, t.name, 4),
+                          compact: compact,
+                          active: inTeam && openTeam == t.id,
+                          badge: 0,
+                          iconColor: Color(t.color),
+                          onTap: () => onOpenTeam(t),
+                        ),
+                    ],
+                  ],
+                );
+              },
             ),
+          ),
         ],
       ),
     );
@@ -179,7 +214,11 @@ class _SideItem extends StatelessWidget {
   final bool active;
   final int badge;
   final VoidCallback onTap;
+
+  /// Team entries use the team's color.
+  final Color? iconColor;
   const _SideItem({
+    this.iconColor,
     required this.entry,
     required this.compact,
     required this.active,
@@ -193,7 +232,7 @@ class _SideItem extends StatelessWidget {
       isLabelVisible: badge > 0,
       label: Text('$badge'),
       child: Icon(active ? entry.activeIcon : entry.icon,
-          color: active ? AppColors.primary : AppColors.text, size: 23),
+          color: active ? AppColors.primary : (iconColor ?? AppColors.text), size: 23),
     );
     final item = Padding(
       padding: const EdgeInsets.only(bottom: 6),
@@ -211,12 +250,16 @@ class _SideItem extends StatelessWidget {
                     children: [
                       icon,
                       const SizedBox(width: 16),
-                      Text(entry.label,
-                          style: TextStyle(
-                            fontSize: 15.5,
-                            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                            color: active ? AppColors.primary : AppColors.text,
-                          )),
+                      Expanded(
+                        child: Text(entry.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                              color: active ? AppColors.primary : AppColors.text,
+                            )),
+                      ),
                     ],
                   ),
           ),
