@@ -1,5 +1,6 @@
 import 'package:intl/intl.dart';
 
+import '../core/utils.dart';
 import 'models.dart';
 import 'team_models.dart';
 import 'team_stats.dart';
@@ -10,6 +11,9 @@ class ReportMember {
   final String name;
   int done = 0;
   int late = 0;
+
+  /// Time tracked during the week.
+  Duration time = Duration.zero;
 
   ReportMember(this.uid, this.name);
 }
@@ -33,8 +37,11 @@ class WeeklyReport {
   /// Most done first.
   final List<ReportMember> members;
 
-  WeeklyReport._(
-      this.team, this.start, this.end, this.done, this.late, this.dueThisWeek, this.members);
+  /// Time everyone tracked during the week.
+  final Duration totalTime;
+
+  WeeklyReport._(this.team, this.start, this.end, this.done, this.late, this.dueThisWeek,
+      this.members, this.totalTime);
 
   /// [weeksBack] = 0 for this week, 1 for last week, ...
   factory WeeklyReport.compute(Team team, Iterable<TaskItem> tasks, DateTime now,
@@ -49,7 +56,17 @@ class WeeklyReport {
     final late = <TaskItem>[];
     var due = 0;
 
+    var totalTime = Duration.zero;
     for (final t in tasks) {
+      // Work sessions count even if the task was cancelled later; a session
+      // belongs to the week it ended in.
+      for (final e in t.timeLog) {
+        if (!e.end.isBefore(start) && e.end.isBefore(end)) {
+          totalTime += e.duration;
+          final m = byMember[e.by];
+          if (m != null) m.time += e.duration;
+        }
+      }
       if (t.isCancelled) continue;
       final dueAt = t.endAt ?? t.startAt;
       final finished = t.isCompleted ? t.completedAt : null;
@@ -76,7 +93,7 @@ class WeeklyReport {
         if (l != 0) return l;
         return a.name.toLowerCase().compareTo(b.name.toLowerCase());
       });
-    return WeeklyReport._(team, start, end, done, late, due, members);
+    return WeeklyReport._(team, start, end, done, late, due, members, totalTime);
   }
 
   /// "13 – 19 Apr 2026"
@@ -96,10 +113,12 @@ class WeeklyReport {
       ..writeln('📊 *${team.name}* — weekly report')
       ..writeln(rangeLabel)
       ..writeln()
-      ..writeln('✅ Done: ${done.length}   ⏰ Late: ${late.length}   📋 Due this week: $dueThisWeek')
+      ..writeln('✅ Done: ${done.length}   ⏰ Late: ${late.length}   📋 Due this week: $dueThisWeek'
+          '${totalTime > Duration.zero ? '   ⏱ Time: ${formatDuration(totalTime)}' : ''}')
       ..writeln();
     for (final m in members) {
-      b.writeln('👤 ${m.name}: ${m.done} done${m.late > 0 ? ', ${m.late} late' : ''}');
+      b.writeln('👤 ${m.name}: ${m.done} done${m.late > 0 ? ', ${m.late} late' : ''}'
+          '${m.time > Duration.zero ? ', ${formatDuration(m.time)}' : ''}');
     }
     void list(String title, List<TaskItem> items, String Function(TaskItem) line) {
       if (items.isEmpty) return;

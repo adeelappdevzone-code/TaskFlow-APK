@@ -38,19 +38,20 @@ aksar akela kaam karta hai, PR/merge nahi chahta: **changes seedha `main` par pu
   Teams / Team (Tasks/Members/Overview) / Tasks / Profile; phone layout alag.
 - **Profile:** job title, role, stats, quick settings, focus ring, preferences, security
   (login method, password, email verification), recent activity.
-- Firestore rules: har collection validated; ~100 rules tests. Flutter: ~47 tests.
+- **@mention** comments, **task history**, **time tracking** (Start/Stop, Home banner, weekly
+  report), **task links** (Drive/Docs/website).
+- Firestore rules: har collection validated; ~114 rules tests. Flutter: ~58 tests.
 
 ## Agla batch (owner se baat ho chuki, ye mashwara diya tha)
 
-1. **@mention in comments** — "@Adeel" likho to sirf usay notification.
-2. **Task history** — kis ne banaya, assign, stage badla, done (task ke andar log).
-3. **Task links** — task mein Google Drive/Docs/website ka link (files ki jagah, bina card).
+Ho chuke (Oct 2026): **@mention**, **task history**, **time tracking** (weekly report mein bhi),
+**task links**. README ka "@mention, History, Time tracking, Links" hissa dekho.
 
-Phir:
-4. **Time tracking** — task par Start/Stop, ghante per banda/task, weekly report mein.
-5. **Performance graph** — member ka hafta-dar-hafta done vs late (4–8 hafte).
-6. **Dark mode** — Profile → Preferences mein Light/Dark (abhi colors hard-coded hain `AppColors`).
-7. **Excel/CSV export**, **Urdu zaban**, **Android home screen widget**.
+Baqi:
+1. **Performance graph** — member ka hafta-dar-hafta done vs late (4–8 hafte) + ghante.
+2. **Dark mode** — Profile → Preferences mein Light/Dark (abhi colors hard-coded hain `AppColors`).
+3. **Excel/CSV export** (time log bhi), **Urdu zaban**, **Android home screen widget**.
+4. Chhoti cheezein: time entry ko baad mein edit/delete karna, template mein links.
 
 Card / Blaze plan chahiye (abhi nahi): asli push notifications (app band ho tab bhi),
 files/photos attach, email alerts.

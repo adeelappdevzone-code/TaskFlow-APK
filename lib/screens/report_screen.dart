@@ -179,6 +179,20 @@ class ReportCard extends StatelessWidget {
                     _num('Done', r.done.length, AppColors.success),
                     _num('Late', r.late.length, AppColors.danger),
                     _num('Due this week', r.dueThisWeek, AppColors.primary),
+                    if (r.totalTime > Duration.zero)
+                      Expanded(
+                        child: Column(
+                          children: [
+                            Text(formatDuration(r.totalTime),
+                                style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.purple)),
+                            const Text('Time tracked',
+                                style: TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -207,6 +221,14 @@ class ReportCard extends StatelessWidget {
                               style: const TextStyle(
                                   fontSize: 12.5,
                                   color: AppColors.danger,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                        if (m.time > Duration.zero) ...[
+                          const SizedBox(width: 10),
+                          Text(formatDuration(m.time),
+                              style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: AppColors.purple,
                                   fontWeight: FontWeight.w600)),
                         ],
                       ],

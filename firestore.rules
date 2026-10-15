@@ -55,7 +55,14 @@ service cloud.firestore {
           && optStr(d, 'repeat_from', 100)
           && optStr(d, 'completed_by', 100)
           && (!('checklist' in d) || d.checklist == null
-              || (d.checklist is list && d.checklist.size() <= 200));
+              || (d.checklist is list && d.checklist.size() <= 200))
+          && optList(d, 'links', 20)
+          && optList(d, 'history', 150)
+          && optList(d, 'time_log', 1000)
+          && optStr(d, 'timer_by', 100) && optNum(d, 'timer_at');
+    }
+    function optList(d, f, maxLen) {
+      return !(f in d) || d[f] == null || (d[f] is list && d[f].size() <= maxLen);
     }
     function validTemplate(d, docId) {
       return d.size() <= 15
@@ -211,12 +218,17 @@ service cloud.firestore {
           return !('assignee_id' in d) || d.assignee_id == null || d.assignee_id in tm.member_ids;
         }
         // A member may only move their own task on the board (stage), mark it
-        // done / not done and tick its checklist.
+        // done / not done, tick its checklist and use the work timer (the
+        // history and time log are added to along the way).
         function assigneeUpdate(tm) {
           return request.auth.uid in tm.member_ids
               && resource.data.assignee_id == request.auth.uid
               && request.resource.data.diff(resource.data).affectedKeys()
-                  .hasOnly(['status', 'completed_at', 'completed_by', 'checklist', 'stage', 'updated_at'])
+                  .hasOnly(['status', 'completed_at', 'completed_by', 'checklist', 'stage',
+                      'history', 'time_log', 'timer_by', 'timer_at', 'updated_at'])
+              && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['timer_by'])
+                  || request.resource.data.timer_by == null
+                  || request.resource.data.timer_by == request.auth.uid)
               && (!('completed_by' in request.resource.data)
                   || request.resource.data.completed_by == null
                   || request.resource.data.completed_by == request.auth.uid)
@@ -267,6 +279,7 @@ service cloud.firestore {
               && optStr(d, 'author_name', 200)
               && str(d, 'text', 2000) && d.text.size() > 0
               && num(d, 'created_at')
+              && (!('mentions' in d) || (d.mentions is list && d.mentions.size() <= 50))
               && exists(/databases/$(database)/documents/teams/$(teamId)/tasks/$(d.task_id));
         }
 

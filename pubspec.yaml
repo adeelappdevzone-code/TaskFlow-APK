@@ -23,6 +23,8 @@ dependencies:
   timezone: ^0.11.2
   # Share the weekly report (image / text) to WhatsApp etc.
   share_plus: ^13.3.1
+  # Open task links (Google Drive, Docs, websites)
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:

@@ -60,9 +60,13 @@ class TeamStore extends ChangeNotifier {
 
   String? get uid => _uid;
 
+  /// Set by [setForTest]: no Firestore calls for comments.
+  bool _testing = false;
+
   /// Tests only: pretend to be logged in as [uid] with these team tasks.
   @visibleForTesting
   void setForTest({String? uid, Map<String, List<TaskItem>> tasks = const {}}) {
+    _testing = true;
     _uid = uid;
     _tasks
       ..clear()
@@ -272,10 +276,16 @@ class TeamStore extends ChangeNotifier {
       if (c.authorId == me || at <= _seenUntil) continue;
       final task = taskById(teamId, c.taskId);
       if (task == null) continue;
-      final mine = task.assigneeId == me || task.assignedBy == me || task.createdBy == me;
-      if (!mine) continue;
       final who = c.authorName.isEmpty ? team.nameOf(c.authorId) : c.authorName;
-      _notify('$who on "${task.title}"', c.text);
+      if (c.mentions.isNotEmpty) {
+        // "@Name" comments only go to the people tagged.
+        if (!c.mentions.contains(me)) continue;
+        _notify('$who mentioned you on "${task.title}"', c.text);
+      } else {
+        final mine = task.assigneeId == me || task.assignedBy == me || task.createdBy == me;
+        if (!mine) continue;
+        _notify('$who on "${task.title}"', c.text);
+      }
       if (at > newest) newest = at;
     }
     _markSeen(newest);
@@ -374,6 +384,13 @@ class TeamStore extends ChangeNotifier {
         for (final team in teams)
           for (final t in tasksOf(team.id))
             if (t.assigneeId == _uid && !t.isCancelled) (team, t),
+      ];
+
+  /// Team tasks whose timer I started and is still running.
+  List<(Team, TaskItem)> get myRunningTimers => [
+        for (final team in teams)
+          for (final t in tasksOf(team.id))
+            if (t.timerRunning && t.timerBy == _uid) (team, t),
       ];
 
   int pendingForMe(String teamId) =>
@@ -585,11 +602,21 @@ class TeamStore extends ChangeNotifier {
     task
       ..checklist = checklist
       ..updatedAt = now;
-    if (isNew) task.createdBy = me;
+    if (isNew) {
+      task.createdBy = me;
+      task.addHistory(HistoryKind.created, me, at: now);
+    } else {
+      task.addHistory(HistoryKind.edited, me, at: now);
+    }
     if (task.assigneeId != previousAssigneeId || isNew) {
       task
         ..assignedBy = task.assigneeId == null ? null : me
         ..assignedAt = task.assigneeId == null ? null : now;
+      if (task.assigneeId != null) {
+        task.addHistory(HistoryKind.assigned, me, to: task.assigneeId, at: now);
+      } else if (!isNew) {
+        task.addHistory(HistoryKind.unassigned, me, at: now);
+      }
     }
     _upsertLocal(team.id, task);
     _write(_tasksCol(team.id).doc(task.id).set(AppStore.taskToMap(task)));
@@ -601,16 +628,20 @@ class TeamStore extends ChangeNotifier {
   void setCompleted(Team team, TaskItem task, bool done) {
     final me = _uid;
     if (me == null) return;
+    final now = DateTime.now();
     task
       ..status = done ? TaskStatus.completed : TaskStatus.pending
-      ..completedAt = done ? DateTime.now() : null
+      ..completedAt = done ? now : null
       ..completedBy = done ? me : null
-      ..updatedAt = DateTime.now();
+      ..updatedAt = now;
+    final event = task.addHistory(done ? HistoryKind.done : HistoryKind.reopened, me, at: now);
     final batch = _fs.batch();
     batch.update(_tasksCol(team.id).doc(task.id), {
       'status': task.status,
       'completed_at': task.completedAt?.millisecondsSinceEpoch,
       'completed_by': task.completedBy,
+      'history': _historyField(task, event),
+      if (done) ..._stopTimerFields(task, now),
       'updated_at': nowMs(),
     });
     if (done && Repeat.isOn(task.repeat)) {
@@ -635,6 +666,7 @@ class TeamStore extends ChangeNotifier {
       return;
     }
     final reopen = task.isCompleted;
+    if (task.stage == column && !reopen) return;
     task
       ..stage = column
       ..updatedAt = DateTime.now();
@@ -644,14 +676,85 @@ class TeamStore extends ChangeNotifier {
         ..completedAt = null
         ..completedBy = null;
     }
+    final event = task.addHistory(HistoryKind.stage, _uid, to: column);
     notifyListeners();
     _write(_tasksCol(team.id).doc(task.id).update({
       'stage': column,
       if (reopen) 'status': TaskStatus.pending,
       if (reopen) 'completed_at': null,
       if (reopen) 'completed_by': null,
+      'history': _historyField(task, event),
       'updated_at': nowMs(),
     }));
+  }
+
+  // ------------------------------------------------------------ time
+
+  /// Starts the work timer on [task] for me (assignee or owner/manager).
+  /// A task still in "To do" moves to "In progress". Use [TimeTracker.start]
+  /// so my other running timers stop first.
+  void startTimer(Team team, TaskItem task) {
+    final me = _uid;
+    if (me == null || task.timerRunning || !canComplete(team, task)) return;
+    final now = DateTime.now();
+    task
+      ..timerBy = me
+      ..timerAt = now
+      ..updatedAt = now;
+    final moveToDoing = task.status == TaskStatus.pending && task.stage == TaskStage.todo;
+    TaskEvent? event;
+    if (moveToDoing) {
+      task.stage = TaskStage.doing;
+      event = task.addHistory(HistoryKind.stage, me, to: TaskStage.doing, at: now);
+    }
+    notifyListeners();
+    _write(_tasksCol(team.id).doc(task.id).update({
+      'timer_by': me,
+      'timer_at': now.millisecondsSinceEpoch,
+      if (event != null) 'stage': TaskStage.doing,
+      if (event != null) 'history': _historyField(task, event),
+      'updated_at': nowMs(),
+    }));
+  }
+
+  /// Adds [event] on the server; once the list is full the whole (trimmed)
+  /// list is written instead, so it never grows past [kMaxHistory].
+  Object _historyField(TaskItem task, TaskEvent event) => task.history.length >= kMaxHistory
+      ? task.history.map((e) => e.toMap()).toList()
+      : FieldValue.arrayUnion([event.toMap()]);
+
+  /// Who may stop a running timer: the person who started it, or an
+  /// owner/manager.
+  bool canStopTimer(Team team, TaskItem task) =>
+      _uid != null && task.timerRunning && (task.timerBy == _uid || team.isAdmin(_uid!));
+
+  /// Stops the timer and saves the session. [end] can be set to fix a timer
+  /// that was left running.
+  void stopTimer(Team team, TaskItem task, {DateTime? end}) {
+    if (!canStopTimer(team, task)) return;
+    final fields = _stopTimerFields(task, end ?? DateTime.now());
+    notifyListeners();
+    _write(_tasksCol(team.id).doc(task.id).update({...fields, 'updated_at': nowMs()}));
+  }
+
+  /// Ends a running timer on [task] (in memory) and returns the fields to
+  /// write. Sessions under a minute are not saved.
+  Map<String, dynamic> _stopTimerFields(TaskItem task, DateTime end) {
+    final at = task.timerAt;
+    final by = task.timerBy;
+    if (at == null) return const {};
+    task
+      ..timerAt = null
+      ..timerBy = null;
+    final entry = by != null && end.difference(at) >= const Duration(minutes: 1)
+        ? TimeEntry(by: by, start: at, end: end)
+        : null;
+    if (entry != null) task.timeLog.add(entry);
+    return {
+      'timer_by': null,
+      'timer_at': null,
+      if (entry != null) 'time_log': FieldValue.arrayUnion([entry.toMap()]),
+    };
   }
 
   /// Board column id for finished tasks.
@@ -669,9 +772,18 @@ class TeamStore extends ChangeNotifier {
   }
 
   void cancelTask(Team team, TaskItem task, {bool restore = false}) {
+    final now = DateTime.now();
     task.status = restore ? TaskStatus.pending : TaskStatus.cancelled;
+    final event =
+        task.addHistory(restore ? HistoryKind.restored : HistoryKind.cancelled, _uid, at: now);
+    final timer = restore ? const <String, dynamic>{} : _stopTimerFields(task, now);
     notifyListeners();
-    _write(_tasksCol(team.id).doc(task.id).update({'status': task.status, 'updated_at': nowMs()}));
+    _write(_tasksCol(team.id).doc(task.id).update({
+      'status': task.status,
+      'history': _historyField(task, event),
+      ...timer,
+      'updated_at': nowMs(),
+    }));
   }
 
   void deleteTask(Team team, TaskItem task) {
@@ -687,17 +799,18 @@ class TeamStore extends ChangeNotifier {
   // ------------------------------------------------------------ comments
 
   /// Live comments of one task, oldest first.
-  Stream<List<TaskComment>> commentsOf(String teamId, String taskId) =>
-      _commentsCol(teamId).where('task_id', isEqualTo: taskId).snapshots().map((s) {
-        final list = <TaskComment>[];
-        for (final d in s.docs) {
-          try {
-            list.add(TaskComment.fromMap(d.data()));
-          } catch (_) {}
-        }
-        list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-        return list;
-      });
+  Stream<List<TaskComment>> commentsOf(String teamId, String taskId) => _testing
+      ? Stream.value(const [])
+      : _commentsCol(teamId).where('task_id', isEqualTo: taskId).snapshots().map((s) {
+          final list = <TaskComment>[];
+          for (final d in s.docs) {
+            try {
+              list.add(TaskComment.fromMap(d.data()));
+            } catch (_) {}
+          }
+          list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          return list;
+        });
 
   void addComment(Team team, TaskItem task, String text) {
     final me = _uid;
@@ -710,6 +823,7 @@ class TeamStore extends ChangeNotifier {
       authorName: _name,
       text: clean,
       createdAt: DateTime.now(),
+      mentions: findMentions(team, clean, except: me),
     );
     _write(_commentsCol(team.id).doc(c.id).set(c.toMap()));
   }

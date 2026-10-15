@@ -6,6 +6,7 @@ import '../data/app_store.dart';
 import '../data/models.dart';
 import '../widgets/common.dart';
 import '../widgets/responsive.dart';
+import '../widgets/task_extras.dart';
 import 'task_form_screen.dart';
 
 /// Opens a personal task: in the side panel on a wide screen, otherwise as a
@@ -95,6 +96,9 @@ class TaskDetailScreen extends StatelessWidget {
           Priority.medium => AppColors.primary,
           Priority.high => AppColors.danger,
         };
+        final me = store.currentUser?.id;
+        String nameOf(String? id) =>
+            id == null || id == me ? 'You' : (store.memberById(id)?.name ?? 'Someone');
         final timeText = task.endAt == null
             ? formatTime(task.startAt)
             : '${formatTime(task.startAt)} - ${formatTime(task.endAt!)}';
@@ -191,7 +195,9 @@ class TaskDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              const SizedBox(height: 20),
+              TimeTrackerCard(task: task, me: me, nameOf: nameOf),
+              TaskLinksView(links: task.links),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   const Expanded(
@@ -246,6 +252,8 @@ class TaskDetailScreen extends StatelessWidget {
                         ),
                       ),
                     )),
+              const SizedBox(height: 14),
+              TaskHistoryView(task: task, nameOf: nameOf),
             ],
           ),
           bottomNavigationBar: task.isCancelled

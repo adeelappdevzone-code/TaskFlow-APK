@@ -114,6 +114,24 @@ tool/debug.keystore         APK signing key (sirf testing; Play Store se pehle b
   description, priority, checklist), phir ek tap mein naya task usi se bharo. Template lamba daba
   kar delete.
 
+## @mention, History, Time tracking, Links
+
+- **@mention**: comment mein `@` likho (ya box ke andar @ button) to team members ke naam aate hain, tap karo.
+  Jis comment mein kisi ko tag kiya ho, notification **sirf usi** ko jati hai. Baghair tag wale
+  comment ki notification pehle ki tarah task wale logon ko.
+- **History**: har task ke neeche — kis ne banaya, kis ko assign kiya, column badla, done /
+  reopen / cancel kiya, kab. Purane tasks mein jo pata hai wo dikhta hai (banaya, assign, done).
+  Task ke andar `history` list (max 100 lines).
+- **Time tracking**: task ke andar ▶ **Start** / ⏹ **Stop**. Ek waqt mein ek hi timer chalta hai
+  (naya start karo to purana ruk jata hai). Chalta timer Home par upar dikhta hai (wahin se Stop).
+  To-do task Start karte hi *In progress* mein chala jata hai; Done karne par timer khud ruk jata
+  hai. 4 ghante se lamba timer rokne par poochta hai asal mein kitne ghante kaam kiya. Team task mein
+  har banday ke ghante, aur **weekly report** mein har banday ka hafte ka waqt. Team task par
+  timer assignee ya Owner/Manager chala sakta hai. Data: task mein `time_log`, `timer_by`, `timer_at`.
+- **Links**: task form mein *Add link* — Google Drive/Docs/Sheets, website waghera (files ki jagah,
+  card ki zaroorat nahi). Task mein tap se khulta hai, lamba daba kar copy. Max 20 per task.
+
+## Profile
 ## Profile
 
 - Header: naam, email, **job title** (Account Info mein likho, jaise "CEO"), teams mein aap ka role,

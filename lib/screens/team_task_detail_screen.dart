@@ -8,6 +8,7 @@ import '../data/team_models.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
 import '../widgets/responsive.dart';
+import '../widgets/task_extras.dart';
 import 'task_form_screen.dart';
 
 /// Opens a team task: in the side panel on a wide screen, otherwise as a
@@ -101,6 +102,7 @@ class TeamTaskDetailScreen extends StatelessWidget {
           Priority.medium => AppColors.primary,
           Priority.high => AppColors.danger,
         };
+        String nameOf(String? uid) => uid == store.uid ? 'You' : team.nameOf(uid);
         final timeText = task.endAt == null
             ? formatTime(task.startAt)
             : '${formatTime(task.startAt)} - ${formatTime(task.endAt!)}';
@@ -195,6 +197,8 @@ class TeamTaskDetailScreen extends StatelessWidget {
                       'Completed ${relativeDay(task.completedAt!)} at ${formatTime(task.completedAt!)}',
                       style: const TextStyle(fontSize: 14)),
                 ),
+              TimeTrackerCard(task: task, team: team, me: store.uid, nameOf: nameOf),
+              TaskLinksView(links: task.links),
               const SizedBox(height: 14),
               Row(
                 children: [
@@ -234,7 +238,9 @@ class TeamTaskDetailScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-              const SizedBox(height: 22),
+              const SizedBox(height: 14),
+              TaskHistoryView(task: task, nameOf: nameOf),
+              const SizedBox(height: 14),
               _CommentsSection(team: team, task: task),
             ],
           ),
@@ -342,12 +348,59 @@ class _CommentsSectionState extends State<_CommentsSection> {
   void initState() {
     super.initState();
     _stream = TeamStore.instance.commentsOf(widget.team.id, widget.task.id);
+    _text.addListener(_onTyping);
   }
 
   @override
   void dispose() {
     _text.dispose();
     super.dispose();
+  }
+
+  ({int start, String query})? _mention;
+
+  void _onTyping() {
+    final m = mentionQuery(_text.value);
+    if (m?.start != _mention?.start || m?.query != _mention?.query) setState(() => _mention = m);
+  }
+
+  /// Members matching the "@abc" being typed (not me).
+  List<String> get _suggestions {
+    final m = _mention;
+    if (m == null) return const [];
+    final q = m.query.toLowerCase();
+    bool matches(String name) {
+      final n = name.toLowerCase();
+      return n.isNotEmpty &&
+          (n.startsWith(q) || n.split(RegExp(r'\s+')).any((w) => w.startsWith(q)));
+    }
+
+    return [
+      for (final uid in widget.team.sortedMemberIds)
+        if (uid != TeamStore.instance.uid && matches(mentionName(widget.team, uid))) uid,
+    ];
+  }
+
+  void _pickMention(String uid) {
+    final m = _mention;
+    if (m == null) return;
+    final name = mentionName(widget.team, uid);
+    final text = _text.text;
+    final end = m.start + 1 + m.query.length;
+    final next = '${text.substring(0, m.start)}@$name ${text.substring(end)}';
+    final cursor = m.start + name.length + 2;
+    _text.value = TextEditingValue(text: next, selection: TextSelection.collapsed(offset: cursor));
+  }
+
+  void _insertAt() {
+    final v = _text.value;
+    final pos = v.selection.baseOffset < 0 ? v.text.length : v.selection.baseOffset;
+    final needsSpace = pos > 0 && !RegExp(r'\s').hasMatch(v.text[pos - 1]);
+    final insert = needsSpace ? ' @' : '@';
+    _text.value = TextEditingValue(
+      text: v.text.replaceRange(pos, pos, insert),
+      selection: TextSelection.collapsed(offset: pos + insert.length),
+    );
   }
 
   void _send() {
@@ -429,7 +482,11 @@ class _CommentsSectionState extends State<_CommentsSection> {
                                 ],
                               ),
                               const SizedBox(height: 3),
-                              Text(c.text, style: const TextStyle(fontSize: 14, height: 1.35)),
+                              MentionText(
+                                  text: c.text,
+                                  team: widget.team,
+                                  style: const TextStyle(
+                                      fontSize: 14, height: 1.35, color: AppColors.text)),
                             ],
                           ),
                         ),
@@ -439,6 +496,22 @@ class _CommentsSectionState extends State<_CommentsSection> {
                 ),
               ),
             const SizedBox(height: 4),
+            if (_suggestions.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final uid in _suggestions.take(8))
+                      ActionChip(
+                        avatar: Avatar(name: widget.team.nameOf(uid), size: 22),
+                        label: Text(mentionName(widget.team, uid)),
+                        onPressed: () => _pickMention(uid),
+                      ),
+                  ],
+                ),
+              ),
             Row(
               children: [
                 Expanded(
@@ -447,7 +520,13 @@ class _CommentsSectionState extends State<_CommentsSection> {
                     minLines: 1,
                     maxLines: 4,
                     textCapitalization: TextCapitalization.sentences,
-                    decoration: fieldDecoration('Write a comment...'),
+                    decoration: fieldDecoration('Write a comment... (@ to tag)',
+                        suffix: IconButton(
+                          tooltip: 'Tag a member',
+                          icon: const Icon(Icons.alternate_email_rounded,
+                              size: 20, color: AppColors.textMuted),
+                          onPressed: _insertAt,
+                        )),
                     inputFormatters: [LengthLimitingTextInputFormatter(2000)],
                   ),
                 ),

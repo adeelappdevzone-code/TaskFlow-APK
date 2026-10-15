@@ -673,13 +673,20 @@ class AppStore extends ChangeNotifier {
   /// an "assigned" notification is only added when that changes.
   Future<void> saveTask(TaskItem task, List<ChecklistItem> checklist,
       {required bool isNew, String? previousAssigneeId}) async {
-    if (currentUser == null) return;
+    final me = currentUser?.id;
+    if (me == null) return;
     final now = DateTime.now();
     task.updatedAt = now;
     for (var i = 0; i < checklist.length; i++) {
       checklist[i].sortOrder = i;
     }
     task.checklist = checklist;
+    task.addHistory(isNew ? HistoryKind.created : HistoryKind.edited, me, at: now);
+    if (task.assigneeId != previousAssigneeId || (isNew && task.assigneeId != null)) {
+      task.addHistory(
+          task.assigneeId == null ? HistoryKind.unassigned : HistoryKind.assigned, me,
+          to: task.assigneeId, at: now);
+    }
     _write(_col('tasks').doc(task.id).set(_taskToMap(task)));
 
     if (task.assigneeId != null && task.assigneeId != previousAssigneeId) {
@@ -699,8 +706,11 @@ class AppStore extends ChangeNotifier {
 
   Future<void> setCompleted(TaskItem task, bool done) async {
     if (currentUser == null) return;
+    final now = DateTime.now();
     task.status = done ? TaskStatus.completed : TaskStatus.pending;
-    task.completedAt = done ? DateTime.now() : null;
+    task.completedAt = done ? now : null;
+    task.addHistory(done ? HistoryKind.done : HistoryKind.reopened, currentUser!.id, at: now);
+    if (done) _endTimer(task, now);
     _saveTaskDoc(task);
     if (done) {
       _notify('task', 'completed', 'Task completed',
@@ -717,14 +727,59 @@ class AppStore extends ChangeNotifier {
       if (!task.isCompleted) await setCompleted(task, true);
       return;
     }
+    if (task.stage == column && !task.isCompleted) return;
     task.stage = column;
     if (task.isCompleted) {
       task
         ..status = TaskStatus.pending
         ..completedAt = null;
     }
+    task.addHistory(HistoryKind.stage, currentUser?.id, to: column);
     _saveTaskDoc(task);
     notifyListeners();
+  }
+
+  // ------------------------------------------------------------ time
+
+  /// Personal tasks with a running timer (always mine).
+  List<TaskItem> get runningTimers => tasks.where((t) => t.timerRunning).toList();
+
+  /// Starts the work timer; a task still in "To do" moves to "In progress".
+  /// Use [TimeTracker.start] so my other running timers stop first.
+  void startTimer(TaskItem task) {
+    final me = currentUser?.id;
+    if (me == null || task.timerRunning) return;
+    final now = DateTime.now();
+    task
+      ..timerBy = me
+      ..timerAt = now;
+    if (task.status == TaskStatus.pending && task.stage == TaskStage.todo) {
+      task.stage = TaskStage.doing;
+      task.addHistory(HistoryKind.stage, me, to: TaskStage.doing, at: now);
+    }
+    _saveTaskDoc(task);
+    notifyListeners();
+  }
+
+  /// Stops the timer and saves the session ([end] fixes a forgotten timer).
+  void stopTimer(TaskItem task, {DateTime? end}) {
+    if (currentUser == null || !task.timerRunning) return;
+    _endTimer(task, end ?? DateTime.now());
+    _saveTaskDoc(task);
+    notifyListeners();
+  }
+
+  /// Sessions under a minute are not saved.
+  void _endTimer(TaskItem task, DateTime end) {
+    final at = task.timerAt;
+    final by = task.timerBy ?? currentUser?.id;
+    if (at == null) return;
+    if (by != null && end.difference(at) >= const Duration(minutes: 1)) {
+      task.timeLog.add(TimeEntry(by: by, start: at, end: end));
+    }
+    task
+      ..timerAt = null
+      ..timerBy = null;
   }
 
   /// Finishing a repeating task adds its next copy (once).
@@ -755,7 +810,10 @@ class AppStore extends ChangeNotifier {
 
   Future<void> cancelTask(TaskItem task) async {
     if (currentUser == null) return;
+    final now = DateTime.now();
     task.status = TaskStatus.cancelled;
+    task.addHistory(HistoryKind.cancelled, currentUser!.id, at: now);
+    _endTimer(task, now);
     _saveTaskDoc(task);
     _notify('task', 'cancelled', 'Task cancelled', '"${task.title}" was cancelled',
         taskId: task.id);
@@ -765,6 +823,7 @@ class AppStore extends ChangeNotifier {
   Future<void> restoreTask(TaskItem task) async {
     if (currentUser == null) return;
     task.status = TaskStatus.pending;
+    task.addHistory(HistoryKind.restored, currentUser!.id);
     _saveTaskDoc(task);
     notifyListeners();
   }

@@ -182,6 +182,9 @@ class TaskComment {
   final String text;
   final DateTime createdAt;
 
+  /// Members tagged with "@Name" (only they get a notification).
+  final List<String> mentions;
+
   TaskComment({
     required this.id,
     required this.taskId,
@@ -189,6 +192,7 @@ class TaskComment {
     required this.authorName,
     required this.text,
     required this.createdAt,
+    this.mentions = const [],
   });
 
   Map<String, dynamic> toMap() => {
@@ -198,6 +202,7 @@ class TaskComment {
         'author_name': authorName,
         'text': text,
         'created_at': _ms(createdAt),
+        if (mentions.isNotEmpty) 'mentions': mentions,
       };
 
   factory TaskComment.fromMap(Map<String, dynamic> m) => TaskComment(
@@ -207,5 +212,46 @@ class TaskComment {
         authorName: (m['author_name'] as String?) ?? '',
         text: m['text'] as String,
         createdAt: _dt(m['created_at']),
+        mentions: [
+          for (final x in (m['mentions'] as List?) ?? const [])
+            if (x is String) x,
+        ],
       );
+}
+
+/// Name used after "@" for a member: their name, or the first part of
+/// their email.
+String mentionName(Team team, String uid) {
+  final info = team.members[uid];
+  if (info == null) return '';
+  final n = info.name.trim();
+  if (n.isNotEmpty) return n;
+  return info.email.split('@').first;
+}
+
+/// Members tagged in [text] with "@Full Name" or "@FirstName" (not [except]).
+/// A first name only counts when no other member has it.
+List<String> findMentions(Team team, String text, {String? except}) {
+  final lower = text.toLowerCase();
+  bool tagged(String name) {
+    if (name.isEmpty) return false;
+    final pattern = RegExp(
+        '(?<![\\p{L}\\p{N}_.])@${RegExp.escape(name.toLowerCase())}(?![\\p{L}\\p{N}_])',
+        unicode: true);
+    return pattern.hasMatch(lower);
+  }
+
+  final firstNames = <String, int>{};
+  for (final uid in team.memberIds) {
+    final first = mentionName(team, uid).split(RegExp(r'\s+')).first.toLowerCase();
+    firstNames[first] = (firstNames[first] ?? 0) + 1;
+  }
+  final out = <String>[];
+  for (final uid in team.memberIds) {
+    if (uid == except) continue;
+    final full = mentionName(team, uid);
+    final first = full.split(RegExp(r'\s+')).first;
+    if (tagged(full) || (firstNames[first.toLowerCase()] == 1 && tagged(first))) out.add(uid);
+  }
+  return out;
 }

@@ -9,8 +9,7 @@
 
 int nowMs() => DateTime.now().millisecondsSinceEpoch;
 
-DateTime? _dt(dynamic v) =>
-    v == null ? null : DateTime.fromMillisecondsSinceEpoch(v as int);
+DateTime? _dt(dynamic v) => v == null ? null : DateTime.fromMillisecondsSinceEpoch(v as int);
 
 int? _ms(DateTime? d) => d?.millisecondsSinceEpoch;
 
@@ -72,8 +71,7 @@ class Repeat {
         _ => 'Never',
       };
 
-  static bool isOn(String? repeat) =>
-      repeat == daily || repeat == weekly || repeat == monthly;
+  static bool isOn(String? repeat) => repeat == daily || repeat == weekly || repeat == monthly;
 }
 
 /// Start of the next copy of a repeating task: one step after [start], and
@@ -292,6 +290,116 @@ class ChecklistItem {
       );
 }
 
+/// A web link on a task (Google Drive/Docs, a website...). Used instead of
+/// file attachments, which would need a paid storage plan.
+class TaskLink {
+  final String title;
+  final String url;
+  const TaskLink({this.title = '', required this.url});
+
+  /// The title, or the address without "https://" when there is no title.
+  String get label {
+    if (title.trim().isNotEmpty) return title.trim();
+    return url.replaceFirst(RegExp(r'^https?://(www\.)?'), '');
+  }
+
+  Map<String, dynamic> toMap() => {'title': title, 'url': url};
+
+  static TaskLink? tryFrom(dynamic m) {
+    if (m is! Map || m['url'] is! String) return null;
+    return TaskLink(title: (m['title'] as String?) ?? '', url: m['url'] as String);
+  }
+
+  /// Adds "https://" when the address has no scheme ("drive.google.com/..."),
+  /// or returns null when it does not look like a web address.
+  static String? normalizeUrl(String input) {
+    var u = input.trim();
+    if (u.isEmpty || u.contains(' ')) return null;
+    if (!RegExp(r'^[a-zA-Z][a-zA-Z0-9+.-]*://').hasMatch(u)) u = 'https://$u';
+    final uri = Uri.tryParse(u);
+    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) return null;
+    if (!uri.host.contains('.')) return null;
+    return u;
+  }
+}
+
+/// What happened to a task (stored as `history`).
+class HistoryKind {
+  static const created = 'created';
+  static const edited = 'edited';
+  static const assigned = 'assigned';
+  static const unassigned = 'unassigned';
+  static const stage = 'stage';
+  static const done = 'done';
+  static const reopened = 'reopened';
+  static const cancelled = 'cancelled';
+  static const restored = 'restored';
+}
+
+/// One line in a task's history: who did what and when. [to] is the new
+/// assignee (assigned) or the new board column (stage).
+class TaskEvent {
+  final String kind;
+  final String? by;
+  final DateTime at;
+  final String? to;
+
+  const TaskEvent({required this.kind, required this.by, required this.at, this.to});
+
+  Map<String, dynamic> toMap() => {
+        'kind': kind,
+        'by': by,
+        'at': at.millisecondsSinceEpoch,
+        if (to != null) 'to': to,
+      };
+
+  static TaskEvent? tryFrom(dynamic m) {
+    if (m is! Map || m['kind'] is! String || m['at'] is! int) return null;
+    return TaskEvent(
+      kind: m['kind'] as String,
+      by: m['by'] as String?,
+      at: DateTime.fromMillisecondsSinceEpoch(m['at'] as int),
+      to: m['to'] as String?,
+    );
+  }
+}
+
+/// Time someone worked on a task (Start ... Stop), stored in `time_log`.
+class TimeEntry {
+  final String by;
+  final DateTime start;
+  final DateTime end;
+
+  const TimeEntry({required this.by, required this.start, required this.end});
+
+  Duration get duration => end.difference(start);
+
+  Map<String, dynamic> toMap() => {
+        'by': by,
+        'start': start.millisecondsSinceEpoch,
+        'end': end.millisecondsSinceEpoch,
+      };
+
+  static TimeEntry? tryFrom(dynamic m) {
+    if (m is! Map || m['by'] is! String || m['start'] is! int || m['end'] is! int) return null;
+    return TimeEntry(
+      by: m['by'] as String,
+      start: DateTime.fromMillisecondsSinceEpoch(m['start'] as int),
+      end: DateTime.fromMillisecondsSinceEpoch(m['end'] as int),
+    );
+  }
+}
+
+/// At most this many history lines are kept per task (the oldest after
+/// "created" are dropped).
+const kMaxHistory = 100;
+
+List<T> _listOf<T>(dynamic raw, T? Function(dynamic) parse) => [
+      if (raw is List)
+        for (final x in raw)
+          if (parse(x) case final T v) v,
+    ];
+
 class TaskItem {
   final String id;
   String title;
@@ -326,6 +434,19 @@ class TaskItem {
   /// Stored inside the task document.
   List<ChecklistItem> checklist;
 
+  /// Web links (Drive, Docs, websites).
+  List<TaskLink> links;
+
+  /// Who did what, oldest first.
+  List<TaskEvent> history;
+
+  /// Finished work sessions.
+  List<TimeEntry> timeLog;
+
+  /// Running timer: who started it and when (null when stopped).
+  String? timerBy;
+  DateTime? timerAt;
+
   TaskItem({
     required this.id,
     required this.title,
@@ -349,12 +470,80 @@ class TaskItem {
     this.repeat = Repeat.none,
     this.repeatFrom,
     List<ChecklistItem>? checklist,
-  }) : checklist = checklist ?? [];
+    List<TaskLink>? links,
+    List<TaskEvent>? history,
+    List<TimeEntry>? timeLog,
+    this.timerBy,
+    this.timerAt,
+  })  : checklist = checklist ?? [],
+        links = links ?? [],
+        history = history ?? [],
+        timeLog = timeLog ?? [];
 
   bool get isCompleted => status == TaskStatus.completed;
   bool get isCancelled => status == TaskStatus.cancelled;
 
   int get checklistDone => checklist.where((c) => c.isDone).length;
+
+  bool get timerRunning => timerAt != null;
+
+  /// Total tracked time (finished sessions, plus the running one when
+  /// [now] is given), optionally only for one person.
+  Duration timeSpent({String? by, DateTime? now}) {
+    var total = Duration.zero;
+    for (final e in timeLog) {
+      if (by == null || e.by == by) total += e.duration;
+    }
+    final at = timerAt;
+    if (now != null && at != null && (by == null || timerBy == by) && now.isAfter(at)) {
+      total += now.difference(at);
+    }
+    return total;
+  }
+
+  /// Tracked time per person (finished sessions only), most first.
+  List<MapEntry<String, Duration>> get timeByPerson {
+    final m = <String, Duration>{};
+    for (final e in timeLog) {
+      m[e.by] = (m[e.by] ?? Duration.zero) + e.duration;
+    }
+    return m.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+  }
+
+  /// Adds a history line. Several edits by the same person within 30 minutes
+  /// count as one; the list is kept to [kMaxHistory] lines.
+  TaskEvent addHistory(String kind, String? by, {String? to, DateTime? at}) {
+    final e = TaskEvent(kind: kind, by: by, at: at ?? DateTime.now(), to: to);
+    final last = history.isEmpty ? null : history.last;
+    if (kind == HistoryKind.edited &&
+        last != null &&
+        last.kind == HistoryKind.edited &&
+        last.by == by &&
+        e.at.difference(last.at) < const Duration(minutes: 30)) {
+      history[history.length - 1] = e;
+    } else {
+      history.add(e);
+    }
+    while (history.length > kMaxHistory) {
+      history.removeAt(1);
+    }
+    return e;
+  }
+
+  /// History to show: the stored lines, or for tasks made before history
+  /// existed, what can be read from the task itself.
+  List<TaskEvent> get historyOrDerived {
+    if (history.any((e) => e.kind == HistoryKind.created)) return history;
+    final derived = <TaskEvent>[
+      TaskEvent(kind: HistoryKind.created, by: createdBy, at: createdAt),
+      if (assigneeId != null && assignedAt != null && !assignedAt!.isBefore(createdAt))
+        TaskEvent(kind: HistoryKind.assigned, by: assignedBy, at: assignedAt!, to: assigneeId),
+    ];
+    if (history.isEmpty && isCompleted && completedAt != null) {
+      derived.add(TaskEvent(kind: HistoryKind.done, by: completedBy, at: completedAt!));
+    }
+    return [...derived, ...history]..sort((a, b) => a.at.compareTo(b.at));
+  }
 
   DisplayStatus get displayStatus {
     if (status == TaskStatus.completed) return DisplayStatus.completed;
@@ -392,6 +581,11 @@ class TaskItem {
         'stage': stage,
         'repeat': repeat,
         'repeat_from': repeatFrom,
+        'links': links.map((l) => l.toMap()).toList(),
+        'history': history.map((e) => e.toMap()).toList(),
+        'time_log': timeLog.map((e) => e.toMap()).toList(),
+        'timer_by': timerBy,
+        'timer_at': _ms(timerAt),
         'is_synced': 0,
       };
 
@@ -417,6 +611,11 @@ class TaskItem {
         stage: TaskStage.all.contains(m['stage']) ? m['stage'] as String : TaskStage.todo,
         repeat: Repeat.all.contains(m['repeat']) ? m['repeat'] as String : Repeat.none,
         repeatFrom: m['repeat_from'] as String?,
+        links: _listOf(m['links'], TaskLink.tryFrom),
+        history: _listOf(m['history'], TaskEvent.tryFrom),
+        timeLog: _listOf(m['time_log'], TimeEntry.tryFrom),
+        timerBy: m['timer_by'] as String?,
+        timerAt: _dt(m['timer_at']),
       );
 
   /// The next copy of a repeating task: same details, new date, unchecked
@@ -441,6 +640,8 @@ class TaskItem {
       assignedAt: assignedAt,
       repeat: repeat,
       repeatFrom: this.id,
+      links: [...links],
+      history: [TaskEvent(kind: HistoryKind.created, by: createdBy, at: now)],
       checklist: [
         for (final c in checklist)
           ChecklistItem(

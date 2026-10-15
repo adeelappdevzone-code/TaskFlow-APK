@@ -8,6 +8,7 @@ import 'package:taskflow/screens/home_screen.dart';
 import 'package:taskflow/screens/report_screen.dart';
 import 'package:taskflow/screens/task_form_screen.dart';
 import 'package:taskflow/screens/team_screen.dart';
+import 'package:taskflow/screens/team_task_detail_screen.dart';
 import 'package:taskflow/screens/teams_screen.dart';
 
 // Renders the team screens with sample data (no Firebase needed) to catch
@@ -200,6 +201,73 @@ void main() {
     await tester.tap(find.byTooltip('Previous week'));
     await tester.pump();
     expect(find.text('Last week'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Team task: links, timer, history and @mention suggestions', (tester) async {
+    final now = DateTime.now();
+    final task = TaskItem(
+      id: 'd1',
+      title: 'Landing page',
+      assigneeId: 'adl',
+      startAt: now,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: 'own',
+      assignedBy: 'own',
+      assignedAt: now,
+      links: [const TaskLink(title: 'Design brief', url: 'https://docs.google.com/x')],
+      timeLog: [TimeEntry(by: 'adl', start: now, end: now.add(const Duration(minutes: 95)))],
+    );
+    task.addHistory(HistoryKind.created, 'own', at: now);
+    task.addHistory(HistoryKind.assigned, 'own', to: 'adl', at: now);
+    TeamStore.instance.setForTest(uid: 'adl', tasks: {
+      'T': [task]
+    });
+    await tester.pumpWidget(app(const TeamTaskDetailScreen(teamId: 'T', taskId: 'd1')));
+    await tester.pump();
+    expect(find.text('Design brief'), findsOneWidget);
+    expect(find.text('Time tracked'), findsOneWidget);
+    expect(find.text('1h 35m'), findsWidgets);
+    expect(find.text('Start'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Tabish assigned it to You'), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Tabish created the task'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.byType(TextField), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.enterText(find.byType(TextField), 'ping @Ta');
+    await tester.pump();
+    expect(find.widgetWithText(ActionChip, 'Tabish'), findsOneWidget);
+    await tester.ensureVisible(find.widgetWithText(ActionChip, 'Tabish'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(ActionChip, 'Tabish'));
+    await tester.pump();
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller!.text, 'ping @Tabish ');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('My Day shows a running timer', (tester) async {
+    final now = DateTime.now();
+    TeamStore.instance.setForTest(uid: 'adl', tasks: {
+      'T': [
+        TaskItem(
+          id: 'r1',
+          title: 'Fix sitemap',
+          assigneeId: 'adl',
+          startAt: now,
+          createdAt: now,
+          updatedAt: now,
+          timerBy: 'adl',
+          timerAt: now.subtract(const Duration(minutes: 3)),
+        ),
+      ],
+    });
+    await tester.pumpWidget(app(const Scaffold(body: HomeScreen())));
+    expect(find.text('Stop'), findsOneWidget);
+    expect(find.textContaining('SEO • 3:0'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

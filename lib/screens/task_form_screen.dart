@@ -9,6 +9,7 @@ import '../data/team_models.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
 import '../widgets/responsive.dart';
+import '../widgets/task_extras.dart';
 
 /// Add Task / Edit Task form, for personal tasks or (with [team]) team tasks.
 /// Team tasks have no category/project and are assigned to team members.
@@ -38,6 +39,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   late TimeOfDay _start;
   late TimeOfDay _end;
   List<ChecklistItem> _checklist = [];
+  List<TaskLink> _links = [];
   String? _originalAssigneeId;
   String _repeat = Repeat.none;
   bool _saving = false;
@@ -58,6 +60,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       _assigneeId = t.assigneeId;
       _originalAssigneeId = t.assigneeId;
       _repeat = t.repeat;
+      _links = [...t.links];
       _priority = t.priority;
       _date = dateOnly(t.startAt);
       _start = TimeOfDay.fromDateTime(t.startAt);
@@ -187,7 +190,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       ..priority = _priority
       ..startAt = startAt
       ..endAt = endAt
-      ..repeat = _repeat;
+      ..repeat = _repeat
+      ..links = [..._links];
 
     final items = _checklist
         .map((c) => ChecklistItem(
@@ -681,6 +685,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 18),
+            const _Label('Links'),
+            LinksEditor(links: _links, onChanged: (l) => setState(() => _links = l)),
             const SizedBox(height: 28),
             PrimaryButton(
               label: 'Save',

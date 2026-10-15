@@ -44,3 +44,18 @@ String initials(String name) {
   if (parts.length == 1) return parts.first[0].toUpperCase();
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
+
+/// "2h 05m", "25m", "0m" (rounded down to minutes).
+String formatDuration(Duration d) {
+  final m = d.inMinutes;
+  if (m < 60) return '${m}m';
+  return '${m ~/ 60}h ${(m % 60).toString().padLeft(2, '0')}m';
+}
+
+/// "1:05:09" / "5:09" for a running timer.
+String formatClock(Duration d) {
+  final h = d.inHours;
+  final mm = (d.inMinutes % 60).toString().padLeft(2, '0');
+  final ss = (d.inSeconds % 60).toString().padLeft(2, '0');
+  return h > 0 ? '$h:$mm:$ss' : '${d.inMinutes}:$ss';
+}

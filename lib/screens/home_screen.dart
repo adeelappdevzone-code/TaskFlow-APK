@@ -6,7 +6,9 @@ import '../data/app_store.dart';
 import '../data/models.dart';
 import '../data/team_models.dart';
 import '../data/team_store.dart';
+import '../data/time_tracker.dart';
 import '../widgets/common.dart';
+import '../widgets/task_extras.dart';
 import 'main_shell.dart';
 import 'notifications_screen.dart';
 import 'projects_screen.dart';
@@ -56,6 +58,15 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
+
+              // ---------------------------------------------- running timers
+              for (final (team, t) in TimeTracker.running())
+                RunningTimerBanner(
+                  task: t,
+                  team: team,
+                  onOpen: () =>
+                      team == null ? openTaskDetail(context, t) : openTeamTask(context, team, t),
+                ),
 
               // ----------------------------------------------- summary card
               _SummaryCard(

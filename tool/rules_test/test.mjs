@@ -122,6 +122,24 @@ await t('comment: owner deletes any', assertSucceeds(deleteDoc(doc(owner, `teams
 await t('board: adeel moves own task to review', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { stage: 'review', updated_at: now })));
 await t('board: bad stage denied', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { stage: 'weird' })));
 await t('board: cannot move others task', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { stage: 'doing' })));
+// links, history, work timer, @mentions
+const ev = (kind, by, extra = {}) => ({ kind, by, at: now, ...extra });
+await t('extras: personal task with links/history/time', assertSucceeds(setDoc(d(me,'users/u1/tasks/t1'), { ...task,
+  links: [{ title: 'Brief', url: 'https://docs.google.com/x' }], history: [ev('created', 'u1')],
+  time_log: [{ by: 'u1', start: now - 3600000, end: now }], timer_by: 'u1', timer_at: now })));
+await t('extras: too many links denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, links: Array(21).fill({ title: '', url: 'https://a.com' }) })));
+await t('extras: links must be a list', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, links: 'https://a.com' })));
+await t('timer: adeel starts timer on own task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { timer_by: 'adl', timer_at: now, stage: 'doing', history: arrayUnion(ev('stage', 'adl', { to: 'doing' })), updated_at: now })));
+await t('timer: adeel stops timer + logs time', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { timer_by: null, timer_at: null, time_log: arrayUnion({ by: 'adl', start: now - 60000, end: now }), updated_at: now })));
+await t('timer: cannot start as someone else', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { timer_by: 'own', timer_at: now })));
+await t('timer: cannot time others task', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { timer_by: 'adl', timer_at: now })));
+await t('timer: owner starts timer on adeels task', assertSucceeds(updateDoc(doc(owner, `teams/${T}/tasks/a1`), { timer_by: 'own', timer_at: now, updated_at: now })));
+await t('timer: adeel ticks checklist while owner timer runs', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { checklist: [], updated_at: now })));
+await t('timer: adeel finishing stops the timer', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_by: 'adl', completed_at: now, timer_by: null, timer_at: null, time_log: arrayUnion({ by: 'own', start: now - 60000, end: now }), history: arrayUnion(ev('done', 'adl')), updated_at: now })));
+await t('links: member cannot change links', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { links: [] })));
+await t('links: owner adds links', assertSucceeds(updateDoc(doc(owner, `teams/${T}/tasks/a1`), { links: [{ title: '', url: 'https://drive.google.com/x' }], updated_at: now })));
+await t('mention: comment with mentions', assertSucceeds(setDoc(doc(sara, `teams/${T}/comments/m1`), comment('m1', 'sar', 'a1', { text: '@adl see this', mentions: ['adl'] }))));
+await t('mention: mentions must be a list', assertFails(setDoc(doc(sara, `teams/${T}/comments/m2`), comment('m2', 'sar', 'a1', { mentions: 'adl' }))));
 await t('repeat: owner makes weekly task for adeel', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/w1`), { ...ttask('w1', 'adl'), repeat: 'weekly' })));
 const nextCopy = (by, extra = {}) => ({ ...ttask('w2', 'adl'), repeat: 'weekly', repeat_from: 'w1', start_at: now + 7 * 864e5, ...extra });
 await t('repeat: other member cannot copy', assertFails(setDoc(doc(sara, `teams/${T}/tasks/w2`), nextCopy('sar'))));

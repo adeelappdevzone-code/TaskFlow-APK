@@ -358,6 +358,14 @@ class TaskTile extends StatelessWidget {
                             style: const TextStyle(
                                 fontSize: 12, color: AppColors.textMuted)),
                       ],
+                      if (task.links.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.link_rounded, size: 14, color: AppColors.textMuted),
+                      ],
+                      if (task.timerRunning) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.timer_rounded, size: 14, color: AppColors.primary),
+                      ],
                     ],
                   ),
                 ],
