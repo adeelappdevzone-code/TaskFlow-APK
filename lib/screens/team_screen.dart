@@ -8,6 +8,7 @@ import '../data/team_models.dart';
 import '../data/team_stats.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
+import 'report_screen.dart';
 import 'task_form_screen.dart';
 import 'team_task_detail_screen.dart';
 import 'teams_screen.dart';
@@ -30,6 +31,9 @@ class _TeamScreenState extends State<TeamScreen> {
   Future<void> _onMenu(String action, Team team) async {
     final store = TeamStore.instance;
     switch (action) {
+      case 'report':
+        openWeeklyReport(context, team);
+        break;
       case 'edit':
         final r = await showTeamDialog(context, team: team);
         if (r != null) store.renameTeam(team, r.$1, r.$2);
@@ -122,6 +126,7 @@ class _TeamScreenState extends State<TeamScreen> {
                   icon: const Icon(Icons.more_vert_rounded),
                   onSelected: (a) => _onMenu(a, team),
                   itemBuilder: (_) => [
+                    if (admin) const PopupMenuItem(value: 'report', child: Text('Weekly report')),
                     if (owner) const PopupMenuItem(value: 'edit', child: Text('Edit team')),
                     if (!owner) const PopupMenuItem(value: 'leave', child: Text('Leave team')),
                     if (owner)
@@ -469,6 +474,13 @@ class _OverviewTab extends StatelessWidget {
               ],
             ],
           ),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => openWeeklyReport(context, team),
+          icon: const Icon(Icons.summarize_outlined),
+          label: const Text('Weekly report (share on WhatsApp)'),
+          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
         ),
         const SizedBox(height: 20),
         const SectionHeader(title: 'People'),

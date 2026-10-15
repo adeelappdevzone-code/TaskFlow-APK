@@ -5,6 +5,7 @@ import 'package:taskflow/data/models.dart';
 import 'package:taskflow/data/team_models.dart';
 import 'package:taskflow/data/team_store.dart';
 import 'package:taskflow/screens/home_screen.dart';
+import 'package:taskflow/screens/report_screen.dart';
 import 'package:taskflow/screens/task_form_screen.dart';
 import 'package:taskflow/screens/team_screen.dart';
 import 'package:taskflow/screens/teams_screen.dart';
@@ -170,6 +171,32 @@ void main() {
     expect(find.text('My Day'), findsOneWidget);
     expect(find.text('Write SEO blog'), findsOneWidget);
     expect(find.text('SEO'), findsOneWidget); // team chip
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Weekly report screen renders', (tester) async {
+    final now = DateTime.now();
+    TeamStore.instance.setForTest(uid: 'own', tasks: {
+      'T': [
+        TaskItem(
+          id: 'r1',
+          title: 'Keyword research',
+          assigneeId: 'adl',
+          status: TaskStatus.completed,
+          startAt: now,
+          completedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      ],
+    });
+    await tester.pumpWidget(app(const WeeklyReportScreen(teamId: 'T')));
+    expect(find.text('This week'), findsOneWidget);
+    expect(find.textContaining('Keyword research'), findsOneWidget);
+    expect(find.text('Share as image'), findsOneWidget);
+    await tester.tap(find.byTooltip('Previous week'));
+    await tester.pump();
+    expect(find.text('Last week'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

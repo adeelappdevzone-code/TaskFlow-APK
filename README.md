@@ -113,6 +113,9 @@ tool/debug.keystore         APK signing key (sirf testing; Play Store se pehle b
   - **Member**: team aur us ke tasks dekhna, apna task Done karna aur checklist tick karna
 - **Overview** tab (sirf Owner/Manager): pending / overdue / is hafte done, har banday ka kaam
   (kitne pending, late, done) aur late tasks ki list. Teams tab ke upar saari teams ka khulasa.
+- **Weekly report** (Owner/Manager: team ⋮ menu ya Overview tab): hafta (Mon–Sun) ka khulasa —
+  kis ne kitne kaam done kiye, kya late hai, done/late tasks ki list. **Share as image** ya
+  **Share as text (WhatsApp)**. Tiron se pichle hafte bhi dekh sakte ho.
 - **Comments**: har team task par team ka koi bhi banda update likh sakta hai ("50% ho gaya").
   Apna comment (ya Owner/Manager koi bhi) lamba daba kar delete hota hai. Jis ka task hai
   (assign hua / assign kiya) usay naye comment ki notification aati hai.
