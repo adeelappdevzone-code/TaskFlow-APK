@@ -49,7 +49,8 @@ extension on _MainShellState {
               panelBuilder: buildTaskPanel,
               child: Column(
                 children: [
-                  _TopBar(onOpenTeam: _showTeam, onProfile: () => setTab(3)),
+                  _TopBar(
+                      onOpenTeam: _showTeam, onProfile: () => setTab(3), onTeams: () => setTab(4)),
                   Expanded(
                     child: IndexedStack(
                       index: _index,
@@ -224,7 +225,8 @@ class _SideItem extends StatelessWidget {
 class _TopBar extends StatelessWidget {
   final ValueChanged<Team> onOpenTeam;
   final VoidCallback onProfile;
-  const _TopBar({required this.onOpenTeam, required this.onProfile});
+  final VoidCallback onTeams;
+  const _TopBar({required this.onOpenTeam, required this.onProfile, required this.onTeams});
 
   @override
   Widget build(BuildContext context) {
@@ -261,6 +263,13 @@ class _TopBar extends StatelessWidget {
                       isLabelVisible: store.unreadCount > 0,
                       child: const Icon(Icons.notifications_none_rounded, size: 26),
                     ),
+                  ),
+                  const SizedBox(width: 6),
+                  IconButton(
+                    tooltip: 'Teams',
+                    onPressed: onTeams,
+                    style: IconButton.styleFrom(backgroundColor: AppColors.primaryLight),
+                    icon: const Icon(Icons.groups_outlined, color: AppColors.primary),
                   ),
                   const SizedBox(width: 14),
                   PopupMenuButton<String>(

@@ -100,10 +100,11 @@ void main() {
         expect(find.textContaining('completed'), findsWidgets);
       case 'g_tasks_wide':
         expect(find.text('Total tasks'), findsOneWidget);
-        expect(find.text("Today's focus"), findsOneWidget);
-        expect(find.text('Task progress'), findsOneWidget);
-        expect(find.text('Upcoming tasks'), findsOneWidget);
-        expect(find.text('Tasks (6)'), findsOneWidget);
+        expect(find.text("Today's Focus"), findsOneWidget);
+        expect(find.text('Task Progress'), findsOneWidget);
+        expect(find.text('Upcoming Tasks'), findsOneWidget);
+        expect(find.text('All (7)'), findsOneWidget); // 6 personal + 1 assigned team task
+        expect(find.text('Development'), findsWidgets); // team chip
       case 'g_tasks_board':
         expect(find.text('In progress'), findsOneWidget);
         expect(find.text('Review'), findsOneWidget);
@@ -111,7 +112,7 @@ void main() {
         expect(find.text('Total teams'), findsOneWidget);
         expect(find.text('Pending invites (1)'), findsOneWidget);
       case 'g_tasks_phone':
-        expect(find.text('Overdue'), findsOneWidget);
+        expect(find.text('Overdue'), findsWidgets);
         expect(find.byTooltip('Sort'), findsOneWidget);
     }
   }

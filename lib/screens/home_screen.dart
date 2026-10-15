@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -20,6 +18,7 @@ import 'main_shell.dart';
 import 'notifications_screen.dart';
 import 'projects_screen.dart';
 import 'task_open.dart';
+import 'task_ui.dart';
 import 'tasks_screen.dart';
 
 /// Home: today's focus. My personal tasks and the team tasks assigned to me,
@@ -229,7 +228,7 @@ class _TotalCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    _IconBox(icon: Icons.inventory_2_outlined, color: AppColors.primary),
+                    IconBox(icon: Icons.inventory_2_outlined, color: AppColors.primary),
                     const SizedBox(width: 12),
                     const Flexible(
                       child: Text('Total Tasks',
@@ -280,7 +279,7 @@ class _TotalCard extends StatelessWidget {
           SizedBox(
             width: 130,
             height: 130,
-            child: _Ring(
+            child: DonutRing(
               parts: [(c.done, AppColors.primary)],
               total: c.total,
               center: '${c.pct(c.done)}%',
@@ -309,7 +308,7 @@ class _GlanceCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              const _IconBox(icon: Icons.wb_sunny_rounded, color: Color(0xFFF59E0B)),
+              const IconBox(icon: Icons.wb_sunny_rounded, color: Color(0xFFF59E0B)),
               const SizedBox(width: 12),
               const Expanded(
                 child: Column(
@@ -495,7 +494,7 @@ class _ShortcutCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              _IconBox(icon: s.icon, color: s.color, size: 50),
+              IconBox(icon: s.icon, color: s.color, size: 50),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -666,13 +665,6 @@ class _Group extends StatelessWidget {
   }
 }
 
-IconData _taskIcon(TaskRef r) {
-  if (r.isTeam) return Icons.groups_outlined;
-  if (r.task.priority == Priority.high) return Icons.flag_outlined;
-  if (r.task.projectId != null) return Icons.folder_outlined;
-  return Icons.description_outlined;
-}
-
 /// One task line: tick box, icon, title, time, team/project/Personal, menu.
 class _TaskRow extends StatelessWidget {
   final TaskRef ref;
@@ -710,12 +702,12 @@ class _TaskRow extends StatelessWidget {
         padding: EdgeInsets.fromLTRB(12, wide ? 10 : 8, 4, wide ? 10 : 8),
         child: Row(
           children: [
-            _TickBox(
+            TickBox(
               value: done,
               onChanged: ref.canComplete ? (v) => ref.setCompleted(v) : null,
             ),
             const SizedBox(width: 10),
-            _IconBox(icon: _taskIcon(ref), color: Color(ref.sourceColor), size: 36),
+            IconBox(icon: taskIconFor(ref), color: Color(ref.sourceColor), size: 36),
             const SizedBox(width: 12),
             if (wide) ...[
               Expanded(child: title),
@@ -746,120 +738,8 @@ class _TaskRow extends StatelessWidget {
                   ],
                 ),
               ),
-            _TaskMenu(ref: ref),
+            TaskActionsMenu(ref: ref),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Where a task belongs: team name, project name or "Personal".
-class SourceChip extends StatelessWidget {
-  final TaskRef ref;
-  final bool small;
-  const SourceChip({super.key, required this.ref, this.small = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = Color(ref.sourceColor);
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: small ? 8 : 10, vertical: small ? 3 : 5),
-      decoration: BoxDecoration(
-        color: color.withAlpha(26),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(ref.sourceLabel,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style:
-              TextStyle(color: color, fontSize: small ? 11.5 : 12.5, fontWeight: FontWeight.w600)),
-    );
-  }
-}
-
-class _TaskMenu extends StatelessWidget {
-  final TaskRef ref;
-  const _TaskMenu({required this.ref});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ref.task;
-    final team = ref.team;
-    final canTime = ref.canComplete && t.status == TaskStatus.pending;
-    final canStop = t.timerRunning && (team == null || TeamStore.instance.canStopTimer(team, t));
-    return PopupMenuButton<String>(
-      tooltip: 'More',
-      icon: const Icon(Icons.more_vert_rounded, color: AppColors.text, size: 20),
-      onSelected: (a) async {
-        switch (a) {
-          case 'open':
-            openTaskRef(context, ref);
-          case 'done':
-            ref.setCompleted(!t.isCompleted);
-          case 'start':
-            TimeTracker.start(t, team: team);
-          case 'stop':
-            await stopTimerWithCheck(context, t, team: team);
-          case 'delete':
-            final ok = await confirmDialog(context,
-                title: 'Delete task?',
-                message: '"${t.title}" will be deleted.',
-                confirmLabel: 'Delete',
-                danger: true);
-            if (ok) {
-              if (team == null) {
-                await AppStore.instance.deleteTask(t);
-              } else {
-                TeamStore.instance.deleteTask(team, t);
-              }
-            }
-        }
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem(value: 'open', child: Text('Open')),
-        if (ref.canComplete)
-          PopupMenuItem(
-              value: 'done', child: Text(t.isCompleted ? 'Mark as not done' : 'Mark as done')),
-        if (canStop)
-          const PopupMenuItem(value: 'stop', child: Text('Stop timer'))
-        else if (canTime && !t.timerRunning)
-          const PopupMenuItem(value: 'start', child: Text('Start timer')),
-        if (team == null || TeamStore.instance.canEdit(team, t))
-          const PopupMenuItem(
-              value: 'delete', child: Text('Delete', style: TextStyle(color: AppColors.danger))),
-      ],
-    );
-  }
-}
-
-class _TickBox extends StatelessWidget {
-  final bool value;
-  final ValueChanged<bool>? onChanged;
-  const _TickBox({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onChanged != null;
-    return InkWell(
-      borderRadius: BorderRadius.circular(6),
-      onTap: enabled ? () => onChanged!(!value) : null,
-      child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 22,
-          height: 22,
-          decoration: BoxDecoration(
-            color: value ? AppColors.primary : Colors.white,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-                color: value
-                    ? AppColors.primary
-                    : (enabled ? const Color(0xFFC5CBD5) : AppColors.border),
-                width: 1.6),
-          ),
-          child: value ? const Icon(Icons.check_rounded, size: 16, color: Colors.white) : null,
         ),
       ),
     );
@@ -927,7 +807,7 @@ class _ProgressCardState extends State<_ProgressCard> {
         children: [
           Row(
             children: [
-              const _IconBox(icon: Icons.bar_chart_rounded, color: AppColors.primary),
+              const IconBox(icon: Icons.bar_chart_rounded, color: AppColors.primary),
               const SizedBox(width: 12),
               const Expanded(
                 child: Column(
@@ -970,7 +850,7 @@ class _ProgressCardState extends State<_ProgressCard> {
               SizedBox(
                 width: 120,
                 height: 120,
-                child: _Ring(
+                child: DonutRing(
                   parts: [
                     (c.done, AppColors.success),
                     (c.inProgress, AppColors.primary),
@@ -999,75 +879,6 @@ class _ProgressCardState extends State<_ProgressCard> {
   }
 }
 
-/// Donut chart: [parts] as (count, color) over [total], text in the middle.
-class _Ring extends StatelessWidget {
-  final List<(int, Color)> parts;
-  final int total;
-  final String center;
-  final String caption;
-  const _Ring(
-      {required this.parts, required this.total, required this.center, required this.caption});
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: _RingPainter(parts, total),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-            Text(caption, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RingPainter extends CustomPainter {
-  final List<(int, Color)> parts;
-  final int total;
-  _RingPainter(this.parts, this.total);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    const stroke = 12.0;
-    final side = math.min(size.width, size.height);
-    final rect = Rect.fromCenter(
-        center: size.center(Offset.zero), width: side - stroke, height: side - stroke);
-    canvas.drawArc(
-        rect,
-        0,
-        math.pi * 2,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = stroke
-          ..color = const Color(0xFFEDF1F7));
-    if (total == 0) return;
-    var start = -math.pi / 2;
-    for (final (n, color) in parts) {
-      if (n == 0) continue;
-      final sweep = math.pi * 2 * n / total;
-      canvas.drawArc(
-          rect,
-          start,
-          sweep,
-          false,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = stroke
-            ..strokeCap = parts.length == 1 ? StrokeCap.round : StrokeCap.butt
-            ..color = color);
-      start += sweep;
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RingPainter old) => true;
-}
-
 // ------------------------------------------------------------------- activity
 
 class _ActivityCard extends StatelessWidget {
@@ -1091,7 +902,7 @@ class _ActivityCard extends StatelessWidget {
       children: [
         Row(
           children: [
-            const _IconBox(icon: Icons.groups_outlined, color: AppColors.primary),
+            const IconBox(icon: Icons.groups_outlined, color: AppColors.primary),
             const SizedBox(width: 12),
             const Expanded(
               child: Column(
@@ -1177,7 +988,7 @@ class _UpcomingCard extends StatelessWidget {
       children: [
         const Row(
           children: [
-            _IconBox(icon: Icons.event_note_outlined, color: AppColors.primary),
+            IconBox(icon: Icons.event_note_outlined, color: AppColors.primary),
             SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -1205,11 +1016,11 @@ class _UpcomingCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 7),
               child: Row(
                 children: [
-                  _TickBox(
+                  TickBox(
                       value: r.task.isCompleted,
                       onChanged: r.canComplete ? (v) => r.setCompleted(v) : null),
                   const SizedBox(width: 8),
-                  _IconBox(icon: _taskIcon(r), color: Color(r.sourceColor), size: 34),
+                  IconBox(icon: taskIconFor(r), color: Color(r.sourceColor), size: 34),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -1412,7 +1223,7 @@ class _PhoneShortcut extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
       child: Column(
         children: [
-          _IconBox(icon: s.icon, color: s.color, size: 40),
+          IconBox(icon: s.icon, color: s.color, size: 40),
           const SizedBox(height: 6),
           Text(s.title,
               textAlign: TextAlign.center,
@@ -1425,24 +1236,6 @@ class _PhoneShortcut extends StatelessWidget {
 }
 
 // --------------------------------------------------------------------- shared
-
-class _IconBox extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final double size;
-  const _IconBox({required this.icon, required this.color, this.size = 42});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color.withAlpha(24),
-          borderRadius: BorderRadius.circular(size * 0.28),
-        ),
-        child: Icon(icon, color: color, size: size * 0.52),
-      );
-}
 
 class _Pill extends StatelessWidget {
   final IconData icon;
