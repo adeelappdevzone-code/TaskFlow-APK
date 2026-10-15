@@ -23,10 +23,7 @@ extension _WideTeam on _TeamScreenState {
       backgroundColor: AppColors.background,
       floatingActionButton: tab == 0 && TeamStore.instance.canCreateTask(team)
           ? FloatingActionButton.extended(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => TaskFormScreen(team: team)),
-              ),
+              onPressed: () => showCreateTask(context, team: team),
               icon: const Icon(Icons.add_rounded),
               label: const Text('Task'),
             )

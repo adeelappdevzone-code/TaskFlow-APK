@@ -6,7 +6,7 @@ import '../core/utils.dart';
 import '../data/app_store.dart';
 import '../widgets/common.dart';
 import 'task_detail_screen.dart';
-import 'task_form_screen.dart';
+import 'create_task_dialog.dart';
 
 class CalendarScreen extends StatefulWidget {
   const CalendarScreen({super.key});
@@ -84,8 +84,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           child: Text(
                             DateFormat('MMMM yyyy').format(_month),
                             textAlign: TextAlign.center,
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w700),
+                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                           ),
                         ),
                         IconButton(
@@ -110,11 +109,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                     ? "Today's Schedule"
                     : DateFormat('EEEE, d MMM').format(_selected),
                 actionLabel: '+ Add',
-                onAction: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => TaskFormScreen(initialDate: _selected)),
-                ),
+                onAction: () => showCreateTask(context, date: _selected),
               ),
               const SizedBox(height: 12),
               if (dayTasks.isEmpty)
@@ -131,7 +126,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           width: 50,
                           child: Padding(
                             padding: const EdgeInsets.only(top: 16),
-                            child: Text(formatTime(t.startAt),
+                            child: Text(t.isAllDay ? 'All day' : formatTime(t.startAt),
                                 style: const TextStyle(
                                     fontSize: 12.5,
                                     color: AppColors.textMuted,
@@ -187,9 +182,7 @@ class _MonthGrid extends StatelessWidget {
                 child: Center(
                   child: Text(w,
                       style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w600)),
+                          fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.w600)),
                 ),
               ),
           ],
@@ -237,9 +230,7 @@ class _MonthGrid extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: isSelected || isToday ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected
-                      ? Colors.white
-                      : (isToday ? AppColors.primary : AppColors.text),
+                  color: isSelected ? Colors.white : (isToday ? AppColors.primary : AppColors.text),
                 ),
               ),
             ),

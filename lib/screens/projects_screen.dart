@@ -7,14 +7,13 @@ import '../data/models.dart';
 import '../widgets/common.dart';
 import '../widgets/responsive.dart';
 import 'task_detail_screen.dart';
-import 'task_form_screen.dart';
+import 'create_task_dialog.dart';
 
 /// Dialog to create or edit a project (name + color).
 Future<void> showProjectDialog(BuildContext context, {Project? project}) async {
   final store = AppStore.instance;
   final name = TextEditingController(text: project?.name ?? '');
-  int color = project?.color ??
-      kPaletteColors[store.projects.length % kPaletteColors.length];
+  int color = project?.color ?? kPaletteColors[store.projects.length % kPaletteColors.length];
 
   await showDialog<void>(
     context: context,
@@ -108,13 +107,13 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ),
         ],
       ),
-      body: CenteredContent(child: ListenableBuilder(
+      body: CenteredContent(
+          child: ListenableBuilder(
         listenable: store,
         builder: (context, _) {
           final q = _search.text.trim().toLowerCase();
-          final list = store.projects
-              .where((p) => q.isEmpty || p.name.toLowerCase().contains(q))
-              .toList();
+          final list =
+              store.projects.where((p) => q.isEmpty || p.name.toLowerCase().contains(q)).toList();
           if (list.isEmpty) {
             return const EmptyState(
               icon: Icons.folder_open_rounded,
@@ -136,8 +135,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                 child: WhiteCard(
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(
-                        builder: (_) => ProjectDetailScreen(projectId: p.id)),
+                    MaterialPageRoute(builder: (_) => ProjectDetailScreen(projectId: p.id)),
                   ),
                   padding: const EdgeInsets.all(16),
                   child: Row(
@@ -157,12 +155,10 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(p.name,
-                                style: const TextStyle(
-                                    fontSize: 15, fontWeight: FontWeight.w700)),
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                             const SizedBox(height: 3),
                             Text('${tasks.length} tasks • $done done',
-                                style: const TextStyle(
-                                    fontSize: 12.5, color: AppColors.textMuted)),
+                                style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
                             const SizedBox(height: 10),
                             Row(
                               children: [
@@ -222,8 +218,7 @@ class ProjectDetailScreen extends StatelessWidget {
                 subtitle: 'It may have been deleted.'),
           );
         }
-        final tasks = store.tasksOfProject(p.id)
-          ..sort((a, b) => a.startAt.compareTo(b.startAt));
+        final tasks = store.tasksOfProject(p.id)..sort((a, b) => a.startAt.compareTo(b.startAt));
         final done = tasks.where((t) => t.isCompleted).length;
         final progress = store.projectProgress(p.id);
         final color = Color(p.color);
@@ -253,25 +248,20 @@ class ProjectDetailScreen extends StatelessWidget {
                   PopupMenuItem(value: 'edit', child: Text('Edit project')),
                   PopupMenuItem(
                       value: 'delete',
-                      child: Text('Delete project',
-                          style: TextStyle(color: AppColors.danger))),
+                      child: Text('Delete project', style: TextStyle(color: AppColors.danger))),
                 ],
               ),
             ],
           ),
           floatingActionButton: FloatingActionButton.extended(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => TaskFormScreen(
-                      initialDate: DateTime.now(), initialProjectId: p.id)),
-            ),
+            onPressed: () => showCreateTask(context, projectId: p.id),
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
             icon: const Icon(Icons.add_rounded),
             label: const Text('Add task'),
           ),
-          body: CenteredContent(child: ListView(
+          body: CenteredContent(
+              child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
             children: [
               WhiteCard(
@@ -282,11 +272,10 @@ class ProjectDetailScreen extends StatelessWidget {
                     Row(
                       children: [
                         Text('${(progress * 100).round()}%',
-                            style: TextStyle(
-                                fontSize: 28, fontWeight: FontWeight.w800, color: color)),
+                            style:
+                                TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: color)),
                         const SizedBox(width: 10),
-                        const Text('complete',
-                            style: TextStyle(color: AppColors.textMuted)),
+                        const Text('complete', style: TextStyle(color: AppColors.textMuted)),
                         const Spacer(),
                         Text('$done / ${tasks.length} tasks',
                             style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -315,8 +304,7 @@ class ProjectDetailScreen extends StatelessWidget {
                   subtitle: 'Tap "Add task" to create one.',
                 )
               else
-                ...tasks.map((t) =>
-                    TaskTile(task: t, onTap: () => openTaskDetail(context, t))),
+                ...tasks.map((t) => TaskTile(task: t, onTap: () => openTaskDetail(context, t))),
             ],
           )),
         );

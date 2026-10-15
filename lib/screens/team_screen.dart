@@ -12,10 +12,10 @@ import '../widgets/dashboard.dart';
 import '../widgets/responsive.dart';
 import '../widgets/task_board.dart';
 import 'report_screen.dart';
-import 'task_form_screen.dart';
 import 'task_panel.dart';
 import 'team_task_detail_screen.dart';
 import 'teams_screen.dart';
+import 'create_task_dialog.dart';
 
 part 'team_wide.dart';
 
@@ -160,10 +160,7 @@ class _TeamScreenState extends State<TeamScreen> {
             ),
             floatingActionButton: TeamStore.instance.canCreateTask(team)
                 ? FloatingActionButton.extended(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => TaskFormScreen(team: team)),
-                    ),
+                    onPressed: () => showCreateTask(context, team: team),
                     icon: const Icon(Icons.add_rounded),
                     label: const Text('Task'),
                   )

@@ -103,9 +103,7 @@ class TeamTaskDetailScreen extends StatelessWidget {
           Priority.high => AppColors.danger,
         };
         String nameOf(String? uid) => uid == store.uid ? 'You' : team.nameOf(uid);
-        final timeText = task.endAt == null
-            ? formatTime(task.startAt)
-            : '${formatTime(task.startAt)} - ${formatTime(task.endAt!)}';
+        final timeText = timeRangeText(task.startAt, task.endAt);
 
         return Scaffold(
           backgroundColor: Colors.white,

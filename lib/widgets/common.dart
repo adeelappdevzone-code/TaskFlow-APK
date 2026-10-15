@@ -298,9 +298,7 @@ class TaskTile extends StatelessWidget {
     final store = AppStore.instance;
     final cat = teamTask ? null : store.categoryById(task.categoryId);
     final done = task.isCompleted || task.isCancelled;
-    final time = task.endAt == null
-        ? formatTime(task.startAt)
-        : '${formatTime(task.startAt)} - ${formatTime(task.endAt!)}';
+    final time = timeRangeText(task.startAt, task.endAt);
     final sub = showDay ? '${relativeDay(task.startAt)} • $time' : time;
 
     return Padding(

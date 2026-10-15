@@ -97,9 +97,7 @@ class TaskDetailScreen extends StatelessWidget {
         };
         final me = store.currentUser?.id;
         String nameOf(String? id) => 'You';
-        final timeText = task.endAt == null
-            ? formatTime(task.startAt)
-            : '${formatTime(task.startAt)} - ${formatTime(task.endAt!)}';
+        final timeText = timeRangeText(task.startAt, task.endAt);
 
         return Scaffold(
           backgroundColor: Colors.white,

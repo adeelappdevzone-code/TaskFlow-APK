@@ -163,9 +163,7 @@ class _BoardCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final overdue = task.isOverdue;
     final done = task.isCompleted;
-    final time = task.endAt == null
-        ? formatTime(task.startAt)
-        : '${formatTime(task.startAt)} - ${formatTime(task.endAt!)}';
+    final time = timeRangeText(task.startAt, task.endAt);
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(

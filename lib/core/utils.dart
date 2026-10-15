@@ -59,3 +59,16 @@ String formatClock(Duration d) {
   final ss = (d.inSeconds % 60).toString().padLeft(2, '0');
   return h > 0 ? '$h:$mm:$ss' : '${d.inMinutes}:$ss';
 }
+
+/// "10:00 - 11:00", "10:00", or "All day" (00:00 – 23:59).
+String timeRangeText(DateTime start, DateTime? end) {
+  if (end != null &&
+      start.hour == 0 &&
+      start.minute == 0 &&
+      isSameDay(start, end) &&
+      end.hour == 23 &&
+      end.minute == 59) {
+    return 'All day';
+  }
+  return end == null ? formatTime(start) : '${formatTime(start)} - ${formatTime(end)}';
+}

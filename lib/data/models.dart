@@ -487,6 +487,19 @@ class TaskItem {
 
   bool get timerRunning => timerAt != null;
 
+  /// A task without a time runs the whole day (00:00 – 23:59).
+  bool get isAllDay {
+    final e = endAt;
+    return startAt.hour == 0 &&
+        startAt.minute == 0 &&
+        e != null &&
+        e.year == startAt.year &&
+        e.month == startAt.month &&
+        e.day == startAt.day &&
+        e.hour == 23 &&
+        e.minute == 59;
+  }
+
   /// Total tracked time (finished sessions, plus the running one when
   /// [now] is given), optionally only for one person.
   Duration timeSpent({String? by, DateTime? now}) {

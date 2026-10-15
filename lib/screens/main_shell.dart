@@ -13,11 +13,11 @@ import 'home_screen.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
 import 'projects_screen.dart';
-import 'task_form_screen.dart';
 import 'task_open.dart';
 import 'task_panel.dart';
 import 'tasks_screen.dart';
 import 'teams_screen.dart';
+import 'create_task_dialog.dart';
 
 part 'main_shell_wide.dart';
 
@@ -63,13 +63,7 @@ class _MainShellState extends State<MainShell> {
     openTeam(nav.context, team);
   }
 
-  Future<void> _addTask() async {
-    final day = DateTime.now();
-    await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => TaskFormScreen(initialDate: day)),
-    );
-  }
+  Future<void> _addTask() => showCreateTask(context);
 
   @override
   Widget build(BuildContext context) {

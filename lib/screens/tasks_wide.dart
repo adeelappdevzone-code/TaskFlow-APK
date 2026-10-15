@@ -508,10 +508,7 @@ class _FocusCard extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                          Text(
-                              r.task.endAt == null
-                                  ? formatTime(r.task.startAt)
-                                  : '${formatTime(r.task.startAt)} - ${formatTime(r.task.endAt!)}',
+                          Text(timeRangeText(r.task.startAt, r.task.endAt),
                               style: TextStyle(
                                   fontSize: 13.5,
                                   color: (r.task.endAt ?? r.task.startAt).isBefore(now)
@@ -647,7 +644,7 @@ class _UpcomingCard extends StatelessWidget {
                               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                           Text(
                               '${dueLabel(r.task, DateTime.now()) == 'Tomorrow' ? 'Tomorrow' : DateFormat('EEE, d MMM').format(r.task.startAt)}'
-                              ' • ${formatTime(r.task.startAt)}',
+                              ' • ${r.task.isAllDay ? 'All day' : formatTime(r.task.startAt)}',
                               style: const TextStyle(fontSize: 13.5, color: AppColors.textMuted)),
                         ],
                       ),

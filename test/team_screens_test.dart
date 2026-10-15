@@ -4,6 +4,7 @@ import 'package:taskflow/core/theme.dart';
 import 'package:taskflow/data/models.dart';
 import 'package:taskflow/data/team_models.dart';
 import 'package:taskflow/data/team_store.dart';
+import 'package:taskflow/screens/create_task_dialog.dart';
 import 'package:taskflow/screens/home_screen.dart';
 import 'package:taskflow/screens/report_screen.dart';
 import 'package:taskflow/screens/task_form_screen.dart';
@@ -271,6 +272,28 @@ void main() {
     await tester.pumpWidget(app(const Scaffold(body: HomeScreen())));
     expect(find.text('Stop'), findsOneWidget);
     expect(find.textContaining('SEO • 3:0'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Create task dialog: personal / team and title check', (tester) async {
+    TeamStore.instance.setForTest(uid: 'own');
+    TeamStore.instance.teams = [team];
+    late BuildContext ctx;
+    await tester.pumpWidget(app(Scaffold(body: Builder(builder: (c) {
+      ctx = c;
+      return const SizedBox();
+    }))));
+    showCreateTask(ctx);
+    await tester.pumpAndSettle();
+    expect(find.text('Create a new task'), findsOneWidget);
+    expect(find.text('Personal task'), findsOneWidget);
+    await tester.tap(find.text('Team task'));
+    await tester.pumpAndSettle();
+    expect(find.text('SEO'), findsOneWidget); // the only team is chosen
+    await tester.ensureVisible(find.text('Create Task'));
+    await tester.tap(find.text('Create Task'));
+    await tester.pump();
+    expect(find.text('Please enter a title'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

@@ -19,7 +19,12 @@ class TaskFormScreen extends StatefulWidget {
   final String? initialProjectId;
   final Team? team;
 
-  const TaskFormScreen({super.key, this.task, this.initialDate, this.initialProjectId, this.team});
+  /// A new task already filled in (from the quick "Create a new task"
+  /// dialog's "More options").
+  final TaskItem? draft;
+
+  const TaskFormScreen(
+      {super.key, this.task, this.initialDate, this.initialProjectId, this.team, this.draft});
 
   @override
   State<TaskFormScreen> createState() => _TaskFormScreenState();
@@ -59,7 +64,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   @override
   void initState() {
     super.initState();
-    final t = widget.task;
+    final t = widget.task ?? widget.draft;
     final store = AppStore.instance;
     if (t != null) {
       _title.text = t.title;

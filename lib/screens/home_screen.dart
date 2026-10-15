@@ -677,9 +677,7 @@ class _TaskRow extends StatelessWidget {
     final t = ref.task;
     final done = t.isCompleted;
     final late = !done && (t.endAt ?? t.startAt).isBefore(DateTime.now());
-    final range = t.endAt == null
-        ? formatTime(t.startAt)
-        : '${formatTime(t.startAt)} - ${formatTime(t.endAt!)}';
+    final range = timeRangeText(t.startAt, t.endAt);
     final when = showDate ? '${DateFormat('d MMM').format(t.startAt)}, $range' : range;
     final timeStyle = TextStyle(
       fontSize: 13.5,
@@ -1031,8 +1029,7 @@ class _UpcomingCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                         Text(
-                            '${relativeDay(r.task.startAt)} • ${formatTime(r.task.startAt)}'
-                            '${r.task.endAt == null ? '' : ' - ${formatTime(r.task.endAt!)}'}',
+                            '${relativeDay(r.task.startAt)} • ${timeRangeText(r.task.startAt, r.task.endAt)}',
                             style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
                       ],
                     ),

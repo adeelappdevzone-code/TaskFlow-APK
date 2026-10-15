@@ -231,7 +231,7 @@ class IconBox extends StatelessWidget {
 /// "Today 13:00", "Tomorrow", "Yesterday", "19 Oct".
 String dueLabel(TaskItem t, DateTime now) {
   final d = t.startAt;
-  if (isSameDay(d, now)) return 'Today ${formatTime(d)}';
+  if (isSameDay(d, now)) return t.isAllDay ? 'Today' : 'Today ${formatTime(d)}';
   if (isSameDay(d, now.add(const Duration(days: 1)))) return 'Tomorrow';
   if (isSameDay(d, now.subtract(const Duration(days: 1)))) return 'Yesterday';
   return DateFormat(d.year == now.year ? 'd MMM' : 'd MMM yyyy').format(d);
