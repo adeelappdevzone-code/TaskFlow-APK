@@ -52,7 +52,7 @@ void main() {
 
   testWidgets('Teams tab shows invitations and teams', (tester) async {
     await tester.pumpWidget(app(const Scaffold(body: TeamsScreen())));
-    expect(find.text('Invitations'), findsOneWidget);
+    expect(find.text('You have an invitation'), findsOneWidget);
     expect(find.text('Accept'), findsOneWidget);
     expect(find.text('SEO'), findsOneWidget);
     expect(tester.takeException(), isNull);

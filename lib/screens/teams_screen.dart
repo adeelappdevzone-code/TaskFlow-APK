@@ -11,12 +11,15 @@ import '../data/team_store.dart';
 import '../widgets/common.dart';
 import '../widgets/dashboard.dart';
 import '../widgets/responsive.dart';
+import '../core/utils.dart';
+import 'create_task_dialog.dart';
 import 'report_screen.dart';
 import 'team_screen.dart';
 
 part 'teams_wide.dart';
 
-/// Bottom-nav tab: invitations to me + the teams I am in.
+/// Teams: invitations to me, the teams I am in, open invitations I sent and
+/// what happened lately.
 class TeamsScreen extends StatelessWidget {
   const TeamsScreen({super.key});
 
@@ -29,89 +32,10 @@ class TeamsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = TeamStore.instance;
     return SafeArea(
       child: ListenableBuilder(
-        listenable: store,
-        builder: (context, _) {
-          final me = store.uid ?? '';
-          if (isWideScreen(context)) return _TeamsWide(onCreate: _create);
-          final sent = _sentInvites(me);
-          final activity = _activity(me, limit: 5);
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child:
-                        Text('Teams', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => _create(context),
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('New team'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Create a team, invite people by email and give them tasks.',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-              ),
-              const SizedBox(height: 16),
-              if (store.invites.isNotEmpty) ...[
-                const SectionHeader(title: 'Invitations'),
-                const SizedBox(height: 10),
-                for (final i in store.invites) _InviteCard(invite: i),
-                const SizedBox(height: 10),
-              ],
-              if (store.teams.isEmpty)
-                Column(
-                  children: [
-                    const EmptyState(
-                      icon: Icons.groups_rounded,
-                      title: 'No teams yet',
-                      subtitle:
-                          'Make a team (for example "SEO"), then add people with the email they log in with.',
-                    ),
-                    PrimaryButton(
-                      label: 'Create a team',
-                      icon: Icons.add_rounded,
-                      onPressed: () => _create(context),
-                    ),
-                  ],
-                )
-              else ...[
-                _PhoneStats(teams: store.teams),
-                const SizedBox(height: 18),
-                const SectionHeader(title: 'My teams'),
-                const SizedBox(height: 10),
-                for (final t in store.teams) _TeamCard(team: t, me: me),
-                if (sent.isNotEmpty) ...[
-                  const SizedBox(height: 14),
-                  SectionHeader(title: 'Pending invites (${sent.length})'),
-                  const SizedBox(height: 4),
-                  WhiteCard(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 0, 4),
-                    child: Column(children: [
-                      for (final i in sent) _SentInviteRow(invite: i, showTeam: true),
-                    ]),
-                  ),
-                ],
-                if (activity.isNotEmpty) ...[
-                  const SizedBox(height: 18),
-                  const SectionHeader(title: 'Recent activity'),
-                  const SizedBox(height: 4),
-                  WhiteCard(
-                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-                    child: Column(children: [for (final a in activity) _ActivityRow(item: a)]),
-                  ),
-                ],
-              ],
-            ],
-          );
-        },
+        listenable: TeamStore.instance,
+        builder: (context, _) => _TeamsPage(onCreate: _create, wide: isWideScreen(context)),
       ),
     );
   }
@@ -162,93 +86,6 @@ Future<(String, int)?> showTeamDialog(BuildContext context, {Team? team}) {
       ),
     ),
   );
-}
-
-class _TeamCard extends StatelessWidget {
-  final Team team;
-  final String me;
-  const _TeamCard({required this.team, required this.me});
-
-  @override
-  Widget build(BuildContext context) {
-    final store = TeamStore.instance;
-    final tasks = store.tasksOf(team.id).where((t) => !t.isCancelled).toList();
-    final done = tasks.where((t) => t.isCompleted).length;
-    final forMe = store.pendingForMe(team.id);
-    final role = team.roleOf(me) ?? TeamRole.member;
-    final color = Color(team.color);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: WhiteCard(
-        onTap: () => openTeam(context, team),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                      color: color.withAlpha(30), borderRadius: BorderRadius.circular(12)),
-                  child: Icon(Icons.groups_rounded, color: color),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(team.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${team.memberIds.length} ${team.memberIds.length == 1 ? 'member' : 'members'}'
-                        ' • ${tasks.length} ${tasks.length == 1 ? 'task' : 'tasks'}',
-                        style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5),
-                      ),
-                    ],
-                  ),
-                ),
-                RoleChip(role: role),
-                SizedBox(width: 36, child: _teamMenu(context, team, me)),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _MemberDots(team: team, canInvite: team.isAdmin(me)),
-            if (tasks.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: done / tasks.length,
-                  minHeight: 6,
-                  color: color,
-                  backgroundColor: color.withAlpha(30),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Text('$done/${tasks.length} done',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                  const Spacer(),
-                  if (forMe > 0)
-                    Text('$forMe pending for you',
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
-                ],
-              ),
-              const Divider(height: 22),
-              _TeamLegend(stats: TeamStats.compute(team, tasks, DateTime.now())),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class RoleChip extends StatelessWidget {
@@ -377,65 +214,6 @@ class AssigneeBadge extends StatelessWidget {
     return Tooltip(
       message: name,
       child: Avatar(name: name, size: 30, color: isMe ? AppColors.primary : AppColors.purple),
-    );
-  }
-}
-
-/// Phone: Total teams / Pending / Overdue / Done this week, 2 x 2.
-class _PhoneStats extends StatelessWidget {
-  final List<Team> teams;
-  const _PhoneStats({required this.teams});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = _Totals(teams);
-    Widget tile(IconData icon, Color color, int value, String label, {bool colored = true}) =>
-        Expanded(
-          child: WhiteCard(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: color.withAlpha(28),
-                  child: Icon(icon, color: color, size: 20),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('$value',
-                          style: TextStyle(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w800,
-                              color: colored ? color : AppColors.text)),
-                      Text(label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-    return Column(
-      children: [
-        Row(children: [
-          tile(Icons.groups_rounded, AppColors.primary, teams.length, 'Total teams',
-              colored: false),
-          const SizedBox(width: 10),
-          tile(Icons.schedule_rounded, AppColors.warning, t.pending, 'Pending'),
-        ]),
-        const SizedBox(height: 10),
-        Row(children: [
-          tile(Icons.warning_amber_rounded, AppColors.danger, t.overdue, 'Overdue'),
-          const SizedBox(width: 10),
-          tile(Icons.check_circle_rounded, AppColors.success, t.doneThisWeek, 'Done this week'),
-        ]),
-      ],
     );
   }
 }

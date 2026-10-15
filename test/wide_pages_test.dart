@@ -95,8 +95,9 @@ void main() {
     switch (name) {
       case 'g_teams_wide':
         expect(find.text('Total teams'), findsOneWidget);
-        expect(find.text('Recent activity'), findsOneWidget);
-        expect(find.text('Pending invites (1)'), findsOneWidget);
+        expect(find.text('Recent Activity'), findsOneWidget);
+        expect(find.text('Pending Invites'), findsOneWidget);
+        expect(find.text('James Smith'), findsOneWidget); // invite from the email
         expect(find.textContaining('completed'), findsWidgets);
       case 'g_tasks_wide':
         expect(find.text('Total tasks'), findsOneWidget);
@@ -110,7 +111,7 @@ void main() {
         expect(find.text('Review'), findsOneWidget);
       case 'g_teams_phone':
         expect(find.text('Total teams'), findsOneWidget);
-        expect(find.text('Pending invites (1)'), findsOneWidget);
+        expect(find.text('Create new team'), findsOneWidget);
       case 'g_tasks_phone':
         expect(find.text('Overdue'), findsWidgets);
         expect(find.byTooltip('Sort'), findsOneWidget);
