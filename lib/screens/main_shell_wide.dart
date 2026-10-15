@@ -45,13 +45,19 @@ extension on _MainShellState {
           ),
           const VerticalDivider(width: 1, color: AppColors.border),
           Expanded(
-            child: DetailPanelHost(
-              panelBuilder: buildTaskPanel,
-              child: Column(
-                children: [
-                  _TopBar(
-                      onOpenTeam: _showTeam, onProfile: () => setTab(3), onTeams: () => setTab(4)),
-                  Expanded(
+            child: Column(
+              children: [
+                _TopBar(
+                  onOpenTeam: _showTeam,
+                  onProfile: () => setTab(3),
+                  onTeams: () => setTab(4),
+                  onOpenTask: (ref) =>
+                      _panelKey.currentState?.show(PanelTarget(ref.task.id, teamId: ref.team?.id)),
+                ),
+                Expanded(
+                  child: DetailPanelHost(
+                    key: _panelKey,
+                    panelBuilder: buildTaskPanel,
                     child: IndexedStack(
                       index: _index,
                       children: [
@@ -69,8 +75,8 @@ extension on _MainShellState {
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
@@ -226,7 +232,12 @@ class _TopBar extends StatelessWidget {
   final ValueChanged<Team> onOpenTeam;
   final VoidCallback onProfile;
   final VoidCallback onTeams;
-  const _TopBar({required this.onOpenTeam, required this.onProfile, required this.onTeams});
+  final ValueChanged<TaskRef> onOpenTask;
+  const _TopBar(
+      {required this.onOpenTeam,
+      required this.onProfile,
+      required this.onTeams,
+      required this.onOpenTask});
 
   @override
   Widget build(BuildContext context) {
@@ -243,7 +254,7 @@ class _TopBar extends StatelessWidget {
           Flexible(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520),
-              child: _SearchBox(onOpenTeam: onOpenTeam),
+              child: _SearchBox(onOpenTeam: onOpenTeam, onOpenTask: onOpenTask),
             ),
           ),
           const Spacer(),
@@ -326,7 +337,8 @@ class _TopBar extends StatelessWidget {
 /// "Search tasks, teams, projects..." with live results under the box.
 class _SearchBox extends StatelessWidget {
   final ValueChanged<Team> onOpenTeam;
-  const _SearchBox({required this.onOpenTeam});
+  final ValueChanged<TaskRef> onOpenTask;
+  const _SearchBox({required this.onOpenTeam, required this.onOpenTask});
 
   /// Every task I can see: mine (personal + assigned) and my teams' tasks.
   static List<TaskRef> _allVisibleTasks() {
@@ -420,7 +432,7 @@ class _SearchBox extends StatelessWidget {
               subtitle: Text('${r.sourceLabel} • ${relativeDay(r.task.startAt)}'),
               onTap: () {
                 close();
-                openTaskRef(context, r);
+                onOpenTask(r);
               },
             ),
           if (teams.isNotEmpty) header('TEAMS'),

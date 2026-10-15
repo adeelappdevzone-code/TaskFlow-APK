@@ -769,6 +769,36 @@ class TeamStore extends ChangeNotifier {
   /// Board column id for finished tasks.
   static const boardDone = TaskStage.boardDone;
 
+  /// Replaces the checklist (subtasks). The assignee may do this too.
+  void setChecklist(Team team, TaskItem task, List<ChecklistItem> items) {
+    for (var i = 0; i < items.length; i++) {
+      items[i].sortOrder = i;
+    }
+    task
+      ..checklist = items
+      ..updatedAt = DateTime.now();
+    notifyListeners();
+    _write(_tasksCol(team.id).doc(task.id).update({
+      'checklist': items.map((c) => c.toMap()).toList(),
+      'updated_at': nowMs(),
+    }));
+  }
+
+  /// Owner/manager (or the member for their own task).
+  void setLinks(Team team, TaskItem task, List<TaskLink> links) {
+    if (!canEdit(team, task)) return;
+    task
+      ..links = links
+      ..updatedAt = DateTime.now();
+    final event = task.addHistory(HistoryKind.edited, _uid);
+    notifyListeners();
+    _write(_tasksCol(team.id).doc(task.id).update({
+      'links': links.map((l) => l.toMap()).toList(),
+      'history': _historyField(task, event),
+      'updated_at': nowMs(),
+    }));
+  }
+
   void toggleChecklistItem(Team team, TaskItem task, ChecklistItem item) {
     item
       ..isDone = !item.isDone

@@ -58,8 +58,8 @@ void main() {
     await tester.pumpAndSettle();
     // Opened in the panel (same page), with a close button.
     expect(find.text('Personal task'), findsOneWidget);
-    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.close_rounded));
+    expect(find.text('Back to tasks'), findsOneWidget);
+    await tester.tap(find.text('Back to tasks'));
     await tester.pumpAndSettle();
     expect(find.text('Personal task'), findsNothing);
     expect(tester.takeException(), isNull);

@@ -725,6 +725,32 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Replaces the checklist (subtasks).
+  void setChecklist(TaskItem task, List<ChecklistItem> items) {
+    if (currentUser == null) return;
+    for (var i = 0; i < items.length; i++) {
+      items[i].sortOrder = i;
+    }
+    task.checklist = items;
+    _saveTaskDoc(task);
+    notifyListeners();
+  }
+
+  void setLinks(TaskItem task, List<TaskLink> links) {
+    if (currentUser == null) return;
+    task.links = links;
+    task.addHistory(HistoryKind.edited, currentUser!.id);
+    _saveTaskDoc(task);
+    notifyListeners();
+  }
+
+  void setCategory(TaskItem task, String? categoryId) {
+    if (currentUser == null) return;
+    task.categoryId = categoryId;
+    _saveTaskDoc(task);
+    notifyListeners();
+  }
+
   // ------------------------------------------------------------ time
 
   /// Personal tasks with a running timer (always mine).

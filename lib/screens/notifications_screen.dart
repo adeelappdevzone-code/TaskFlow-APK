@@ -6,7 +6,7 @@ import '../data/app_store.dart';
 import '../data/models.dart';
 import '../widgets/common.dart';
 import '../widgets/responsive.dart';
-import 'task_detail_screen.dart';
+import 'task_page.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});

@@ -13,7 +13,7 @@ import '../widgets/responsive.dart';
 import '../widgets/task_board.dart';
 import 'report_screen.dart';
 import 'task_panel.dart';
-import 'team_task_detail_screen.dart';
+import 'task_page.dart';
 import 'teams_screen.dart';
 import 'create_task_dialog.dart';
 

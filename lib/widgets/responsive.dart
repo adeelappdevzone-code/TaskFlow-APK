@@ -1,8 +1,4 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-
-import '../core/theme.dart';
 
 /// Width from which the app uses the laptop layout (side menu, panels).
 const kWideLayout = 900.0;
@@ -42,8 +38,8 @@ class PanelTarget {
   int get hashCode => Object.hash(taskId, teamId);
 }
 
-/// On a wide screen, shows tasks in a panel on the right instead of opening a
-/// new page. Screens call [DetailPanelHost.of]; it returns null on phones (or
+/// On a wide screen, shows a task over the page (inside the app frame)
+/// instead of opening a new full-screen page. Screens call [DetailPanelHost.of]; it returns null on phones (or
 /// when there is no room), and they open a page as usual.
 class DetailPanelHost extends StatefulWidget {
   final Widget child;
@@ -73,27 +69,25 @@ class DetailPanelHostState extends State<DetailPanelHost> {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, box) {
-      // Room for a list and a panel side by side.
+      // Big screen: the task opens over the page (the side menu and top bar
+      // stay); the page underneath keeps its state for "Back".
       final wide = box.maxWidth >= kWideLayout;
       if (!wide) return _PanelScope(host: null, child: widget.child);
       final t = _target;
-      final panelWidth = math.min(480.0, box.maxWidth * 0.42);
       return _PanelScope(
         host: this,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            Expanded(child: widget.child),
-            if (t != null) ...[
-              const VerticalDivider(width: 1, color: AppColors.border),
-              SizedBox(
-                width: panelWidth,
+            Offstage(
+                offstage: t != null, child: TickerMode(enabled: t == null, child: widget.child)),
+            if (t != null)
+              Positioned.fill(
                 child: KeyedSubtree(
                   key: ValueKey(t),
                   child: widget.panelBuilder(context, t, close),
                 ),
               ),
-            ],
           ],
         ),
       );

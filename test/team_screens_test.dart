@@ -9,7 +9,7 @@ import 'package:taskflow/screens/home_screen.dart';
 import 'package:taskflow/screens/report_screen.dart';
 import 'package:taskflow/screens/task_form_screen.dart';
 import 'package:taskflow/screens/team_screen.dart';
-import 'package:taskflow/screens/team_task_detail_screen.dart';
+import 'package:taskflow/screens/task_page.dart';
 import 'package:taskflow/screens/teams_screen.dart';
 
 // Renders the team screens with sample data (no Firebase needed) to catch
@@ -228,17 +228,25 @@ void main() {
     TeamStore.instance.setForTest(uid: 'adl', tasks: {
       'T': [task]
     });
-    await tester.pumpWidget(app(const TeamTaskDetailScreen(teamId: 'T', taskId: 'd1')));
+    await tester.pumpWidget(app(const TaskPage(teamId: 'T', taskId: 'd1')));
     await tester.pump();
     expect(find.text('Design brief'), findsOneWidget);
     expect(find.text('Time tracked'), findsOneWidget);
     expect(find.text('1h 35m'), findsWidgets);
     expect(find.text('Start'), findsOneWidget);
 
-    await tester.scrollUntilVisible(find.text('Tabish assigned it to You'), 200,
-        scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('Activity'));
+    await tester.pump();
+    await tester.tap(find.text('Activity'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Tabish created the task'));
+    expect(find.text('Tabish assigned it to You'), findsOneWidget);
     expect(find.text('Tabish created the task'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Comments'));
+    await tester.pump();
+    await tester.tap(find.text('Comments'));
+    await tester.pump();
     await tester.scrollUntilVisible(find.byType(TextField), 200,
         scrollable: find.byType(Scrollable).first);
     await tester.enterText(find.byType(TextField), 'ping @Ta');

@@ -6,7 +6,7 @@ import '../data/app_store.dart';
 import '../data/models.dart';
 import '../widgets/common.dart';
 import '../widgets/responsive.dart';
-import 'task_detail_screen.dart';
+import 'task_page.dart';
 import 'create_task_dialog.dart';
 
 /// Dialog to create or edit a project (name + color).

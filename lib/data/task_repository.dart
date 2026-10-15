@@ -36,6 +36,40 @@ class TaskRef {
     return t == null || TeamStore.instance.canComplete(t, task);
   }
 
+  /// Owner/manager, or my own task (personal, or one I made for myself).
+  bool get canEdit {
+    final t = team;
+    return t == null || TeamStore.instance.canEdit(t, task);
+  }
+
+  /// Board column: a [TaskStage] or [TaskStage.boardDone].
+  void moveTo(String column) {
+    final t = team;
+    if (t == null) {
+      AppStore.instance.moveTo(task, column);
+    } else {
+      TeamStore.instance.moveTo(t, task, column);
+    }
+  }
+
+  void setChecklist(List<ChecklistItem> items) {
+    final t = team;
+    if (t == null) {
+      AppStore.instance.setChecklist(task, items);
+    } else {
+      TeamStore.instance.setChecklist(t, task, items);
+    }
+  }
+
+  void setLinks(List<TaskLink> links) {
+    final t = team;
+    if (t == null) {
+      AppStore.instance.setLinks(task, links);
+    } else {
+      TeamStore.instance.setLinks(t, task, links);
+    }
+  }
+
   void setCompleted(bool done) {
     final t = team;
     if (t == null) {

@@ -5,7 +5,7 @@ import '../core/theme.dart';
 import '../core/utils.dart';
 import '../data/app_store.dart';
 import '../widgets/common.dart';
-import 'task_detail_screen.dart';
+import 'task_page.dart';
 import 'create_task_dialog.dart';
 
 class CalendarScreen extends StatefulWidget {

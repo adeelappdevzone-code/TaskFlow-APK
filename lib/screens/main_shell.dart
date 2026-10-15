@@ -13,7 +13,6 @@ import 'home_screen.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
 import 'projects_screen.dart';
-import 'task_open.dart';
 import 'task_panel.dart';
 import 'tasks_screen.dart';
 import 'teams_screen.dart';
@@ -53,7 +52,13 @@ class _MainShellState extends State<MainShell> {
   /// next to the side menu instead of covering it.
   final _teamsNav = GlobalKey<NavigatorState>();
 
-  void setTab(int i) => setState(() => _index = i);
+  /// Laptop: the task opened over the pages.
+  final _panelKey = GlobalKey<DetailPanelHostState>();
+
+  void setTab(int i) {
+    _panelKey.currentState?.close();
+    setState(() => _index = i);
+  }
 
   void _showTeam(Team team) {
     setTab(4);

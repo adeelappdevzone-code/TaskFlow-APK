@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../data/task_repository.dart';
-import 'task_detail_screen.dart';
-import 'team_task_detail_screen.dart';
+import 'task_page.dart';
 
 /// Opens any of my tasks (personal or team) in the side panel or as a page.
 void openTaskRef(BuildContext context, TaskRef ref) {

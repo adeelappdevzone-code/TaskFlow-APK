@@ -249,7 +249,7 @@ String historyText(TaskEvent e, String Function(String? id) nameOf) {
   };
 }
 
-IconData _historyIcon(String kind) => switch (kind) {
+IconData historyIcon(String kind) => switch (kind) {
       HistoryKind.created => Icons.add_circle_outline_rounded,
       HistoryKind.edited => Icons.edit_outlined,
       HistoryKind.assigned || HistoryKind.unassigned => Icons.person_outline_rounded,
@@ -302,7 +302,7 @@ class _TaskHistoryViewState extends State<TaskHistoryView> {
                   width: 28,
                   child: Column(
                     children: [
-                      Icon(_historyIcon(shown[i].kind), size: 18, color: AppColors.primary),
+                      Icon(historyIcon(shown[i].kind), size: 18, color: AppColors.primary),
                       if (i < shown.length - 1)
                         Expanded(
                           child: Container(
