@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
 import '../core/utils.dart';
@@ -189,6 +190,8 @@ class TeamTaskDetailScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+              const SizedBox(height: 22),
+              _CommentsSection(team: team, task: task),
             ],
           ),
           bottomNavigationBar: task.isCancelled || !canComplete
@@ -270,6 +273,152 @@ class _InfoRow extends StatelessWidget {
           Expanded(child: child),
         ],
       ),
+    );
+  }
+}
+
+/// Comments on a team task: everyone in the team can read and write them
+/// (e.g. "50% done, waiting for content").
+class _CommentsSection extends StatefulWidget {
+  final Team team;
+  final TaskItem task;
+  const _CommentsSection({required this.team, required this.task});
+
+  @override
+  State<_CommentsSection> createState() => _CommentsSectionState();
+}
+
+class _CommentsSectionState extends State<_CommentsSection> {
+  final _text = TextEditingController();
+  late Stream<List<TaskComment>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = TeamStore.instance.commentsOf(widget.team.id, widget.task.id);
+  }
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _send() {
+    final text = _text.text.trim();
+    if (text.isEmpty) return;
+    TeamStore.instance.addComment(widget.team, widget.task, text);
+    _text.clear();
+    FocusScope.of(context).unfocus();
+  }
+
+  Future<void> _delete(TaskComment c) async {
+    final ok = await confirmDialog(context,
+        title: 'Delete comment?', message: c.text, confirmLabel: 'Delete', danger: true);
+    if (ok) TeamStore.instance.deleteComment(widget.team, c);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = TeamStore.instance;
+    return StreamBuilder<List<TaskComment>>(
+      stream: _stream,
+      builder: (context, snap) {
+        final comments = snap.data ?? const <TaskComment>[];
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(comments.isEmpty ? 'Comments' : 'Comments (${comments.length})',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 10),
+            if (snap.hasError)
+              const Text('Comments need internet the first time.',
+                  style: TextStyle(color: AppColors.textMuted))
+            else if (comments.isEmpty)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text('No comments yet. Post an update for the team.',
+                    style: TextStyle(color: AppColors.textMuted)),
+              ),
+            for (final c in comments)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: GestureDetector(
+                  onLongPress: store.canDeleteComment(widget.team, c) ? () => _delete(c) : null,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Avatar(
+                          name:
+                              c.authorName.isEmpty ? widget.team.nameOf(c.authorId) : c.authorName,
+                          size: 32,
+                          color: c.authorId == store.uid ? AppColors.primary : AppColors.purple),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                          decoration: BoxDecoration(
+                            color: AppColors.background,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      c.authorId == store.uid
+                                          ? 'You'
+                                          : (c.authorName.isEmpty
+                                              ? widget.team.nameOf(c.authorId)
+                                              : c.authorName),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700, fontSize: 13),
+                                    ),
+                                  ),
+                                  Text(timeAgo(c.createdAt),
+                                      style: const TextStyle(
+                                          fontSize: 11.5, color: AppColors.textMuted)),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(c.text, style: const TextStyle(fontSize: 14, height: 1.35)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _text,
+                    minLines: 1,
+                    maxLines: 4,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: fieldDecoration('Write a comment...'),
+                    inputFormatters: [LengthLimitingTextInputFormatter(2000)],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  onPressed: _send,
+                  icon: const Icon(Icons.send_rounded),
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

@@ -98,6 +98,22 @@ await t('task: adeel cannot cancel', assertFails(updateDoc(doc(adeel, `teams/${T
 await t('task: adeel cannot complete saras task', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { status: 'completed', completed_at: now, updated_at: now })));
 await t('task: member cannot delete', assertFails(deleteDoc(doc(adeel, `teams/${T}/tasks/s1`))));
 
+const comment = (id, author, taskId = 'a1', extra = {}) => ({
+  id, task_id: taskId, author_id: author, author_name: author, text: 'Half done', created_at: now, ...extra,
+});
+await t('comment: assignee comments', assertSucceeds(setDoc(doc(adeel, `teams/${T}/comments/c1`), comment('c1', 'adl'))));
+await t('comment: other member comments', assertSucceeds(setDoc(doc(sara, `teams/${T}/comments/c2`), comment('c2', 'sar'))));
+await t('comment: owner comments', assertSucceeds(setDoc(doc(owner, `teams/${T}/comments/c3`), comment('c3', 'own'))));
+await t('comment: cannot post as someone else', assertFails(setDoc(doc(adeel, `teams/${T}/comments/c4`), comment('c4', 'own'))));
+await t('comment: empty text denied', assertFails(setDoc(doc(adeel, `teams/${T}/comments/c5`), comment('c5', 'adl', 'a1', { text: '' }))));
+await t('comment: unknown task denied', assertFails(setDoc(doc(adeel, `teams/${T}/comments/c6`), comment('c6', 'adl', 'nope'))));
+await t('comment: outsider cannot comment', assertFails(setDoc(doc(outsider, `teams/${T}/comments/c7`), comment('c7', 'out'))));
+await t('comment: outsider cannot read', assertFails(getDocs(collection(outsider, `teams/${T}/comments`))));
+await t('comment: member reads by task', assertSucceeds(getDocs(query(collection(sara, `teams/${T}/comments`), where('task_id', '==', 'a1')))));
+await t('comment: cannot edit', assertFails(updateDoc(doc(adeel, `teams/${T}/comments/c1`), { text: 'edited' })));
+await t('comment: cannot delete others', assertFails(deleteDoc(doc(sara, `teams/${T}/comments/c1`))));
+await t('comment: author deletes own', assertSucceeds(deleteDoc(doc(sara, `teams/${T}/comments/c2`))));
+await t('comment: owner deletes any', assertSucceeds(deleteDoc(doc(owner, `teams/${T}/comments/c1`))));
 await t('role: owner makes adeel manager', assertSucceeds(updateDoc(doc(owner, `teams/${T}`), { manager_ids: ['adl'], updated_at: now })));
 await t('role: manager creates task', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/m1`), ttask('m1', 'sar', 'adl'))));
 await t('role: manager edits any task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { title: 'Edited', updated_at: now })));

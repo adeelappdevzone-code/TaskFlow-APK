@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../core/theme.dart';
 import '../data/models.dart';
 import '../data/team_models.dart';
+import '../data/team_stats.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
 import 'task_form_screen.dart';
@@ -103,7 +104,9 @@ class _TeamScreenState extends State<TeamScreen> {
         final done = active.where((t) => t.isCompleted).length;
 
         return DefaultTabController(
-          length: 2,
+          // Owner/managers get a third tab with the dashboard.
+          key: ValueKey(admin),
+          length: admin ? 3 : 2,
           child: Scaffold(
             appBar: AppBar(
               title: Text(team.name),
@@ -125,6 +128,7 @@ class _TeamScreenState extends State<TeamScreen> {
                 tabs: [
                   Tab(text: 'Tasks (${active.length})'),
                   Tab(text: 'Members (${team.memberIds.length})'),
+                  if (admin) const Tab(text: 'Overview'),
                 ],
               ),
             ),
@@ -190,6 +194,7 @@ class _TeamScreenState extends State<TeamScreen> {
                 ),
                 // ----------------------------------------------- members
                 _MembersTab(team: team, me: me),
+                if (admin) _OverviewTab(team: team, tasks: tasks),
               ],
             ),
           ),
@@ -387,6 +392,182 @@ class _MembersTab extends StatelessWidget {
               itemBuilder: (_) => actions,
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Dashboard for owner/managers: progress, who has how much work, what is late.
+class _OverviewTab extends StatelessWidget {
+  final Team team;
+  final List<TaskItem> tasks;
+  const _OverviewTab({required this.team, required this.tasks});
+
+  @override
+  Widget build(BuildContext context) {
+    final st = TeamStats.compute(team, tasks, DateTime.now());
+    final color = Color(team.color);
+    if (st.total == 0) {
+      return ListView(children: const [
+        EmptyState(
+          icon: Icons.insights_rounded,
+          title: 'Nothing to show yet',
+          subtitle: 'Create tasks and assign them; progress will appear here.',
+        ),
+      ]);
+    }
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      children: [
+        Row(
+          children: [
+            _StatTile(label: 'Pending', value: st.pending, color: AppColors.warning),
+            const SizedBox(width: 10),
+            _StatTile(label: 'Overdue', value: st.overdue, color: AppColors.danger),
+            const SizedBox(width: 10),
+            _StatTile(label: 'Done this week', value: st.doneThisWeek, color: AppColors.success),
+          ],
+        ),
+        const SizedBox(height: 16),
+        WhiteCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text('${st.done} of ${st.total} tasks done',
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const Spacer(),
+                  Text('${(st.progress * 100).round()}%',
+                      style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 16)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: st.progress,
+                  minHeight: 8,
+                  color: color,
+                  backgroundColor: color.withAlpha(30),
+                ),
+              ),
+              if (st.unassigned > 0) ...[
+                const SizedBox(height: 8),
+                Text('${st.unassigned} task(s) not assigned to anyone',
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        const SectionHeader(title: 'People'),
+        const SizedBox(height: 10),
+        for (final m in st.members) _MemberLoad(team: team, stats: m),
+        if (st.overdueTasks.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          const SectionHeader(title: 'Overdue'),
+          const SizedBox(height: 10),
+          for (final t in st.overdueTasks)
+            TaskTile(
+              task: t,
+              teamTask: true,
+              onTap: () => openTeamTask(context, team, t),
+              trailing: AssigneeBadge(team: team, task: t),
+            ),
+        ],
+      ],
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color color;
+  const _StatTile({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+        decoration: BoxDecoration(
+          color: color.withAlpha(22),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            Text('$value',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+            const SizedBox(height: 2),
+            Text(label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MemberLoad extends StatelessWidget {
+  final Team team;
+  final MemberStats stats;
+  const _MemberLoad({required this.team, required this.stats});
+
+  @override
+  Widget build(BuildContext context) {
+    final name = team.nameOf(stats.uid);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: WhiteCard(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Avatar(name: name, size: 38),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      '${stats.pending} pending',
+                      if (stats.overdue > 0) '${stats.overdue} overdue',
+                      '${stats.done} done',
+                    ].join(' • '),
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        color: stats.overdue > 0 ? AppColors.danger : AppColors.textMuted),
+                  ),
+                  if (stats.total > 0) ...[
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: stats.progress,
+                        minHeight: 5,
+                        backgroundColor: AppColors.primaryLight,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (stats.doneThisWeek > 0) ...[
+              const SizedBox(width: 10),
+              Tooltip(
+                message: 'Done this week',
+                child: TagChip(label: '+${stats.doneThisWeek} wk', color: AppColors.success),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

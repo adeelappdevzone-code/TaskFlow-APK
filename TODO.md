@@ -21,7 +21,6 @@ Dhyan: key badalne ke baad phone se purani app ek dafa uninstall karni hogi
 
 ## Teams: agle phase
 
-- Phase 2: Owner/Manager dashboard (kis ke paas kitne pending/late tasks), task par comments.
 - Phase 3 (Blaze plan + Cloud Functions): app band ho tab bhi assign hone par push notification.
 - Profile ka "Team Members" (sirf naam, personal tasks ke liye) asli Teams se alag hai; baad mein
   isay hata dena ya "Contacts" naam dena.

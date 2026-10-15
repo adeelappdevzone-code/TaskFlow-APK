@@ -75,7 +75,8 @@ lib/
   data/app_store.dart       saara login (Firebase Auth + Google) aur data read/write (Firestore) yahin
   data/reminders.dart       phone notifications (task se 15 min pehle)
   data/team_models.dart     Team, TeamInvite, roles
-  data/team_store.dart      teams, team tasks, invitations (Firestore)
+  data/team_store.dart      teams, team tasks, comments, invitations (Firestore)
+  data/team_stats.dart      dashboard ke numbers (pending, overdue, har member ka kaam)
   screens/                  har screen ki file
   widgets/common.dart       shared UI (TaskTile, buttons, chips...)
 firestore.rules             Firestore security rules (Console mein paste karni hain)
@@ -97,9 +98,15 @@ tool/debug.keystore         APK signing key (sirf testing; Play Store se pehle b
   - **Owner**: sab kuch (team edit/delete, manager banana, kisi ko bhi nikalna)
   - **Manager**: log add karna, members ko nikalna, tasks banana / edit / assign karna
   - **Member**: team aur us ke tasks dekhna, apna task Done karna aur checklist tick karna
+- **Overview** tab (sirf Owner/Manager): pending / overdue / is hafte done, har banday ka kaam
+  (kitne pending, late, done) aur late tasks ki list. Teams tab ke upar saari teams ka khulasa.
+- **Comments**: har team task par team ka koi bhi banda update likh sakta hai ("50% ho gaya").
+  Apna comment (ya Owner/Manager koi bhi) lamba daba kar delete hota hai. Jis ka task hai
+  (assign hua / assign kiya) usay naye comment ki notification aati hai.
 - Naya task assign ho, invitation aaye ya koi team join kare to notification aati hai (jab app
   khuli ho ya abhi abhi band ki ho). Assigned tasks ke 15-minute reminders bhi aate hain.
-- Data: `teams/{teamId}` (members, roles), `teams/{teamId}/tasks/...`, `invites/{teamId}_{email}`.
+- Data: `teams/{teamId}` (members, roles), `teams/{teamId}/tasks/...`,
+  `teams/{teamId}/comments/...`, `invites/{teamId}_{email}`.
   Ijazatein `firestore.rules` mein lagti hain (tests: `tool/rules_test`).
 
 ## Data kahan aur kaise save hota hai

@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import '../data/app_store.dart';
 import '../data/models.dart';
 import '../data/team_models.dart';
+import '../data/team_stats.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
 import 'team_screen.dart';
@@ -73,6 +74,7 @@ class TeamsScreen extends StatelessWidget {
                   ],
                 )
               else ...[
+                _AllTeamsSummary(me: me),
                 const SectionHeader(title: 'My teams'),
                 const SizedBox(height: 10),
                 for (final t in store.teams) _TeamCard(team: t, me: me),
@@ -340,6 +342,59 @@ class AssigneeBadge extends StatelessWidget {
     return Tooltip(
       message: name,
       child: Avatar(name: name, size: 30, color: isMe ? AppColors.primary : AppColors.purple),
+    );
+  }
+}
+
+/// For owners/managers: totals over all the teams they run.
+class _AllTeamsSummary extends StatelessWidget {
+  final String me;
+  const _AllTeamsSummary({required this.me});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = TeamStore.instance;
+    final managed = store.teams.where((t) => t.isAdmin(me)).toList();
+    if (managed.isEmpty) return const SizedBox.shrink();
+    final now = DateTime.now();
+    var pending = 0, overdue = 0, doneWeek = 0;
+    for (final t in managed) {
+      final st = TeamStats.compute(t, store.tasksOf(t.id), now);
+      pending += st.pending;
+      overdue += st.overdue;
+      doneWeek += st.doneThisWeek;
+    }
+    Widget cell(String label, int value, Color color) => Expanded(
+          child: Column(
+            children: [
+              Text('$value',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color)),
+              Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
+            ],
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: WhiteCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+                managed.length == 1
+                    ? 'Your team at a glance'
+                    : 'Your ${managed.length} teams at a glance',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                cell('Pending', pending, AppColors.warning),
+                cell('Overdue', overdue, AppColors.danger),
+                cell('Done this week', doneWeek, AppColors.success),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

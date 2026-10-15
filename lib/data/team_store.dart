@@ -4,7 +4,7 @@ import 'dart:math' show min;
 import 'package:cloud_firestore/cloud_firestore.dart'
     show CollectionReference, DocumentReference, FieldValue, FirebaseFirestore, WriteBatch;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
+import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint, visibleForTesting;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_store.dart';
@@ -40,6 +40,7 @@ class TeamStore extends ChangeNotifier {
   StreamSubscription<dynamic>? _invitesSub;
   final Map<String, StreamSubscription<dynamic>> _taskSubs = {};
   final Map<String, StreamSubscription<dynamic>> _sentInviteSubs = {};
+  final Map<String, StreamSubscription<dynamic>> _commentSubs = {};
 
   /// Members per team at the last update, to notice who joined.
   final Map<String, Set<String>> _knownMembers = {};
@@ -53,9 +54,20 @@ class TeamStore extends ChangeNotifier {
   CollectionReference<_Json> get _teamsCol => _fs.collection('teams');
   CollectionReference<_Json> get _invitesCol => _fs.collection('invites');
   CollectionReference<_Json> _tasksCol(String teamId) => _teamsCol.doc(teamId).collection('tasks');
+  CollectionReference<_Json> _commentsCol(String teamId) =>
+      _teamsCol.doc(teamId).collection('comments');
   DocumentReference<_Json> _teamDoc(String teamId) => _teamsCol.doc(teamId);
 
   String? get uid => _uid;
+
+  /// Tests only: pretend to be logged in as [uid] with these team tasks.
+  @visibleForTesting
+  void setForTest({String? uid, Map<String, List<TaskItem>> tasks = const {}}) {
+    _uid = uid;
+    _tasks
+      ..clear()
+      ..addAll(tasks);
+  }
 
   // ------------------------------------------------------------- session
 
@@ -93,6 +105,10 @@ class TeamStore extends ChangeNotifier {
     for (final s in _sentInviteSubs.values) {
       s.cancel();
     }
+    for (final s in _commentSubs.values) {
+      s.cancel();
+    }
+    _commentSubs.clear();
     _teamsSub = null;
     _invitesSub = null;
     _taskSubs.clear();
@@ -161,6 +177,7 @@ class TeamStore extends ChangeNotifier {
     for (final id in _taskSubs.keys.toList()) {
       if (!ids.contains(id)) {
         _taskSubs.remove(id)?.cancel();
+        _commentSubs.remove(id)?.cancel();
         _tasks.remove(id);
       }
     }
@@ -168,6 +185,12 @@ class TeamStore extends ChangeNotifier {
       _taskSubs[id] ??= _tasksCol(id)
           .snapshots()
           .listen((s) => _onTasks(id, s.docs.map((d) => d.data())), onError: _onError);
+      // Only new comments matter here (for notifications); a task's full
+      // comment list is loaded by its screen.
+      _commentSubs[id] ??= _commentsCol(id)
+          .where('created_at', isGreaterThan: _seenUntil)
+          .snapshots()
+          .listen((s) => _onNewComments(id, s.docs.map((d) => d.data())), onError: _onError);
     }
     for (final t in list) {
       final admin = t.isAdmin(me);
@@ -229,6 +252,33 @@ class TeamStore extends ChangeNotifier {
     _markSeen(newest);
     AppStore.instance.schedulePhoneReminders();
     notifyListeners();
+  }
+
+  /// Someone else commented on a task that is mine (assigned to me, or one
+  /// I created / assigned).
+  void _onNewComments(String teamId, Iterable<_Json> docs) {
+    final me = _uid;
+    final team = teamById(teamId);
+    if (me == null || team == null) return;
+    var newest = _seenUntil;
+    for (final m in docs) {
+      final TaskComment c;
+      try {
+        c = TaskComment.fromMap(m);
+      } catch (_) {
+        continue;
+      }
+      final at = c.createdAt.millisecondsSinceEpoch;
+      if (c.authorId == me || at <= _seenUntil) continue;
+      final task = taskById(teamId, c.taskId);
+      if (task == null) continue;
+      final mine = task.assigneeId == me || task.assignedBy == me || task.createdBy == me;
+      if (!mine) continue;
+      final who = c.authorName.isEmpty ? team.nameOf(c.authorId) : c.authorName;
+      _notify('$who on "${task.title}"', c.text);
+      if (at > newest) newest = at;
+    }
+    _markSeen(newest);
   }
 
   void _onInvites(Iterable<_Json> docs) {
@@ -353,9 +403,17 @@ class TeamStore extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Owner only: deletes the team, its tasks and its open invitations.
-  void deleteTeam(Team team) {
+  /// Owner only: deletes the team, its tasks, comments and open invitations.
+  Future<void> deleteTeam(Team team) async {
+    var commentIds = <String>[];
+    try {
+      final snap = await _commentsCol(team.id).get().timeout(const Duration(seconds: 10));
+      commentIds = snap.docs.map((d) => d.id).toList();
+    } catch (e) {
+      debugPrint('Could not load comments to delete: $e');
+    }
     final ops = <void Function(WriteBatch)>[
+      for (final id in commentIds) (b) => b.delete(_commentsCol(team.id).doc(id)),
       for (final t in tasksOf(team.id)) (b) => b.delete(_tasksCol(team.id).doc(t.id)),
       for (final i in sentInvites[team.id] ?? const <TeamInvite>[])
         (b) => b.delete(_invitesCol.doc(i.id)),
@@ -566,6 +624,47 @@ class TeamStore extends ChangeNotifier {
     _tasks[team.id]?.removeWhere((t) => t.id == task.id);
     notifyListeners();
     _write(_tasksCol(team.id).doc(task.id).delete());
+    // Its comments too (best effort; needs internet to find them).
+    _commentsCol(team.id).where('task_id', isEqualTo: task.id).get().then((snap) {
+      _runBatched([for (final d in snap.docs) (b) => b.delete(d.reference)]);
+    }, onError: (Object e) => debugPrint('Delete comments: $e'));
+  }
+
+  // ------------------------------------------------------------ comments
+
+  /// Live comments of one task, oldest first.
+  Stream<List<TaskComment>> commentsOf(String teamId, String taskId) =>
+      _commentsCol(teamId).where('task_id', isEqualTo: taskId).snapshots().map((s) {
+        final list = <TaskComment>[];
+        for (final d in s.docs) {
+          try {
+            list.add(TaskComment.fromMap(d.data()));
+          } catch (_) {}
+        }
+        list.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        return list;
+      });
+
+  void addComment(Team team, TaskItem task, String text) {
+    final me = _uid;
+    final clean = text.trim();
+    if (me == null || clean.isEmpty) return;
+    final c = TaskComment(
+      id: newId(),
+      taskId: task.id,
+      authorId: me,
+      authorName: _name,
+      text: clean,
+      createdAt: DateTime.now(),
+    );
+    _write(_commentsCol(team.id).doc(c.id).set(c.toMap()));
+  }
+
+  bool canDeleteComment(Team team, TaskComment c) =>
+      _uid != null && (c.authorId == _uid || team.isAdmin(_uid!));
+
+  void deleteComment(Team team, TaskComment c) {
+    _write(_commentsCol(team.id).doc(c.id).delete());
   }
 
   void _upsertLocal(String teamId, TaskItem task) {

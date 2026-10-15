@@ -215,6 +215,28 @@ service cloud.firestore {
             || assigneeUpdate(teamData(teamId)));
         allow delete: if signedIn() && isTeamAdmin(teamData(teamId));
       }
+
+      // Comments on the team's tasks: any member can write (as themselves);
+      // the author or an owner/manager can delete. Comments cannot be edited.
+      match /comments/{commentId} {
+        function validComment(d) {
+          return d.size() <= 10
+              && str(d, 'id', 100) && d.id == commentId
+              && str(d, 'task_id', 100)
+              && d.author_id == request.auth.uid
+              && optStr(d, 'author_name', 200)
+              && str(d, 'text', 2000) && d.text.size() > 0
+              && num(d, 'created_at')
+              && exists(/databases/$(database)/documents/teams/$(teamId)/tasks/$(d.task_id));
+        }
+
+        allow read: if signedIn() && request.auth.uid in teamData(teamId).member_ids;
+        allow create: if signedIn()
+            && request.auth.uid in teamData(teamId).member_ids
+            && validComment(request.resource.data);
+        allow delete: if signedIn()
+            && (resource.data.author_id == request.auth.uid || isTeamAdmin(teamData(teamId)));
+      }
     }
 
     // invites/{teamId}_{email}: readable by the invited email and the team's

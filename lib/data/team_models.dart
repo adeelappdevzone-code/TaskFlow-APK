@@ -172,3 +172,40 @@ class TeamInvite {
         createdAt: _dt(m['created_at']),
       );
 }
+
+/// A comment on a team task (stored in teams/{teamId}/comments).
+class TaskComment {
+  final String id;
+  final String taskId;
+  final String authorId;
+  final String authorName;
+  final String text;
+  final DateTime createdAt;
+
+  TaskComment({
+    required this.id,
+    required this.taskId,
+    required this.authorId,
+    required this.authorName,
+    required this.text,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'task_id': taskId,
+        'author_id': authorId,
+        'author_name': authorName,
+        'text': text,
+        'created_at': _ms(createdAt),
+      };
+
+  factory TaskComment.fromMap(Map<String, dynamic> m) => TaskComment(
+        id: m['id'] as String,
+        taskId: m['task_id'] as String,
+        authorId: m['author_id'] as String,
+        authorName: (m['author_name'] as String?) ?? '',
+        text: m['text'] as String,
+        createdAt: _dt(m['created_at']),
+      );
+}
