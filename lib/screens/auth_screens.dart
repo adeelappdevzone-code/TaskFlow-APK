@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
 import '../data/app_store.dart';
@@ -400,6 +401,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   textCapitalization: TextCapitalization.words,
                   textInputAction: TextInputAction.next,
                   decoration: fieldDecoration('Full name', icon: Icons.badge_outlined),
+                  inputFormatters: [LengthLimitingTextInputFormatter(100)],
                   validator: (v) =>
                       (v == null || v.trim().length < 2) ? 'Enter your name' : null,
                 ),

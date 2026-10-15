@@ -53,7 +53,21 @@ jobs:
         run: flutter pub get 2>&1 | tee -a ci.log
 
       - name: Analyze
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib 2>&1 | tee -a ci.log
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib test 2>&1 | tee -a ci.log
+
+      - name: Unit tests
+        run: flutter test 2>&1 | tee -a ci.log
+
+      # Checks firestore.rules against the app's real writes (Firestore emulator).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Firestore rules tests
+        working-directory: tool/rules_test
+        run: |
+          npm ci 2>&1 | tail -3 | tee -a ../../ci.log
+          npm test 2>&1 | grep -vE "^\[.*GrpcConnection" | tee -a ../../ci.log
 
       - name: Build APK
         run: |

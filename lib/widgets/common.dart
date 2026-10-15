@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
 import '../core/utils.dart';
@@ -462,6 +463,7 @@ Future<String?> textInputDialog(BuildContext context,
         autofocus: true,
         textCapitalization: TextCapitalization.sentences,
         decoration: fieldDecoration(hint),
+        inputFormatters: [LengthLimitingTextInputFormatter(100)],
         onSubmitted: (v) {
           if (v.trim().isNotEmpty) Navigator.pop(ctx, v.trim());
         },

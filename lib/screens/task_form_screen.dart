@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
 import '../core/utils.dart';
@@ -357,6 +358,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               controller: _title,
               textCapitalization: TextCapitalization.sentences,
               decoration: fieldDecoration('Enter task title'),
+              inputFormatters: [LengthLimitingTextInputFormatter(200)],
               validator: (v) =>
                   (v == null || v.trim().isEmpty) ? 'Title is required' : null,
             ),
@@ -368,6 +370,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               maxLines: 6,
               textCapitalization: TextCapitalization.sentences,
               decoration: fieldDecoration('Add a description (optional)'),
+              inputFormatters: [LengthLimitingTextInputFormatter(5000)],
             ),
             const SizedBox(height: 18),
             const _Label('Category'),
@@ -485,6 +488,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     textCapitalization: TextCapitalization.sentences,
                     decoration: fieldDecoration('Add checklist item',
                         icon: Icons.checklist_rounded),
+                    inputFormatters: [LengthLimitingTextInputFormatter(200)],
                     onSubmitted: (_) => _addChecklistItem(),
                   ),
                 ),

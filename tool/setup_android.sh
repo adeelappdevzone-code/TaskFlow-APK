@@ -31,6 +31,52 @@ for f in android/app/build.gradle android/app/build.gradle.kts; do
   echo "minSdk lines in $f:"; grep -nE "minSdk" "$f" || true
 done
 
+# Phone reminders (flutter_local_notifications):
+# - receivers that show scheduled notifications and re-create them after a
+#   phone restart, + the boot permission
+# - Java "desugaring", which the plugin needs on older Android versions
+if ! grep -q "ScheduledNotificationReceiver" "$MANIFEST"; then
+  python3 - "$MANIFEST" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+perm = '<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>\n    '
+receivers = """<receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
+    """
+i = s.index("<application")
+s = s[:i] + perm + s[i:]
+j = s.rindex("</application>")
+s = s[:j] + receivers + s[j:]
+open(p, "w").write(s)
+PY
+fi
+if [ -f android/app/build.gradle.kts ] && ! grep -q "desugar_jdk_libs" android/app/build.gradle.kts; then
+  sed -i -E 's/^([[:space:]]*)compileOptions[[:space:]]*\{/&\n\1    isCoreLibraryDesugaringEnabled = true/' android/app/build.gradle.kts
+  cat >> android/app/build.gradle.kts <<'EOF'
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+}
+EOF
+elif [ -f android/app/build.gradle ] && ! grep -q "desugar_jdk_libs" android/app/build.gradle; then
+  sed -i -E 's/^([[:space:]]*)compileOptions[[:space:]]*\{/&\n\1    coreLibraryDesugaringEnabled true/' android/app/build.gradle
+  cat >> android/app/build.gradle <<'EOF'
+
+dependencies {
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+}
+EOF
+fi
+grep -nE "esugar" android/app/build.gradle* || true
+
 # Sign every build (debug + release) with tool/debug.keystore, so the APK's
 # SHA-1 always matches the one added in Firebase (needed for Google login) and
 # a new APK installs as an update. Copying it to ~/.android is not enough: the
@@ -65,4 +111,4 @@ android {
 EOF
 fi
 
-echo "Android app name, icon, minSdk and signing key set."
+echo "Android app name, icon, minSdk, reminders and signing key set."

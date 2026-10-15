@@ -19,6 +19,7 @@ import 'package:uuid/uuid.dart';
 
 import '../core/utils.dart';
 import 'models.dart';
+import 'reminders.dart';
 
 const _uuid = Uuid();
 String newId() => _uuid.v4();
@@ -52,6 +53,7 @@ class AppStore extends ChangeNotifier {
   List<AppNotification> notifications = [];
 
   Timer? _reminderTimer;
+  Timer? _phoneReminderSync;
   final List<StreamSubscription<dynamic>> _subs = [];
 
   FirebaseFirestore get _fs => FirebaseFirestore.instance;
@@ -73,8 +75,40 @@ class AppStore extends ChangeNotifier {
     } catch (e) {
       debugPrint('Firestore settings: $e');
     }
+    await PhoneReminders.instance.init();
+
+    // If Firebase ends the login by itself (account disabled or deleted,
+    // password changed on another phone...), go back to the login screen.
+    // AppStore lives as long as the app, so this listener is never cancelled.
+    _auth.authStateChanges().listen((u) {
+      if (u == null && currentUser != null) {
+        _endSession();
+        notifyListeners();
+      }
+    });
+
     final u = _auth.currentUser;
-    if (u != null) _startSession(u);
+    if (u != null) {
+      _startSession(u);
+      _checkAccountStillValid(u);
+    }
+  }
+
+  /// The saved login is used without internet, so the app does not know if
+  /// the account was disabled or deleted meanwhile. Ask Firebase once at
+  /// startup; network errors are ignored (offline use keeps working).
+  Future<void> _checkAccountStillValid(fb.User u) async {
+    try {
+      await u.reload();
+    } on fb.FirebaseAuthException catch (e) {
+      const gone = {'user-disabled', 'user-not-found', 'user-token-expired', 'invalid-user-token'};
+      if (gone.contains(e.code)) {
+        debugPrint('Account no longer valid (${e.code}), logging out');
+        await logout();
+      }
+    } catch (e) {
+      debugPrint('Account check: $e');
+    }
   }
 
   Future<void> markOnboardingSeen() async {
@@ -99,11 +133,14 @@ class AppStore extends ChangeNotifier {
     );
     _listen();
     _startReminderTimer();
+    PhoneReminders.instance.askPermission();
     notifyListeners();
   }
 
   void _endSession() {
     _reminderTimer?.cancel();
+    _phoneReminderSync?.cancel();
+    PhoneReminders.instance.clear();
     _cancelSubs();
     currentUser = null;
     categories = [];
@@ -146,6 +183,7 @@ class AppStore extends ChangeNotifier {
     _subs.add(_col('tasks').snapshots().listen((s) {
       tasks = _parse(s.docs.map((d) => d.data()), _taskFromMap)
         ..sort((a, b) => a.startAt.compareTo(b.startAt));
+      _schedulePhoneReminders();
       notifyListeners();
     }, onError: _onStreamError));
 
@@ -169,6 +207,15 @@ class AppStore extends ChangeNotifier {
       }
     }
     return out;
+  }
+
+  /// Tasks can change many times in a row (e.g. a batch write), so the phone
+  /// reminders are re-scheduled once things settle.
+  void _schedulePhoneReminders() {
+    _phoneReminderSync?.cancel();
+    _phoneReminderSync = Timer(const Duration(seconds: 2), () {
+      if (currentUser != null) PhoneReminders.instance.sync(tasks);
+    });
   }
 
   void _onStreamError(Object e) {

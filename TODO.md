@@ -21,7 +21,6 @@ Dhyan: key badalne ke baad phone se purani app ek dafa uninstall karni hogi
 
 ## Review se baqi kaam
 
-- `AppStore` mein `authStateChanges` listener nahi (account disable ho to app ko pata nahi chalta).
 - Flutter CI mein 3.47.7 par fix hai (`build-apk.yml`). Upgrade karte waqt CI log check karo.
   Wahan "plugins that apply Kotlin Gradle Plugin (KGP): firebase_auth, firebase_core" wali
   warning ghalat alarm hai: Flutter sirf plugin ki file mein text dhoondta hai, jabke Firebase
@@ -29,5 +28,6 @@ Dhyan: key badalne ke baad phone se purani app ek dafa uninstall karni hogi
   Agar kabhi is warning ki wajah se build fail ho, to firebase packages naye version par update karo.
 - APK 55 MB: `--split-per-abi` se chhoti ho sakti hai.
 - Har `main` push par nayi GitHub Release banti hai — purani releases jama hoti rahengi.
-- Reminders sirf app khuli ho tab aate hain (asli push notifications nahi).
-- Tests na hone ke barabar, CI tests nahi chalata.
+- Tests: abhi models, utils, reminders aur Firestore rules ke hain. Screens (widget) tests nahi.
+- `firestore.rules` badlo to Firebase Console → Firestore → Rules mein paste kar ke Publish karna
+  zaroori hai (CI rules ko sirf test karta hai, Firebase par khud nahi lagata).

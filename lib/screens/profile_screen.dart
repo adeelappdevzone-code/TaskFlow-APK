@@ -289,6 +289,7 @@ class _AccountScreenState extends State<AccountScreen> {
               controller: _name,
               textCapitalization: TextCapitalization.words,
               decoration: fieldDecoration('Full name'),
+              inputFormatters: [LengthLimitingTextInputFormatter(100)],
               validator: (v) =>
                   (v == null || v.trim().length < 2) ? 'Enter your name' : null,
             ),
@@ -348,6 +349,7 @@ class CategoriesScreen extends StatelessWidget {
                 autofocus: true,
                 textCapitalization: TextCapitalization.words,
                 decoration: fieldDecoration('Category name'),
+                inputFormatters: [LengthLimitingTextInputFormatter(100)],
               ),
               const SizedBox(height: 16),
               ColorPickerRow(

@@ -70,10 +70,13 @@ lib/
   core/utils.dart           date/time helpers
   data/models.dart          User, Task, Category, Project, Member, ChecklistItem, Notification
   data/app_store.dart       saara login (Firebase Auth + Google) aur data read/write (Firestore) yahin
+  data/reminders.dart       phone notifications (task se 15 min pehle)
   screens/                  har screen ki file
   widgets/common.dart       shared UI (TaskTile, buttons, chips...)
 firestore.rules             Firestore security rules (Console mein paste karni hain)
 tool/setup_android.sh       app ka naam, icon, minSdk 23 set karta hai
+tool/rules_test/          firestore.rules ke tests (Firestore emulator, CI mein chalte hain)
+test/                     unit tests (`flutter test`)
 tool/debug.keystore         APK signing key (sirf testing; Play Store se pehle badalni hai, TODO.md dekho)
 ```
 
@@ -93,6 +96,8 @@ tool/debug.keystore         APK signing key (sirf testing; Play Store se pehle b
 
 ## Abhi ki limitations
 
-- Reminders sirf jab app khuli ho (in-app). Band app par phone notification abhi nahi.
+- Reminders: task shuru hone se 15 minute pehle phone notification aati hai (app band ho tab bhi,
+  phone restart ke baad bhi). Android idle ho to kabhi kabhi do-chaar minute late aa sakti hai.
+  Notification sirf usi phone par aati hai jahan app mein login ho.
 - Assign to member: abhi sirf naam hai, us member ko koi notification nahi jati.
 - Baqi kaam ki list: `TODO.md`.

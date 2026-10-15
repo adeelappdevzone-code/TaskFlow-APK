@@ -1,0 +1,10 @@
+# Flutter / Dart build output
+.dart_tool/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+# Generated in CI by `flutter create` (see README)
+android/
+# Rules test dependencies
+node_modules/
+*-debug.log

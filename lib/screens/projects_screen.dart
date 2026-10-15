@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
 import '../data/app_store.dart';
@@ -28,6 +29,7 @@ Future<void> showProjectDialog(BuildContext context, {Project? project}) async {
               autofocus: true,
               textCapitalization: TextCapitalization.words,
               decoration: fieldDecoration('Project name'),
+              inputFormatters: [LengthLimitingTextInputFormatter(100)],
             ),
             const SizedBox(height: 16),
             const Text('Color', style: TextStyle(fontWeight: FontWeight.w600)),
