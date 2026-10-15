@@ -16,12 +16,11 @@ class DefaultFirebaseOptions {
     storageBucket: 'taskflow-ce905.firebasestorage.app',
   );
 
-  /// Web app "TaskFlow Web". [webAppId] is filled in once the web app is
-  /// registered in the Firebase console.
-  static const webAppId = '';
+  /// Web app "TaskFlow Web" (deployed to https://taskflow-ce905.web.app).
+  static const webAppId = '1:791768449553:web:2e330554139b73ae6de7b0';
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBjip1baAq-KaDDqJy43rqmiv9607zBckU',
+    apiKey: 'AIzaSyBjHWASfNIQ2RlI5mIbwZuXGPZoF4_tCiE',
     appId: webAppId,
     messagingSenderId: '791768449553',
     projectId: 'taskflow-ce905',
