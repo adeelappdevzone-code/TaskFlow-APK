@@ -5,24 +5,19 @@ aksar akela kaam karta hai, PR/merge nahi chahta: **changes seedha `main` par pu
 (branch `claude/cool-maxwell-b6rodp` bhi sath update karo). Test pehle khud karo, phir push.
 **Jawab chhota rakho:** kaam ke dauran updates/tafseel nahi, aakhir mein sirf 3-5 lines (kya bana, tests pass, push/CI ok).
 
-## REDESIGN chal raha hai (Oct 2026) — pehle ye parho
+## REDESIGN (Oct 2026) — 10 screens ho gayi, main par push
 
-Testing team ne app reject ki: tasks do jagah bikhre hue, har page par wahi stats. Naya plan:
-- **Ek task system:** storage wahi (`users/{uid}/tasks` + `teams/{id}/tasks`), lekin app mein ek
-  `TaskRepository` sab tasks ek list mein deta hai (task + team ya null). Ek Create sheet
-  (Personal / kaunsi Team), ek Task detail har jagah.
-- **Home** = aaj ka focus (My Day, Needs attention, Upcoming). **My Tasks** = personal + mujhe
-  assigned team tasks (+ "Assigned by me" filter). **Calendar** mein assigned team tasks bhi.
-  **Team** = Tasks (List/Board) / Members / Overview (sirf admin, weekly report yahin).
-  **Profile** = sirf account + settings (stats hatao). Sidebar: Home, My Tasks, Calendar, Teams
-  (har team ka link), Notifications, Profile, + New Task.
-- **Member bhi team mein task bana sakta hai** (apne liye) — rules badalne honge.
-- Owner screen by screen UI dega (10 screens). **Jab tak 10 screens poori na hon, `main` par push
-  NAHI** (main par push = APK + web build). Kaam sirf branch `claude/cool-maxwell-b6rodp` par
-  push karo; 10 poori hone par ek dafa `main` par, phir mobile + desktop test.
-- Contacts (personal task kisi naam ko assign) **hata diye** — assign sirf Teams mein.
-- Screens: 1 ✅ Home, 2 ✅ My Tasks, 8 ✅ Team Members (table, invited rows, Invite member), 9 ✅ Team Overview (period, status ring, priority bars, activity from task history, workload), 7 ✅ Team page (Board/List/Members/Overview, drag & drop, column se task add; sidebar "My Teams"), 6 ✅ Teams list (invitations upar, grid/list, "N for you", Create new team card), 5 ✅ Calendar (Day/Week/Month, personal + assigned team tasks, khali slot par click = naya task), 4 ✅ Task page (personal + team ek hi; laptop par page ke upar khulta hai, sidebar rehta hai), 3 ✅ Create task dialog (har jagah se ek hi; bina time = All day; Google Calendar link; "More options" = poora form) (personal + assigned, filter: team/project, "Assigned by me"; table/board). Home: naya sidebar + top bar search/bell/account; My Day mein team/project/
-  Personal chip). Baqi 9 owner bhejega.
+Testing team ne purani app reject ki thi (tasks bikhre hue, har page par wahi stats). Ab:
+- **Ek task system:** storage wahi (`users/{uid}/tasks` + `teams/{id}/tasks`); app mein
+  `lib/data/task_repository.dart` (`TaskRef` = task + team ya null) sab jagah. Ek Create dialog
+  (`create_task_dialog.dart`, Personal/Team), ek Task page (`task_page.dart`) har jagah.
+- Screens: Home, My Tasks, Create task, Task page, Calendar (Day/Week/Month), Teams, Team page
+  (Board/List/Members/Overview), Profile (Account/Notifications/Preferences/Security & Backup).
+- Laptop frame: `main_shell_wide.dart` (sidebar + "My Teams", top bar search/bell/account); task
+  page laptop par page ke upar khulta hai (`DetailPanelHost`).
+- Member team mein apne liye task bana sakta hai (rules `ownTask`). Contacts hata diye.
+- Baqi: team Members/Overview ka **phone** design purana hai; multi-assignee (owner se poochna);
+  dark mode; email notifications (Blaze chahiye).
 
 ## Setup (sab chal raha hai)
 

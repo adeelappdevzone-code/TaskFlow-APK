@@ -64,26 +64,35 @@ void main() {
 
   testWidgets('laptop profile', (tester) async {
     await pump(tester, const Size(1600, 1100));
-    expect(find.text('Adeel App Devzone'), findsOneWidget);
-    expect(find.text('CEO'), findsOneWidget);
+    expect(find.text('Adeel App Devzone'), findsWidgets);
+    expect(find.text('CEO'), findsWidgets);
     expect(find.text('Team Owner'), findsOneWidget);
-    expect(find.text('Quick settings'), findsOneWidget);
-    expect(find.text('Focus summary'), findsOneWidget);
-    expect(find.text('Preferences'), findsOneWidget);
-    expect(find.text('Security & account'), findsOneWidget);
+    expect(find.text('Profile Information'), findsOneWidget);
+    expect(find.text('Quick Settings'), findsOneWidget);
+    expect(find.text('Security & Account'), findsOneWidget);
     expect(find.text('Completed a task'), findsOneWidget);
     expect(find.text('Created a new team'), findsOneWidget);
+    // Other tabs.
+    await tester.tap(find.text('Notifications'));
+    await tester.pumpAndSettle();
+    expect(find.text('Notification settings'), findsOneWidget);
+    await tester.tap(find.text('Security & Backup'));
+    await tester.pumpAndSettle();
+    expect(find.text('Logout'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('phone profile', (tester) async {
     await pump(tester, const Size(400, 2600));
-    expect(find.text('Total tasks'), findsOneWidget);
+    expect(find.text('Total Tasks'), findsOneWidget);
     expect(find.text('Teams'), findsOneWidget);
-    expect(find.text('Account Info'), findsOneWidget);
-    expect(find.text('Task reminder'), findsOneWidget);
+    expect(find.text('Task reminders'), findsOneWidget);
     expect(find.text('Email verification'), findsOneWidget);
     expect(find.text('Logout'), findsOneWidget);
+    // Edit name inline.
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(find.text('Save'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
