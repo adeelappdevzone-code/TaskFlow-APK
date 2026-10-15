@@ -6,6 +6,9 @@ Security rules: `firestore.rules` (Firebase Console → Firestore → Rules mein
 
 APK link: https://github.com/adeelappdevzone-code/TaskFlow-APK/releases/latest/download/TaskFlow.apk
 
+Bohat purane (32-bit) phone ke liye: https://github.com/adeelappdevzone-code/TaskFlow-APK/releases/latest/download/TaskFlow-old-phones.apk
+(GitHub par sirf aakhri 5 builds rakhi jati hain.)
+
 CI log: har build ka log aur result `ci-logs` branch mein save hota hai.
 
 ---

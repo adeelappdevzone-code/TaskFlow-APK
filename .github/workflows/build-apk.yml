@@ -71,23 +71,31 @@ jobs:
 
       - name: Build APK
         run: |
-          flutter build apk --release --build-number=${{ github.run_number }} 2>&1 | tee -a ci.log
-          cp build/app/outputs/flutter-apk/app-release.apk TaskFlow.apk
+          # One APK per phone type is much smaller than one APK for all.
+          # TaskFlow.apk = arm64 (almost every phone from the last ~8 years),
+          # TaskFlow-old-phones.apk = 32-bit arm, for very old phones.
+          flutter build apk --release --split-per-abi --target-platform android-arm,android-arm64 \
+            --build-number=${{ github.run_number }} 2>&1 | tee -a ci.log
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk TaskFlow.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk TaskFlow-old-phones.apk
+          ls -lh TaskFlow*.apk | tee -a ci.log
 
       # The SHA-1 added in Firebase must match the APK's key, otherwise Google
       # login fails with "[16] Account reauth failed".
       - name: Check APK signing key
         run: |
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          "$APKSIGNER" verify --print-certs TaskFlow.apk 2>&1 | tee -a ci.log
-          "$APKSIGNER" verify --print-certs TaskFlow.apk | grep -qi "SHA-1 digest: 2e55ddaf09a30d937e752b06c1800467fe817f59" \
-            || { echo "APK is NOT signed with tool/debug.keystore" | tee -a ci.log; exit 1; }
+          for apk in TaskFlow.apk TaskFlow-old-phones.apk; do
+            "$APKSIGNER" verify --print-certs "$apk" 2>&1 | tee -a ci.log
+            "$APKSIGNER" verify --print-certs "$apk" | grep -qi "SHA-1 digest: 2e55ddaf09a30d937e752b06c1800467fe817f59" \
+              || { echo "$apk is NOT signed with tool/debug.keystore" | tee -a ci.log; exit 1; }
+          done
 
       - name: Upload APK (Actions artifact)
         uses: actions/upload-artifact@v4
         with:
           name: TaskFlow-APK
-          path: TaskFlow.apk
+          path: TaskFlow*.apk
 
       - name: Publish as latest Release
         uses: softprops/action-gh-release@v2
@@ -95,8 +103,23 @@ jobs:
           tag_name: build-${{ github.run_number }}
           name: TaskFlow build ${{ github.run_number }}
           body: "Commit: ${{ github.sha }}"
-          files: TaskFlow.apk
+          files: |
+            TaskFlow.apk
+            TaskFlow-old-phones.apk
           make_latest: true
+
+      # Keep only the newest 5 builds (older releases and their tags are deleted).
+      - name: Delete old releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release list --repo "${{ github.repository }}" --limit 1000 \
+              --json tagName,createdAt --jq 'sort_by(.createdAt) | reverse | .[5:] | .[].tagName' \
+            | grep '^build-' \
+            | while read -r tag; do
+                echo "Deleting old release $tag"
+                gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag
+              done || true
 
       # Saves the log + result to the "ci-logs" branch so problems can be
       # read and fixed without screenshots.
