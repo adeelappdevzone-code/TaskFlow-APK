@@ -116,6 +116,8 @@ class TaskDetailScreen extends StatelessWidget {
                 children: [
                   if (cat != null) TagChip(label: cat.name, color: Color(cat.color)),
                   _statusChip(task),
+                  if (Repeat.isOn(task.repeat))
+                    TagChip(label: Repeat.label(task.repeat), color: AppColors.primary),
                 ],
               ),
               if (task.description.isNotEmpty) ...[

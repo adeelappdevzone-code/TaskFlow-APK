@@ -4,12 +4,15 @@ import '../core/theme.dart';
 import '../core/utils.dart';
 import '../data/app_store.dart';
 import '../data/models.dart';
+import '../data/team_models.dart';
+import '../data/team_store.dart';
 import '../widgets/common.dart';
 import 'main_shell.dart';
 import 'notifications_screen.dart';
 import 'projects_screen.dart';
 import 'task_detail_screen.dart';
 import 'tasks_screen.dart';
+import 'team_task_detail_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -17,12 +20,13 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final store = AppStore.instance;
+    final teams = TeamStore.instance;
     return ListenableBuilder(
-      listenable: store,
+      listenable: Listenable.merge([store, teams]),
       builder: (context, _) {
         final user = store.currentUser;
         final firstName = (user?.name ?? '').split(' ').first;
-        final today = store.todayTasks;
+        final day = _MyDay.build(store, teams, DateTime.now());
 
         return SafeArea(
           child: ListView(
@@ -55,9 +59,9 @@ class HomeScreen extends StatelessWidget {
 
               // ----------------------------------------------- summary card
               _SummaryCard(
-                total: store.totalCount,
-                done: store.doneCount,
-                pending: store.pendingCount,
+                total: day.total,
+                done: day.done,
+                pending: day.total - day.done,
               ),
               const SizedBox(height: 20),
 
@@ -101,30 +105,89 @@ class HomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
 
-              // ------------------------------------------------ today list
+              // ------------------------------------------------- my day
               SectionHeader(
-                title: "Today's Tasks",
+                title: 'My Day',
                 actionLabel: 'See all',
                 onAction: () => MainShell.switchTab(context, 1),
               ),
+              const SizedBox(height: 4),
+              const Text('Your personal tasks and team tasks assigned to you.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
               const SizedBox(height: 12),
-              if (today.isEmpty)
+              if (day.overdue.isNotEmpty) ...[
+                Text('Overdue (${day.overdue.length})',
+                    style: const TextStyle(
+                        color: AppColors.danger, fontWeight: FontWeight.w700, fontSize: 13.5)),
+                const SizedBox(height: 8),
+                for (final e in day.overdue) _tile(context, e),
+                const SizedBox(height: 10),
+                const Text('Today',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
+                const SizedBox(height: 8),
+              ],
+              if (day.today.isEmpty)
                 const EmptyState(
                   icon: Icons.wb_sunny_outlined,
                   title: 'Nothing planned for today',
                   subtitle: 'Tap the + button to add a task.',
                 )
               else
-                ...today.map((t) => TaskTile(
-                      task: t,
-                      showDay: false,
-                      onTap: () => openTaskDetail(context, t),
-                    )),
+                for (final e in day.today) _tile(context, e),
             ],
           ),
         );
       },
     );
+  }
+}
+
+Widget _tile(BuildContext context, _DayItem e) {
+  final team = e.team;
+  final t = e.task;
+  if (team == null) {
+    return TaskTile(task: t, showDay: false, onTap: () => openTaskDetail(context, t));
+  }
+  final teams = TeamStore.instance;
+  return TaskTile(
+    task: t,
+    showDay: false,
+    teamTask: true,
+    onTap: () => openTeamTask(context, team, t),
+    onToggle: () => teams.setCompleted(team, t, !t.isCompleted),
+    trailing: TagChip(label: team.name, color: Color(team.color)),
+  );
+}
+
+/// A task on My Day; [team] is null for personal tasks.
+class _DayItem {
+  final TaskItem task;
+  final Team? team;
+  const _DayItem(this.task, this.team);
+}
+
+/// Today's and overdue tasks from personal + my team tasks.
+class _MyDay {
+  final List<_DayItem> today;
+  final List<_DayItem> overdue;
+  final int total;
+  final int done;
+  const _MyDay(this.today, this.overdue, this.total, this.done);
+
+  static _MyDay build(AppStore store, TeamStore teams, DateTime now) {
+    final all = [
+      for (final t in store.tasks)
+        if (!t.isCancelled) _DayItem(t, null),
+      for (final (team, t) in teams.myTeamTasksWithTeam) _DayItem(t, team),
+    ];
+    final today = all.where((e) => isSameDay(e.task.startAt, now)).toList()
+      ..sort((a, b) => a.task.startAt.compareTo(b.task.startAt));
+    final overdue = all
+        .where((e) => e.task.isOverdue && !isSameDay(e.task.startAt, now))
+        .toList()
+      ..sort((a, b) => a.task.startAt.compareTo(b.task.startAt));
+    final done = all.where((e) => e.task.isCompleted).length;
+    return _MyDay(today, overdue, all.length, done);
   }
 }
 

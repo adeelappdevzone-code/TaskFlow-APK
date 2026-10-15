@@ -114,6 +114,24 @@ await t('comment: cannot edit', assertFails(updateDoc(doc(adeel, `teams/${T}/com
 await t('comment: cannot delete others', assertFails(deleteDoc(doc(sara, `teams/${T}/comments/c1`))));
 await t('comment: author deletes own', assertSucceeds(deleteDoc(doc(sara, `teams/${T}/comments/c2`))));
 await t('comment: owner deletes any', assertSucceeds(deleteDoc(doc(owner, `teams/${T}/comments/c1`))));
+await t('board: adeel moves own task to review', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { stage: 'review', updated_at: now })));
+await t('board: bad stage denied', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { stage: 'weird' })));
+await t('board: cannot move others task', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { stage: 'doing' })));
+await t('repeat: owner makes weekly task for adeel', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/w1`), { ...ttask('w1', 'adl'), repeat: 'weekly' })));
+const nextCopy = (by, extra = {}) => ({ ...ttask('w2', 'adl'), repeat: 'weekly', repeat_from: 'w1', start_at: now + 7 * 864e5, ...extra });
+await t('repeat: other member cannot copy', assertFails(setDoc(doc(sara, `teams/${T}/tasks/w2`), nextCopy('sar'))));
+await t('repeat: copy with changed title denied', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/w2`), nextCopy('adl', { title: 'Other' }))));
+await t('repeat: copy assigned to someone else denied', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/w2`), nextCopy('adl', { assignee_id: 'sar' }))));
+await t('repeat: copy of non-repeating task denied', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/w3`), { ...nextCopy('adl'), id: 'w3', repeat_from: 'a1' })));
+await t('repeat: adeel finishes + next copy (batch)', assertSucceeds((() => {
+  const b = writeBatch(adeel);
+  b.update(doc(adeel, `teams/${T}/tasks/w1`), { status: 'completed', completed_at: now, updated_at: now });
+  b.set(doc(adeel, `teams/${T}/tasks/w2`), nextCopy('adl'));
+  return b.commit();
+})()));
+await t('template: save own template', assertSucceeds(setDoc(doc(me, 'users/u1/templates/tp1'), { id: 'tp1', name: 'SEO audit', title: 'SEO audit', description: '', priority: 1, checklist: ['Keywords', 'Meta'], duration_min: 60, created_at: now })));
+await t('template: other user denied', assertFails(getDoc(doc(other, 'users/u1/templates/tp1'))));
+await t('template: bad template denied', assertFails(setDoc(doc(me, 'users/u1/templates/tp2'), { id: 'tp2', name: 5, created_at: now })));
 await t('role: owner makes adeel manager', assertSucceeds(updateDoc(doc(owner, `teams/${T}`), { manager_ids: ['adl'], updated_at: now })));
 await t('role: manager creates task', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/m1`), ttask('m1', 'sar', 'adl'))));
 await t('role: manager edits any task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { title: 'Edited', updated_at: now })));

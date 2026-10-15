@@ -4,6 +4,7 @@ import 'package:taskflow/core/theme.dart';
 import 'package:taskflow/data/models.dart';
 import 'package:taskflow/data/team_models.dart';
 import 'package:taskflow/data/team_store.dart';
+import 'package:taskflow/screens/home_screen.dart';
 import 'package:taskflow/screens/task_form_screen.dart';
 import 'package:taskflow/screens/team_screen.dart';
 import 'package:taskflow/screens/teams_screen.dart';
@@ -71,6 +72,8 @@ void main() {
     expect(find.text('New task • SEO'), findsOneWidget);
     expect(find.text('Category'), findsNothing);
     expect(find.text('Project'), findsNothing);
+    await tester.scrollUntilVisible(find.text('Choose a team member'), 200,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('Choose a team member'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -108,6 +111,65 @@ void main() {
     TeamStore.instance.setForTest(uid: 'own');
     await tester.pumpWidget(app(const Scaffold(body: TeamsScreen())));
     expect(find.text('Your team at a glance'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Board view shows the four columns', (tester) async {
+    final now = DateTime.now();
+    TaskItem t(String id, String stage, String status) => TaskItem(
+          id: id,
+          title: 'Card $id',
+          assigneeId: 'adl',
+          status: status,
+          stage: stage,
+          startAt: now,
+          createdAt: now,
+          updatedAt: now,
+        );
+    TeamStore.instance.setForTest(uid: 'own', tasks: {
+      'T': [
+        t('1', TaskStage.todo, TaskStatus.pending),
+        t('2', TaskStage.doing, TaskStatus.pending),
+        t('3', TaskStage.review, TaskStatus.pending),
+        t('4', TaskStage.todo, TaskStatus.completed),
+      ],
+    });
+    await tester.pumpWidget(app(const TeamScreen(teamId: 'T')));
+    await tester.tap(find.byTooltip('Board view'));
+    await tester.pumpAndSettle();
+    expect(find.text('To do'), findsOneWidget);
+    expect(find.text('In progress'), findsOneWidget);
+    expect(find.text('Card 1'), findsOneWidget);
+    expect(find.text('Card 2'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Task form has repeat and templates', (tester) async {
+    await tester.pumpWidget(app(TaskFormScreen(team: team)));
+    expect(find.text('Does not repeat'), findsOneWidget);
+    expect(find.byTooltip('Templates'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('My Day lists team tasks assigned to me', (tester) async {
+    final now = DateTime.now();
+    final later = DateTime(now.year, now.month, now.day, 23, 0);
+    TeamStore.instance.setForTest(uid: 'adl', tasks: {
+      'T': [
+        TaskItem(
+          id: 'm1',
+          title: 'Write SEO blog',
+          assigneeId: 'adl',
+          startAt: later,
+          createdAt: now,
+          updatedAt: now,
+        ),
+      ],
+    });
+    await tester.pumpWidget(app(const Scaffold(body: HomeScreen())));
+    expect(find.text('My Day'), findsOneWidget);
+    expect(find.text('Write SEO blog'), findsOneWidget);
+    expect(find.text('SEO'), findsOneWidget); // team chip
     expect(tester.takeException(), isNull);
   });
 }

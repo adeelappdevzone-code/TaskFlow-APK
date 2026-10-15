@@ -117,7 +117,26 @@ class TeamTaskDetailScreen extends StatelessWidget {
                     decoration: task.isCancelled ? TextDecoration.lineThrough : null,
                   )),
               const SizedBox(height: 10),
-              Wrap(spacing: 8, runSpacing: 6, children: [_statusChip(task)]),
+              Wrap(spacing: 8, runSpacing: 6, children: [
+                _statusChip(task),
+                if (Repeat.isOn(task.repeat))
+                  TagChip(label: Repeat.label(task.repeat), color: AppColors.primary),
+              ]),
+              if (canComplete && task.status == TaskStatus.pending) ...[
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    for (final st in TaskStage.all) ...[
+                      if (st != TaskStage.todo) const SizedBox(width: 6),
+                      TabPill(
+                        label: TaskStage.label(st),
+                        active: task.stage == st,
+                        onTap: () => store.moveTo(team, task, st),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
               if (task.description.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(task.description,
@@ -248,7 +267,9 @@ class TeamTaskDetailScreen extends StatelessWidget {
 
   Widget _statusChip(TaskItem t) => switch (t.displayStatus) {
         DisplayStatus.completed => const TagChip(label: 'Completed', color: AppColors.success),
-        DisplayStatus.inProgress => const TagChip(label: 'In progress', color: AppColors.purple),
+        DisplayStatus.inProgress => t.stage == TaskStage.review
+            ? const TagChip(label: 'In review', color: AppColors.warning)
+            : const TagChip(label: 'In progress', color: AppColors.purple),
         DisplayStatus.cancelled => const TagChip(label: 'Cancelled', color: AppColors.danger),
         DisplayStatus.pending => t.isOverdue
             ? const TagChip(label: 'Overdue', color: AppColors.danger)

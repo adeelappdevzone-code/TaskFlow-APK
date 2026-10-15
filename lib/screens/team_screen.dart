@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
+import '../core/utils.dart';
 import '../data/models.dart';
 import '../data/team_models.dart';
 import '../data/team_stats.dart';
@@ -24,6 +25,7 @@ class TeamScreen extends StatefulWidget {
 
 class _TeamScreenState extends State<TeamScreen> {
   _Filter _filter = _Filter.all;
+  bool _board = false;
 
   Future<void> _onMenu(String action, Team team) async {
     final store = TeamStore.instance;
@@ -111,6 +113,11 @@ class _TeamScreenState extends State<TeamScreen> {
             appBar: AppBar(
               title: Text(team.name),
               actions: [
+                IconButton(
+                  tooltip: _board ? 'List view' : 'Board view',
+                  icon: Icon(_board ? Icons.view_agenda_outlined : Icons.view_kanban_outlined),
+                  onPressed: () => setState(() => _board = !_board),
+                ),
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert_rounded),
                   onSelected: (a) => _onMenu(a, team),
@@ -145,53 +152,56 @@ class _TeamScreenState extends State<TeamScreen> {
             body: TabBarView(
               children: [
                 // ------------------------------------------------- tasks
-                ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-                  children: [
-                    if (active.isNotEmpty) ...[
+                if (_board)
+                  TaskBoard(team: team, tasks: tasks)
+                else
+                  ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+                    children: [
+                      if (active.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            Text('$done of ${active.length} done',
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
+                            const Spacer(),
+                            Text('${(done * 100 / active.length).round()}%',
+                                style: TextStyle(
+                                    color: Color(team.color), fontWeight: FontWeight.w700)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: done / active.length,
+                            minHeight: 8,
+                            color: Color(team.color),
+                            backgroundColor: Color(team.color).withAlpha(30),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       Row(
                         children: [
-                          Text('$done of ${active.length} done',
-                              style: const TextStyle(fontWeight: FontWeight.w600)),
-                          const Spacer(),
-                          Text('${(done * 100 / active.length).round()}%',
-                              style:
-                                  TextStyle(color: Color(team.color), fontWeight: FontWeight.w700)),
+                          for (final f in _Filter.values) ...[
+                            if (f != _Filter.all) const SizedBox(width: 6),
+                            TabPill(
+                              label: switch (f) {
+                                _Filter.all => 'All',
+                                _Filter.mine => 'Mine',
+                                _Filter.pending => 'Pending',
+                                _Filter.done => 'Done',
+                              },
+                              active: _filter == f,
+                              onTap: () => setState(() => _filter = f),
+                            ),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: LinearProgressIndicator(
-                          value: done / active.length,
-                          minHeight: 8,
-                          color: Color(team.color),
-                          backgroundColor: Color(team.color).withAlpha(30),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
+                      ..._taskList(team, tasks, me, admin),
                     ],
-                    Row(
-                      children: [
-                        for (final f in _Filter.values) ...[
-                          if (f != _Filter.all) const SizedBox(width: 6),
-                          TabPill(
-                            label: switch (f) {
-                              _Filter.all => 'All',
-                              _Filter.mine => 'Mine',
-                              _Filter.pending => 'Pending',
-                              _Filter.done => 'Done',
-                            },
-                            active: _filter == f,
-                            onTap: () => setState(() => _filter = f),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    ..._taskList(team, tasks, me, admin),
-                  ],
-                ),
+                  ),
                 // ----------------------------------------------- members
                 _MembersTab(team: team, me: me),
                 if (admin) _OverviewTab(team: team, tasks: tasks),
@@ -567,6 +577,188 @@ class _MemberLoad extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Kanban board: To do | In progress | Review | Done. Long-press a card and
+/// drag it to another column (owner/managers: any card; members: their own).
+class TaskBoard extends StatelessWidget {
+  final Team team;
+  final List<TaskItem> tasks;
+  const TaskBoard({super.key, required this.team, required this.tasks});
+
+  static const _columns = [TaskStage.todo, TaskStage.doing, TaskStage.review, TeamStore.boardDone];
+
+  static String columnOf(TaskItem t) => t.isCompleted ? TeamStore.boardDone : t.stage;
+
+  @override
+  Widget build(BuildContext context) {
+    final width = (MediaQuery.of(context).size.width * 0.78).clamp(220.0, 320.0);
+    final visible = tasks.where((t) => !t.isCancelled).toList()
+      ..sort((a, b) => a.startAt.compareTo(b.startAt));
+    return ListView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+      children: [
+        for (final col in _columns)
+          _BoardColumn(
+            team: team,
+            column: col,
+            width: width,
+            tasks: visible.where((t) => columnOf(t) == col).toList(),
+          ),
+      ],
+    );
+  }
+}
+
+class _BoardColumn extends StatelessWidget {
+  final Team team;
+  final String column;
+  final double width;
+  final List<TaskItem> tasks;
+  const _BoardColumn(
+      {required this.team, required this.column, required this.width, required this.tasks});
+
+  (String, Color) get _style => switch (column) {
+        TaskStage.doing => ('In progress', AppColors.purple),
+        TaskStage.review => ('Review', AppColors.warning),
+        TeamStore.boardDone => ('Done', AppColors.success),
+        _ => ('To do', AppColors.textMuted),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final store = TeamStore.instance;
+    final (label, color) = _style;
+    return DragTarget<TaskItem>(
+      onWillAcceptWithDetails: (d) =>
+          TaskBoard.columnOf(d.data) != column && store.canComplete(team, d.data),
+      onAcceptWithDetails: (d) => store.moveTo(team, d.data, column),
+      builder: (context, candidates, _) {
+        final hovering = candidates.isNotEmpty;
+        return Container(
+          width: width,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: hovering ? color.withAlpha(30) : const Color(0xFFEEF1F6),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: hovering ? color : Colors.transparent, width: 2),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(width: 6),
+                  Text('${tasks.length}', style: const TextStyle(color: AppColors.textMuted)),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: tasks.isEmpty
+                    ? Center(
+                        child: Text(hovering ? 'Drop here' : 'No tasks',
+                            style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
+                      )
+                    : ListView(
+                        children: [
+                          for (final t in tasks)
+                            store.canComplete(team, t)
+                                ? LongPressDraggable<TaskItem>(
+                                    data: t,
+                                    feedback: Material(
+                                      color: Colors.transparent,
+                                      child: SizedBox(
+                                          width: width - 20,
+                                          child: _BoardCard(team: team, task: t, lifted: true)),
+                                    ),
+                                    childWhenDragging: Opacity(
+                                        opacity: 0.35, child: _BoardCard(team: team, task: t)),
+                                    child: _BoardCard(team: team, task: t),
+                                  )
+                                : _BoardCard(team: team, task: t),
+                        ],
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BoardCard extends StatelessWidget {
+  final Team team;
+  final TaskItem task;
+  final bool lifted;
+  const _BoardCard({required this.team, required this.task, this.lifted = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final overdue = task.isOverdue;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: Colors.white,
+        elevation: lifted ? 6 : 0,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: lifted ? null : () => openTeamTask(context, team, task),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(task.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                      color: task.isCompleted ? AppColors.textMuted : AppColors.text,
+                    )),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (task.priority == Priority.high && !task.isCompleted) ...[
+                      const Icon(Icons.local_fire_department_rounded,
+                          size: 14, color: AppColors.danger),
+                      const SizedBox(width: 3),
+                    ],
+                    if (Repeat.isOn(task.repeat)) ...[
+                      const Icon(Icons.repeat_rounded, size: 14, color: AppColors.primary),
+                      const SizedBox(width: 3),
+                    ],
+                    Expanded(
+                      child: Text(
+                        '${relativeDay(task.startAt)} • ${formatTime(task.startAt)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            color: overdue ? AppColors.danger : AppColors.textMuted),
+                      ),
+                    ),
+                    AssigneeBadge(team: team, task: task),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

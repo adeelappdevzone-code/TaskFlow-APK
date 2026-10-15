@@ -25,6 +25,10 @@ import 'team_store.dart';
 const _uuid = Uuid();
 String newId() => _uuid.v4();
 
+/// Id of the next copy of a repeating task. Always the same for the same
+/// task, so finishing it twice (or on two phones) never makes two copies.
+String repeatIdFor(String taskId) => _uuid.v5(Namespace.url.value, 'taskflow:repeat:$taskId');
+
 typedef _Json = Map<String, dynamic>;
 
 /// Single source of truth for the app.
@@ -52,6 +56,7 @@ class AppStore extends ChangeNotifier {
   List<Member> members = [];
   List<TaskItem> tasks = [];
   List<AppNotification> notifications = [];
+  List<TaskTemplate> templates = [];
 
   Timer? _reminderTimer;
   Timer? _phoneReminderSync;
@@ -151,6 +156,7 @@ class AppStore extends ChangeNotifier {
     members = [];
     tasks = [];
     notifications = [];
+    templates = [];
   }
 
   // ------------------------------------------------------- live listeners
@@ -187,6 +193,12 @@ class AppStore extends ChangeNotifier {
       tasks = _parse(s.docs.map((d) => d.data()), _taskFromMap)
         ..sort((a, b) => a.startAt.compareTo(b.startAt));
       schedulePhoneReminders();
+      notifyListeners();
+    }, onError: _onStreamError));
+
+    _subs.add(_col('templates').snapshots().listen((s) {
+      templates = _parse(s.docs.map((d) => d.data()), TaskTemplate.fromMap)
+        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       notifyListeners();
     }, onError: _onStreamError));
 
@@ -587,7 +599,34 @@ class AppStore extends ChangeNotifier {
       _notify('task', 'completed', 'Task completed',
           '"${task.title}" has been completed',
           taskId: task.id);
+      _createNextRepeat(task);
     }
+    notifyListeners();
+  }
+
+  /// Finishing a repeating task adds its next copy (once).
+  void _createNextRepeat(TaskItem task) {
+    if (!Repeat.isOn(task.repeat)) return;
+    final id = repeatIdFor(task.id);
+    if (taskById(id) != null) return;
+    final next = task.nextRepeat(id, DateTime.now());
+    tasks = [...tasks, next]..sort((a, b) => a.startAt.compareTo(b.startAt));
+    _write(_col('tasks').doc(id).set(_taskToMap(next)));
+  }
+
+  // --------------------------------------------------------------- templates
+
+  void saveTemplate(TaskTemplate t) {
+    if (currentUser == null) return;
+    templates = [...templates.where((x) => x.id != t.id), t];
+    _write(_col('templates').doc(t.id).set(t.toMap()));
+    notifyListeners();
+  }
+
+  void deleteTemplate(TaskTemplate t) {
+    if (currentUser == null) return;
+    templates = templates.where((x) => x.id != t.id).toList();
+    _write(_col('templates').doc(t.id).delete());
     notifyListeners();
   }
 
@@ -878,6 +917,9 @@ class AppStore extends ChangeNotifier {
     }
     for (final n in notifications) {
       ops.add((b) => b.delete(_col('notifications').doc(n.id)));
+    }
+    for (final t in templates) {
+      ops.add((b) => b.delete(_col('templates').doc(t.id)));
     }
     _runBatched(ops);
   }

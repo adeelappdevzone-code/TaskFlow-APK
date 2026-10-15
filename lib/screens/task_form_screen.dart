@@ -38,6 +38,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   late TimeOfDay _end;
   List<ChecklistItem> _checklist = [];
   String? _originalAssigneeId;
+  String _repeat = Repeat.none;
   bool _saving = false;
 
   bool get _isNew => widget.task == null;
@@ -55,6 +56,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       _projectId = t.projectId;
       _assigneeId = t.assigneeId;
       _originalAssigneeId = t.assigneeId;
+      _repeat = t.repeat;
       _priority = t.priority;
       _date = dateOnly(t.startAt);
       _start = TimeOfDay.fromDateTime(t.startAt);
@@ -183,7 +185,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       ..assigneeId = _assigneeId
       ..priority = _priority
       ..startAt = startAt
-      ..endAt = endAt;
+      ..endAt = endAt
+      ..repeat = _repeat;
 
     final items = _checklist
         .map((c) => ChecklistItem(
@@ -299,6 +302,135 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     }
   }
 
+  Future<void> _pickRepeat() async {
+    final result = await _showOptions<String>(
+      title: 'Repeat',
+      options: [
+        for (final r in Repeat.all)
+          _Option(r, Repeat.label(r),
+              icon: r == Repeat.none ? Icons.block_rounded : Icons.repeat_rounded),
+      ],
+      selected: _repeat,
+    );
+    if (result != null) setState(() => _repeat = result);
+  }
+
+  // ----------------------------------------------------------- templates
+
+  void _applyTemplate(TaskTemplate t) {
+    final now = DateTime.now();
+    setState(() {
+      _title.text = t.title;
+      _desc.text = t.description;
+      _priority = t.priority;
+      _checklist = [
+        for (var i = 0; i < t.checklist.length; i++)
+          ChecklistItem(
+            id: newId(),
+            taskId: widget.task?.id ?? '',
+            title: t.checklist[i],
+            isDone: false,
+            sortOrder: i,
+            createdAt: now,
+            updatedAt: now,
+          ),
+      ];
+    });
+  }
+
+  Future<void> _saveAsTemplate() async {
+    final title = _title.text.trim();
+    if (title.isEmpty) {
+      showSnack(context, 'Write a task title first.');
+      return;
+    }
+    final name = await textInputDialog(context,
+        title: 'Save as template', hint: 'Template name', initial: title, okLabel: 'Save');
+    if (name == null || !mounted) return;
+    AppStore.instance.saveTemplate(TaskTemplate(
+      id: newId(),
+      name: name,
+      title: title,
+      description: _desc.text.trim(),
+      priority: _priority,
+      checklist: [
+        ..._checklist.map((c) => c.title),
+        if (_newItem.text.trim().isNotEmpty) _newItem.text.trim(),
+      ],
+      createdAt: DateTime.now(),
+    ));
+    showSnack(context, 'Template "$name" saved');
+  }
+
+  Future<void> _openTemplates() async {
+    final store = AppStore.instance;
+    final picked = await showModalBottomSheet<Object>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
+          child: ListenableBuilder(
+            listenable: store,
+            builder: (ctx, _) => ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 4, 20, 4),
+                  child: Text('Templates',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                ),
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Text('Tap to fill this form. Long-press to delete.',
+                      style: TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
+                ),
+                if (store.templates.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(20, 8, 20, 8),
+                    child: Text('No templates yet.',
+                        style: TextStyle(color: AppColors.textMuted)),
+                  ),
+                for (final t in store.templates)
+                  ListTile(
+                    leading: const Icon(Icons.bookmark_rounded, color: AppColors.primary),
+                    title: Text(t.name),
+                    subtitle: Text(
+                        t.checklist.isEmpty ? t.title : '${t.title} • ${t.checklist.length} steps',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    onTap: () => Navigator.pop(ctx, t),
+                    onLongPress: () async {
+                      final ok = await confirmDialog(ctx,
+                          title: 'Delete template?',
+                          message: '"${t.name}" will be deleted.',
+                          confirmLabel: 'Delete',
+                          danger: true);
+                      if (ok) store.deleteTemplate(t);
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.bookmark_add_outlined, color: AppColors.primary),
+                  title: const Text('Save this task as a template',
+                      style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+                  onTap: () => Navigator.pop(ctx, _saveKey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (picked is TaskTemplate) _applyTemplate(picked);
+    if (picked == _saveKey) await _saveAsTemplate();
+  }
+
+  static const _saveKey = '__save_template__';
   static const _addKey = '__add__';
   static const _noneKey = '__none__';
 
@@ -375,6 +507,13 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                 ? (_isNew ? 'New task • ${team.name}' : 'Edit task • ${team.name}')
                 : (_isNew ? 'Add Task' : 'Edit Task'),
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+        actions: [
+          IconButton(
+            tooltip: 'Templates',
+            icon: const Icon(Icons.bookmarks_outlined),
+            onPressed: _openTemplates,
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,
@@ -465,6 +604,14 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            _SelectField(
+              icon: Icons.repeat_rounded,
+              iconColor: _repeat == Repeat.none ? null : AppColors.primary,
+              text: _repeat == Repeat.none ? 'Does not repeat' : Repeat.label(_repeat),
+              muted: _repeat == Repeat.none,
+              onTap: _pickRepeat,
             ),
             if (team == null) ...[
               const SizedBox(height: 18),

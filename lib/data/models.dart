@@ -39,6 +39,65 @@ class TaskStatus {
 
 enum DisplayStatus { pending, inProgress, completed, cancelled }
 
+/// Where an unfinished task is on the board (stored as `stage`; finished
+/// tasks use [TaskStatus.completed] instead).
+class TaskStage {
+  static const todo = 'todo';
+  static const doing = 'doing';
+  static const review = 'review';
+  static const all = [todo, doing, review];
+
+  static String label(String stage) => switch (stage) {
+        doing => 'In progress',
+        review => 'Review',
+        _ => 'To do',
+      };
+}
+
+/// How often a task comes back after it is done (stored as `repeat`).
+class Repeat {
+  static const none = 'none';
+  static const daily = 'daily';
+  static const weekly = 'weekly';
+  static const monthly = 'monthly';
+  static const all = [none, daily, weekly, monthly];
+
+  static String label(String repeat) => switch (repeat) {
+        daily => 'Every day',
+        weekly => 'Every week',
+        monthly => 'Every month',
+        _ => 'Never',
+      };
+
+  static bool isOn(String? repeat) =>
+      repeat == daily || repeat == weekly || repeat == monthly;
+}
+
+/// Start of the next copy of a repeating task: one step after [start], and
+/// later steps if that day is already past (a task finished late does not
+/// create copies for the days that were missed).
+DateTime nextOccurrence(DateTime start, String repeat, DateTime now) {
+  DateTime step(DateTime d) => switch (repeat) {
+        Repeat.daily => DateTime(d.year, d.month, d.day + 1, d.hour, d.minute),
+        Repeat.weekly => DateTime(d.year, d.month, d.day + 7, d.hour, d.minute),
+        _ => _addMonth(d, start.day),
+      };
+  final today = DateTime(now.year, now.month, now.day);
+  var next = step(start);
+  while (next.isBefore(today)) {
+    next = step(next);
+  }
+  return next;
+}
+
+/// Same day next month, or the month's last day (31 Jan -> 28/29 Feb -> 31 Mar).
+DateTime _addMonth(DateTime d, int wantedDay) {
+  final firstOfNext = DateTime(d.year, d.month + 1, 1);
+  final lastDay = DateTime(firstOfNext.year, firstOfNext.month + 1, 0).day;
+  final day = wantedDay > lastDay ? lastDay : wantedDay;
+  return DateTime(firstOfNext.year, firstOfNext.month, day, d.hour, d.minute);
+}
+
 class AppUser {
   final String id;
   String name;
@@ -251,6 +310,13 @@ class TaskItem {
   String? assignedBy;
   DateTime? assignedAt;
 
+  /// Board column while not finished ([TaskStage]).
+  String stage;
+
+  /// [Repeat] setting, and for a repeated copy the id of the task it came from.
+  String repeat;
+  String? repeatFrom;
+
   /// Stored inside the task document.
   List<ChecklistItem> checklist;
 
@@ -272,6 +338,9 @@ class TaskItem {
     this.createdBy,
     this.assignedBy,
     this.assignedAt,
+    this.stage = TaskStage.todo,
+    this.repeat = Repeat.none,
+    this.repeatFrom,
     List<ChecklistItem>? checklist,
   }) : checklist = checklist ?? [];
 
@@ -283,7 +352,7 @@ class TaskItem {
   DisplayStatus get displayStatus {
     if (status == TaskStatus.completed) return DisplayStatus.completed;
     if (status == TaskStatus.cancelled) return DisplayStatus.cancelled;
-    if (checklistDone > 0) return DisplayStatus.inProgress;
+    if (stage != TaskStage.todo || checklistDone > 0) return DisplayStatus.inProgress;
     return DisplayStatus.pending;
   }
 
@@ -312,6 +381,9 @@ class TaskItem {
         'created_by': createdBy,
         'assigned_by': assignedBy,
         'assigned_at': _ms(assignedAt),
+        'stage': stage,
+        'repeat': repeat,
+        'repeat_from': repeatFrom,
         'is_synced': 0,
       };
 
@@ -333,7 +405,47 @@ class TaskItem {
         createdBy: m['created_by'] as String?,
         assignedBy: m['assigned_by'] as String?,
         assignedAt: _dt(m['assigned_at']),
+        stage: TaskStage.all.contains(m['stage']) ? m['stage'] as String : TaskStage.todo,
+        repeat: Repeat.all.contains(m['repeat']) ? m['repeat'] as String : Repeat.none,
+        repeatFrom: m['repeat_from'] as String?,
       );
+
+  /// The next copy of a repeating task: same details, new date, unchecked
+  /// checklist, not done. [id] is given by the caller.
+  TaskItem nextRepeat(String id, DateTime now) {
+    final start = nextOccurrence(startAt, repeat, now);
+    final shift = start.difference(startAt);
+    return TaskItem(
+      id: id,
+      title: title,
+      description: description,
+      categoryId: categoryId,
+      projectId: projectId,
+      assigneeId: assigneeId,
+      priority: priority,
+      startAt: start,
+      endAt: endAt?.add(shift),
+      createdAt: now,
+      updatedAt: now,
+      createdBy: createdBy,
+      assignedBy: assignedBy,
+      assignedAt: assignedAt,
+      repeat: repeat,
+      repeatFrom: this.id,
+      checklist: [
+        for (final c in checklist)
+          ChecklistItem(
+            id: c.id,
+            taskId: id,
+            title: c.title,
+            isDone: false,
+            sortOrder: c.sortOrder,
+            createdAt: now,
+            updatedAt: now,
+          ),
+      ],
+    );
+  }
 }
 
 class AppNotification {
@@ -383,5 +495,50 @@ class AppNotification {
         taskId: m['task_id'] as String?,
         createdAt: _dt(m['created_at'])!,
         readAt: _dt(m['read_at']),
+      );
+}
+
+/// A saved task "recipe" (title, description, priority, checklist) to create
+/// similar tasks quickly. Stored in users/{uid}/templates.
+class TaskTemplate {
+  final String id;
+  String name;
+  String title;
+  String description;
+  Priority priority;
+  List<String> checklist;
+  final DateTime createdAt;
+
+  TaskTemplate({
+    required this.id,
+    required this.name,
+    required this.title,
+    this.description = '',
+    this.priority = Priority.medium,
+    List<String>? checklist,
+    required this.createdAt,
+  }) : checklist = checklist ?? [];
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'title': title,
+        'description': description,
+        'priority': priority.index,
+        'checklist': checklist,
+        'created_at': _ms(createdAt),
+      };
+
+  factory TaskTemplate.fromMap(Map<String, dynamic> m) => TaskTemplate(
+        id: m['id'] as String,
+        name: m['name'] as String,
+        title: m['title'] as String,
+        description: (m['description'] as String?) ?? '',
+        priority: _priorityFrom((m['priority'] as int?) ?? 1),
+        checklist: [
+          for (final c in (m['checklist'] as List?) ?? const [])
+            if (c is String) c,
+        ],
+        createdAt: _dt(m['created_at'])!,
       );
 }

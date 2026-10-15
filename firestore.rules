@@ -50,8 +50,20 @@ service cloud.firestore {
           && num(d, 'priority')
           && d.status in ['pending', 'completed', 'cancelled']
           && num(d, 'start_at') && optNum(d, 'end_at') && optNum(d, 'completed_at')
+          && (!('stage' in d) || d.stage in ['todo', 'doing', 'review'])
+          && (!('repeat' in d) || d.repeat in ['none', 'daily', 'weekly', 'monthly'])
+          && optStr(d, 'repeat_from', 100)
           && (!('checklist' in d) || d.checklist == null
               || (d.checklist is list && d.checklist.size() <= 200));
+    }
+    function validTemplate(d, docId) {
+      return d.size() <= 15
+          && str(d, 'id', 100) && d.id == docId
+          && str(d, 'name', 100) && str(d, 'title', 500)
+          && optStr(d, 'description', 20000)
+          && num(d, 'priority')
+          && (!('checklist' in d) || (d.checklist is list && d.checklist.size() <= 200))
+          && num(d, 'created_at');
     }
     function validNotification(d, docId) {
       return base(d, docId)
@@ -69,7 +81,8 @@ service cloud.firestore {
           || ((collection == 'categories' || collection == 'projects')
               && validCategoryOrProject(d, docId))
           || (collection == 'members' && validMember(d, docId))
-          || (collection == 'notifications' && validNotification(d, docId));
+          || (collection == 'notifications' && validNotification(d, docId))
+          || (collection == 'templates' && validTemplate(d, docId));
     }
 
     match /users/{userId} {
@@ -192,22 +205,41 @@ service cloud.firestore {
         function assigneeOk(d, tm) {
           return !('assignee_id' in d) || d.assignee_id == null || d.assignee_id in tm.member_ids;
         }
-        // A member may only mark their own task done / not done and tick its checklist.
+        // A member may only move their own task on the board (stage), mark it
+        // done / not done and tick its checklist.
         function assigneeUpdate(tm) {
           return request.auth.uid in tm.member_ids
               && resource.data.assignee_id == request.auth.uid
               && request.resource.data.diff(resource.data).affectedKeys()
-                  .hasOnly(['status', 'completed_at', 'checklist', 'updated_at'])
+                  .hasOnly(['status', 'completed_at', 'checklist', 'stage', 'updated_at'])
               && request.resource.data.status in ['pending', 'completed']
               && validTask(request.resource.data, taskId);
         }
 
         allow read: if signedIn() && request.auth.uid in teamData(teamId).member_ids;
+        // Finishing a repeating task creates its next copy; the assignee may
+        // do that for their own task (same title, person and repeat).
+        function repeatCopy(tm) {
+          let d = request.resource.data;
+          let src = get(/databases/$(database)/documents/teams/$(teamId)/tasks/$(d.repeat_from)).data;
+          return request.auth.uid in tm.member_ids
+              && src.assignee_id == request.auth.uid
+              && src.repeat in ['daily', 'weekly', 'monthly']
+              && d.repeat == src.repeat
+              && d.title == src.title
+              && d.assignee_id == src.assignee_id
+              && d.created_by == src.created_by
+              && d.status == 'pending';
+        }
+
         allow create: if signedIn()
-            && isTeamAdmin(teamData(teamId))
             && validTask(request.resource.data, taskId)
-            && request.resource.data.created_by == request.auth.uid
-            && assigneeOk(request.resource.data, teamData(teamId));
+            && assigneeOk(request.resource.data, teamData(teamId))
+            && ((isTeamAdmin(teamData(teamId))
+                    && request.resource.data.created_by == request.auth.uid)
+                || ('repeat_from' in request.resource.data
+                    && request.resource.data.repeat_from is string
+                    && repeatCopy(teamData(teamId))));
         allow update: if signedIn() && (
             (isTeamAdmin(teamData(teamId))
                 && validTask(request.resource.data, taskId)

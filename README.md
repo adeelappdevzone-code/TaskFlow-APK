@@ -86,6 +86,19 @@ test/                     unit tests (`flutter test`)
 tool/debug.keystore         APK signing key (sirf testing; Play Store se pehle badalni hai, TODO.md dekho)
 ```
 
+## My Day, Board, Repeat, Templates
+
+- **My Day** (Home): aaj ke aur late (overdue) kaam ek jagah — personal tasks bhi aur teams ke wo
+  tasks jo aap ko assign hain (team ka naam sath likha hota hai).
+- **Board view** (team screen par 🗂 icon): columns *To do / In progress / Review / Done*. Card ko
+  lamba daba kar doosre column mein le jao. Owner/Manager koi bhi card, member sirf apna. Task ke
+  andar bhi *To do / In progress / Review* buttons hain.
+- **Repeat**: task form mein *Every day / week / month*. Task Done karte hi agli copy apne aap ban
+  jati hai (agli tareekh par, checklist khali). Late done ho to guzre hue din skip hote hain.
+- **Templates**: task form ke upar 🔖 button. Kisi task ko template bana kar save karo (title,
+  description, priority, checklist), phir ek tap mein naya task usi se bharo. Template lamba daba
+  kar delete.
+
 ## Teams
 
 - **Teams** tab → **New team** (jaise "SEO"). Banane wala us team ka **Owner** hai.

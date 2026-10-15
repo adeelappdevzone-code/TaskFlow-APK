@@ -369,6 +369,13 @@ class TeamStore extends ChangeNotifier {
             if (t.assigneeId == _uid && !t.isCancelled) t,
       ];
 
+  /// My (not cancelled) team tasks together with their team, for My Day.
+  List<(Team, TaskItem)> get myTeamTasksWithTeam => [
+        for (final team in teams)
+          for (final t in tasksOf(team.id))
+            if (t.assigneeId == _uid && !t.isCancelled) (team, t),
+      ];
+
   int pendingForMe(String teamId) =>
       tasksOf(teamId).where((t) => t.assigneeId == _uid && t.status == TaskStatus.pending).length;
 
@@ -589,19 +596,62 @@ class TeamStore extends ChangeNotifier {
   }
 
   /// Assignee or owner/manager. Only status fields are written, which is all
-  /// a member is allowed to change.
+  /// a member is allowed to change. Finishing a repeating task also creates
+  /// its next copy (in the same write).
   void setCompleted(Team team, TaskItem task, bool done) {
+    final me = _uid;
+    if (me == null) return;
     task
       ..status = done ? TaskStatus.completed : TaskStatus.pending
       ..completedAt = done ? DateTime.now() : null
       ..updatedAt = DateTime.now();
-    notifyListeners();
-    _write(_tasksCol(team.id).doc(task.id).update({
+    final batch = _fs.batch();
+    batch.update(_tasksCol(team.id).doc(task.id), {
       'status': task.status,
       'completed_at': task.completedAt?.millisecondsSinceEpoch,
       'updated_at': nowMs(),
+    });
+    if (done && Repeat.isOn(task.repeat)) {
+      final id = repeatIdFor(task.id);
+      if (taskById(team.id, id) == null) {
+        final next = task.nextRepeat(id, DateTime.now());
+        // An owner/manager finishing someone else's task creates the copy
+        // as themselves (that is what the rules allow).
+        if (task.assigneeId != me) next.createdBy = me;
+        _upsertLocal(team.id, next);
+        batch.set(_tasksCol(team.id).doc(id), AppStore.taskToMap(next));
+      }
+    }
+    notifyListeners();
+    _write(batch.commit());
+  }
+
+  /// Moves a task to a board column: a [TaskStage] or "done".
+  void moveTo(Team team, TaskItem task, String column) {
+    if (column == boardDone) {
+      if (!task.isCompleted) setCompleted(team, task, true);
+      return;
+    }
+    final reopen = task.isCompleted;
+    task
+      ..stage = column
+      ..updatedAt = DateTime.now();
+    if (reopen) {
+      task
+        ..status = TaskStatus.pending
+        ..completedAt = null;
+    }
+    notifyListeners();
+    _write(_tasksCol(team.id).doc(task.id).update({
+      'stage': column,
+      if (reopen) 'status': TaskStatus.pending,
+      if (reopen) 'completed_at': null,
+      'updated_at': nowMs(),
     }));
   }
+
+  /// Board column id for finished tasks.
+  static const boardDone = 'done';
 
   void toggleChecklistItem(Team team, TaskItem task, ChecklistItem item) {
     item
