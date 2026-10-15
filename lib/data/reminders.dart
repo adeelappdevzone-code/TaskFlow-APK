@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
@@ -84,7 +84,8 @@ class PhoneReminders {
   );
 
   Future<void> init() async {
-    if (_ready) return;
+    // Phone notifications only; the web version shows in-app notifications.
+    if (_ready || kIsWeb) return;
     try {
       tzdata.initializeTimeZones();
       await _plugin.initialize(

@@ -9,7 +9,20 @@ APK link: https://github.com/adeelappdevzone-code/TaskFlow-APK/releases/latest/d
 Bohat purane (32-bit) phone ke liye: https://github.com/adeelappdevzone-code/TaskFlow-APK/releases/latest/download/TaskFlow-old-phones.apk
 (GitHub par sirf aakhri 5 builds rakhi jati hain.)
 
-CI log: har build ka log aur result `ci-logs` branch mein save hota hai.
+Web version (laptop/browser): https://taskflow-ce905.web.app — wahi login, wahi data.
+
+CI log: har build ka log aur result `ci-logs` branch mein save hota hai (web ka `ci-logs-web` mein).
+
+### Web version aur rules ka auto-publish
+
+`main` par har push ke baad CI web app bana kar Firebase Hosting par daalta hai aur
+`firestore.rules` bhi khud Firebase par publish karta hai. Iske liye ek dafa:
+1. Firebase Console → Project settings → Your apps → **Web app** register karo, aur us ka `appId`
+   `lib/firebase_options.dart` mein `webAppId` (aur web `apiKey`) mein daalo.
+2. Firebase Console → Project settings → Service accounts → **Generate new private key** → us JSON
+   file ka poora text GitHub → Settings → Secrets → Actions mein `FIREBASE_SERVICE_ACCOUNT` naam se.
+   (Agar deploy "permission" error de: Google Cloud Console → IAM → `firebase-adminsdk-...` account
+   ko **Firebase Admin** role do.)
 
 ---
 

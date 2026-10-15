@@ -29,6 +29,20 @@ class TaskFlowApp extends StatelessWidget {
       title: 'TaskFlow',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
+      // On a laptop browser the app keeps a readable width in the middle.
+      builder: (context, child) => LayoutBuilder(
+        builder: (context, box) => box.maxWidth <= 760
+            ? child!
+            : ColoredBox(
+                color: const Color(0xFFE9EDF5),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: Material(elevation: 2, child: child),
+                  ),
+                ),
+              ),
+      ),
       home: ListenableBuilder(
         listenable: AppStore.instance,
         builder: (context, _) {

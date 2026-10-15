@@ -33,5 +33,5 @@ Dhyan: key badalne ke baad phone se purani app ek dafa uninstall karni hogi
   plugins Kotlin plugin tabhi lagate hain jab AGP 9 se purana ho (hamara 9.1 hai).
   Agar kabhi is warning ki wajah se build fail ho, to firebase packages naye version par update karo.
 - Tests: abhi models, utils, reminders aur Firestore rules ke hain. Screens (widget) tests nahi.
-- `firestore.rules` badlo to Firebase Console → Firestore → Rules mein paste kar ke Publish karna
-  zaroori hai (CI rules ko sirf test karta hai, Firebase par khud nahi lagata).
+- `firestore.rules`: `FIREBASE_SERVICE_ACCOUNT` secret lagne ke baad CI khud publish karta hai.
+  Us se pehle Firebase Console → Firestore → Rules mein paste kar ke Publish karna padta hai.

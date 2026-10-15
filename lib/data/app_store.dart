@@ -11,7 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart'
         Settings,
         WriteBatch;
 import 'package:firebase_auth/firebase_auth.dart' as fb;
-import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint;
+import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint, kIsWeb;
 import 'package:google_sign_in/google_sign_in.dart'
     show GoogleSignIn, GoogleSignInException, GoogleSignInExceptionCode;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -384,6 +384,7 @@ class AppStore extends ChangeNotifier {
   /// Returns null on success, [googleCancelled] if the user backed out,
   /// otherwise an error message.
   Future<String?> signInWithGoogle() async {
+    if (kIsWeb) return _signInWithGooglePopup();
     try {
       await _ensureGoogle();
       final account = await GoogleSignIn.instance.authenticate();
@@ -424,6 +425,33 @@ class AppStore extends ChangeNotifier {
       }
       return 'Google sign-in failed (${e.code.name}). $desc'.trim();
     } on fb.FirebaseAuthException catch (e) {
+      return _authError(e);
+    } catch (e) {
+      return 'Google sign-in failed: $e';
+    }
+  }
+
+  /// Web: Firebase's own Google popup (the google_sign_in plugin works
+  /// differently in browsers).
+  Future<String?> _signInWithGooglePopup() async {
+    try {
+      final result = await _auth.signInWithPopup(fb.GoogleAuthProvider());
+      final u = result.user;
+      if (u == null) return 'Google login failed. Please try again.';
+      _startSession(u, name: u.displayName);
+      if (result.additionalUserInfo?.isNewUser ?? false) {
+        _write(_userDoc.set({
+          'name': currentUser!.name,
+          'email': u.email ?? '',
+          'created_at': nowMs(),
+        }, SetOptions(merge: true)));
+        _seedDefaults(false);
+      }
+      return null;
+    } on fb.FirebaseAuthException catch (e) {
+      if (e.code == 'popup-closed-by-user' || e.code == 'cancelled-popup-request') {
+        return googleCancelled;
+      }
       return _authError(e);
     } catch (e) {
       return 'Google sign-in failed: $e';

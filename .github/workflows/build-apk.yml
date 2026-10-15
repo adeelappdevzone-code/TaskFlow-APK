@@ -139,3 +139,81 @@ jobs:
           git add .
           git commit -qm "CI run ${{ github.run_number }}: $STATUS"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-logs
+
+  # Web version on Firebase Hosting (https://taskflow-ce905.web.app) and the
+  # Firestore rules. Runs after the APK job (so all tests have passed).
+  # Needs the FIREBASE_SERVICE_ACCOUNT secret (service-account JSON key);
+  # without it the web app is only built, not deployed.
+  web:
+    needs: build
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        shell: bash
+    env:
+      HAS_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.7
+          cache: true
+
+      - name: Build web app
+        run: |
+          flutter create --platforms=web --org com.potens --project-name taskflow . 2>&1 | tee -a web.log
+          bash tool/setup_web.sh 2>&1 | tee -a web.log
+          flutter pub get 2>&1 | tee -a web.log
+          flutter build web --release 2>&1 | tee -a web.log
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Publish Firestore rules
+        if: env.HAS_SA == 'true'
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx -y firebase-tools@14.27.0 deploy --only firestore:rules \
+            --project taskflow-ce905 --non-interactive 2>&1 | tee -a web.log
+
+      - name: Deploy web app
+        if: env.HAS_SA == 'true'
+        env:
+          SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if ! grep -q "webAppId = '1:" lib/firebase_options.dart; then
+            echo "Web app id not set in lib/firebase_options.dart yet: skipping deploy." | tee -a web.log
+            exit 0
+          fi
+          printf '%s' "$SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx -y firebase-tools@14.27.0 deploy --only hosting \
+            --project taskflow-ce905 --non-interactive 2>&1 | tee -a web.log
+
+      - name: No deploy key
+        if: env.HAS_SA != 'true'
+        run: |
+          echo "FIREBASE_SERVICE_ACCOUNT secret is not set - web app built but not deployed." | tee -a web.log
+
+      - name: Save web log
+        if: always()
+        env:
+          STATUS: ${{ job.status }}
+        run: |
+          mkdir -p /tmp/ci
+          cp web.log /tmp/ci/web.log 2>/dev/null || echo "no log" > /tmp/ci/web.log
+          echo "run=${{ github.run_number }} status=$STATUS commit=${{ github.sha }}" > /tmp/ci/status.txt
+          cd /tmp/ci
+          git init -q
+          git checkout -q -b ci-logs-web
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git add .
+          git commit -qm "Web run ${{ github.run_number }}: $STATUS"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ci-logs-web
