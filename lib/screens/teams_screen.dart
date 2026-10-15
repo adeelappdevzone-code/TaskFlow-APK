@@ -3,12 +3,18 @@ import 'package:flutter/services.dart';
 
 import '../core/theme.dart';
 import '../data/app_store.dart';
+import '../data/activity.dart';
 import '../data/models.dart';
 import '../data/team_models.dart';
 import '../data/team_stats.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
+import '../widgets/dashboard.dart';
+import '../widgets/responsive.dart';
+import 'report_screen.dart';
 import 'team_screen.dart';
+
+part 'teams_wide.dart';
 
 /// Bottom-nav tab: invitations to me + the teams I am in.
 class TeamsScreen extends StatelessWidget {
@@ -29,6 +35,9 @@ class TeamsScreen extends StatelessWidget {
         listenable: store,
         builder: (context, _) {
           final me = store.uid ?? '';
+          if (isWideScreen(context)) return _TeamsWide(onCreate: _create);
+          final sent = _sentInvites(me);
+          final activity = _activity(me, limit: 5);
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
             children: [
@@ -74,10 +83,31 @@ class TeamsScreen extends StatelessWidget {
                   ],
                 )
               else ...[
-                _AllTeamsSummary(me: me),
+                _PhoneStats(teams: store.teams),
+                const SizedBox(height: 18),
                 const SectionHeader(title: 'My teams'),
                 const SizedBox(height: 10),
                 for (final t in store.teams) _TeamCard(team: t, me: me),
+                if (sent.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  SectionHeader(title: 'Pending invites (${sent.length})'),
+                  const SizedBox(height: 4),
+                  WhiteCard(
+                    padding: const EdgeInsets.fromLTRB(12, 4, 0, 4),
+                    child: Column(children: [
+                      for (final i in sent) _SentInviteRow(invite: i, showTeam: true),
+                    ]),
+                  ),
+                ],
+                if (activity.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  const SectionHeader(title: 'Recent activity'),
+                  const SizedBox(height: 4),
+                  WhiteCard(
+                    padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+                    child: Column(children: [for (final a in activity) _ActivityRow(item: a)]),
+                  ),
+                ],
               ],
             ],
           );
@@ -183,8 +213,11 @@ class _TeamCard extends StatelessWidget {
                   ),
                 ),
                 RoleChip(role: role),
+                SizedBox(width: 36, child: _teamMenu(context, team, me)),
               ],
             ),
+            const SizedBox(height: 12),
+            _MemberDots(team: team, canInvite: team.isAdmin(me)),
             if (tasks.isNotEmpty) ...[
               const SizedBox(height: 12),
               ClipRRect(
@@ -208,6 +241,8 @@ class _TeamCard extends StatelessWidget {
                             fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
                 ],
               ),
+              const Divider(height: 22),
+              _TeamLegend(stats: TeamStats.compute(team, tasks, DateTime.now())),
             ],
           ],
         ),
@@ -346,55 +381,61 @@ class AssigneeBadge extends StatelessWidget {
   }
 }
 
-/// For owners/managers: totals over all the teams they run.
-class _AllTeamsSummary extends StatelessWidget {
-  final String me;
-  const _AllTeamsSummary({required this.me});
+/// Phone: Total teams / Pending / Overdue / Done this week, 2 x 2.
+class _PhoneStats extends StatelessWidget {
+  final List<Team> teams;
+  const _PhoneStats({required this.teams});
 
   @override
   Widget build(BuildContext context) {
-    final store = TeamStore.instance;
-    final managed = store.teams.where((t) => t.isAdmin(me)).toList();
-    if (managed.isEmpty) return const SizedBox.shrink();
-    final now = DateTime.now();
-    var pending = 0, overdue = 0, doneWeek = 0;
-    for (final t in managed) {
-      final st = TeamStats.compute(t, store.tasksOf(t.id), now);
-      pending += st.pending;
-      overdue += st.overdue;
-      doneWeek += st.doneThisWeek;
-    }
-    Widget cell(String label, int value, Color color) => Expanded(
-          child: Column(
-            children: [
-              Text('$value',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: color)),
-              Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
-            ],
-          ),
-        );
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 18),
-      child: WhiteCard(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-                managed.length == 1
-                    ? 'Your team at a glance'
-                    : 'Your ${managed.length} teams at a glance',
-                style: const TextStyle(fontWeight: FontWeight.w700)),
-            const SizedBox(height: 12),
-            Row(
+    final t = _Totals(teams);
+    Widget tile(IconData icon, Color color, int value, String label, {bool colored = true}) =>
+        Expanded(
+          child: WhiteCard(
+            padding: const EdgeInsets.all(12),
+            child: Row(
               children: [
-                cell('Pending', pending, AppColors.warning),
-                cell('Overdue', overdue, AppColors.danger),
-                cell('Done this week', doneWeek, AppColors.success),
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: color.withAlpha(28),
+                  child: Icon(icon, color: color, size: 20),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('$value',
+                          style: TextStyle(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w800,
+                              color: colored ? color : AppColors.text)),
+                      Text(label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ],
-        ),
-      ),
+          ),
+        );
+    return Column(
+      children: [
+        Row(children: [
+          tile(Icons.groups_rounded, AppColors.primary, teams.length, 'Total teams',
+              colored: false),
+          const SizedBox(width: 10),
+          tile(Icons.schedule_rounded, AppColors.warning, t.pending, 'Pending'),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          tile(Icons.warning_amber_rounded, AppColors.danger, t.overdue, 'Overdue'),
+          const SizedBox(width: 10),
+          tile(Icons.check_circle_rounded, AppColors.success, t.doneThisWeek, 'Done this week'),
+        ]),
+      ],
     );
   }
 }

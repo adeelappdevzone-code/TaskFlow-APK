@@ -8,7 +8,9 @@ import '../data/team_models.dart';
 import '../data/team_stats.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
+import '../widgets/dashboard.dart';
 import '../widgets/responsive.dart';
+import '../widgets/task_board.dart';
 import 'report_screen.dart';
 import 'task_form_screen.dart';
 import 'task_panel.dart';
@@ -262,7 +264,8 @@ class _TeamScreenState extends State<TeamScreen> {
   }
 }
 
-Future<void> _inviteDialog(BuildContext context, Team team) async {
+/// "Add person" dialog: invites an email address to [team].
+Future<void> showInviteDialog(BuildContext context, Team team) async {
   final email = TextEditingController();
   final result = await showDialog<String>(
     context: context,
@@ -359,7 +362,7 @@ class _MembersTab extends StatelessWidget {
           PrimaryButton(
             label: 'Add person by email',
             icon: Icons.person_add_alt_1_rounded,
-            onPressed: () => _inviteDialog(context, team),
+            onPressed: () => showInviteDialog(context, team),
           ),
           const SizedBox(height: 18),
         ],
@@ -710,8 +713,8 @@ class _MemberLoad extends StatelessWidget {
   }
 }
 
-/// Kanban board: To do | In progress | Review | Done. Long-press a card and
-/// drag it to another column (owner/managers: any card; members: their own).
+/// The team's Kanban board (see [KanbanBoard]): owner/managers can move any
+/// card, members only their own.
 class TaskBoard extends StatelessWidget {
   final Team team;
   final List<TaskItem> tasks;
@@ -725,197 +728,16 @@ class TaskBoard extends StatelessWidget {
       required this.tasks,
       this.padding = const EdgeInsets.fromLTRB(12, 12, 12, 90)});
 
-  static const _columns = [TaskStage.todo, TaskStage.doing, TaskStage.review, TeamStore.boardDone];
-
-  static String columnOf(TaskItem t) => t.isCompleted ? TeamStore.boardDone : t.stage;
-
-  @override
-  Widget build(BuildContext context) {
-    final visible = tasks.where((t) => !t.isCancelled).toList()
-      ..sort((a, b) => a.startAt.compareTo(b.startAt));
-    List<TaskItem> inColumn(String col) => visible.where((t) => columnOf(t) == col).toList();
-    return LayoutBuilder(builder: (context, box) {
-      // Big screen: all four columns side by side, no sideways scrolling.
-      if (box.maxWidth >= kWideLayout) {
-        return Padding(
-          padding: padding,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (final col in _columns)
-                Expanded(child: _BoardColumn(team: team, column: col, tasks: inColumn(col))),
-            ],
-          ),
-        );
-      }
-      final width = (box.maxWidth * 0.78).clamp(220.0, 320.0);
-      return ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
-        children: [
-          for (final col in _columns)
-            _BoardColumn(team: team, column: col, width: width, tasks: inColumn(col)),
-        ],
-      );
-    });
-  }
-}
-
-class _BoardColumn extends StatelessWidget {
-  final Team team;
-  final String column;
-
-  /// Fixed width when scrolling sideways; null to fill the space given.
-  final double? width;
-  final List<TaskItem> tasks;
-  const _BoardColumn({required this.team, required this.column, this.width, required this.tasks});
-
-  (String, Color) get _style => switch (column) {
-        TaskStage.doing => ('In progress', AppColors.purple),
-        TaskStage.review => ('Review', AppColors.warning),
-        TeamStore.boardDone => ('Done', AppColors.success),
-        _ => ('To do', AppColors.textMuted),
-      };
-
   @override
   Widget build(BuildContext context) {
     final store = TeamStore.instance;
-    final (label, color) = _style;
-    return DragTarget<TaskItem>(
-      onWillAcceptWithDetails: (d) =>
-          TaskBoard.columnOf(d.data) != column && store.canComplete(team, d.data),
-      onAcceptWithDetails: (d) => store.moveTo(team, d.data, column),
-      builder: (context, candidates, _) {
-        final hovering = candidates.isNotEmpty;
-        return Container(
-          width: width,
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: hovering ? color.withAlpha(30) : const Color(0xFFEEF1F6),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: hovering ? color : Colors.transparent, width: 2),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  const SizedBox(width: 6),
-                  Text('${tasks.length}', style: const TextStyle(color: AppColors.textMuted)),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Expanded(
-                child: tasks.isEmpty
-                    ? Center(
-                        child: Text(hovering ? 'Drop here' : 'No tasks',
-                            style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
-                      )
-                    : ListView(
-                        children: [
-                          for (final t in tasks)
-                            store.canComplete(team, t)
-                                ? LongPressDraggable<TaskItem>(
-                                    data: t,
-                                    feedback: Material(
-                                      color: Colors.transparent,
-                                      child: SizedBox(
-                                          width: (width ?? 260) - 20,
-                                          child: _BoardCard(team: team, task: t, lifted: true)),
-                                    ),
-                                    childWhenDragging: Opacity(
-                                        opacity: 0.35, child: _BoardCard(team: team, task: t)),
-                                    child: _BoardCard(team: team, task: t),
-                                  )
-                                : _BoardCard(team: team, task: t),
-                        ],
-                      ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _BoardCard extends StatelessWidget {
-  final Team team;
-  final TaskItem task;
-  final bool lifted;
-  const _BoardCard({required this.team, required this.task, this.lifted = false});
-
-  @override
-  Widget build(BuildContext context) {
-    final overdue = task.isOverdue;
-    final done = task.isCompleted;
-    final time = task.endAt == null
-        ? formatTime(task.startAt)
-        : '${formatTime(task.startAt)} - ${formatTime(task.endAt!)}';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Material(
-        color: done ? const Color(0xFFF0FAF3) : Colors.white,
-        elevation: lifted ? 6 : 0,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: lifted ? null : () => openTeamTask(context, team, task),
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(task.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      decoration: task.isCompleted ? TextDecoration.lineThrough : null,
-                      color: task.isCompleted ? AppColors.textMuted : AppColors.text,
-                    )),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    if (done)
-                      const Icon(Icons.check_circle_rounded, size: 16, color: AppColors.success)
-                    else if (task.priority == Priority.high)
-                      const Icon(Icons.local_fire_department_rounded,
-                          size: 15, color: AppColors.danger)
-                    else
-                      const Icon(Icons.calendar_today_outlined,
-                          size: 14, color: AppColors.textMuted),
-                    const SizedBox(width: 5),
-                    if (Repeat.isOn(task.repeat)) ...[
-                      const Icon(Icons.repeat_rounded, size: 14, color: AppColors.primary),
-                      const SizedBox(width: 3),
-                    ],
-                    Expanded(
-                      child: Text(
-                        '${relativeDay(task.startAt)} • $time',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 11.5,
-                            color: overdue && !done ? AppColors.danger : AppColors.textMuted),
-                      ),
-                    ),
-                    AssigneeBadge(team: team, task: task),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return KanbanBoard(
+      tasks: tasks,
+      padding: padding,
+      canMove: (t) => store.canComplete(team, t),
+      onMove: (t, column) => store.moveTo(team, t, column),
+      onOpen: (context, t) => openTeamTask(context, team, t),
+      trailing: (t) => AssigneeBadge(team: team, task: t),
     );
   }
 }

@@ -91,6 +91,8 @@ await t('task: member cannot create', assertFails(setDoc(doc(adeel, `teams/${T}/
 await t('task: member reads team tasks', assertSucceeds(getDocs(collection(adeel, `teams/${T}/tasks`))));
 await t('task: outsider cannot read', assertFails(getDocs(collection(outsider, `teams/${T}/tasks`))));
 await t('task: adeel marks own task done', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_at: now, updated_at: now })));
+await t('task: completed_by must be yourself', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_by: 'own', updated_at: now })));
+await t('task: completed_by self ok', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_by: 'adl', updated_at: now })));
 await t('task: adeel ticks checklist', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { checklist: [], updated_at: now })));
 await t('task: adeel cannot edit title', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { title: 'changed' })));
 await t('task: adeel cannot reassign', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { assignee_id: 'sar' })));

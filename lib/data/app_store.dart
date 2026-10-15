@@ -632,6 +632,22 @@ class AppStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Moves a personal task to a board column ([TaskStage] or "done").
+  Future<void> moveTo(TaskItem task, String column) async {
+    if (column == TaskStage.boardDone) {
+      if (!task.isCompleted) await setCompleted(task, true);
+      return;
+    }
+    task.stage = column;
+    if (task.isCompleted) {
+      task
+        ..status = TaskStatus.pending
+        ..completedAt = null;
+    }
+    _saveTaskDoc(task);
+    notifyListeners();
+  }
+
   /// Finishing a repeating task adds its next copy (once).
   void _createNextRepeat(TaskItem task) {
     if (!Repeat.isOn(task.repeat)) return;

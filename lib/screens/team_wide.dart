@@ -132,7 +132,7 @@ extension _WideTeam on _TeamScreenState {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // --------------------------------------------- summary card
-        _Card(
+        DashCard(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
           child: Row(
             children: [
@@ -195,12 +195,12 @@ extension _WideTeam on _TeamScreenState {
         ),
         const SizedBox(height: 16),
         // --------------------------------------- filters + search
-        _Card(
+        DashCard(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           child: Row(
             children: [
               for (final f in _Filter.values) ...[
-                _FilterChip(
+                FilterPill(
                   label: '${switch (f) {
                     _Filter.all => 'All',
                     _Filter.mine => 'Mine',
@@ -224,7 +224,7 @@ extension _WideTeam on _TeamScreenState {
                 ),
               ),
               const SizedBox(width: 14),
-              _ViewToggle(
+              ViewToggle(
                 board: _wideBoard,
                 onChanged: (b) => _update(() => _wideBoard = b),
               ),
@@ -284,7 +284,7 @@ class _WideMembers extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.only(bottom: 40),
       children: [
-        _Card(
+        DashCard(
           padding: const EdgeInsets.all(20),
           child: Row(
             children: [
@@ -294,7 +294,7 @@ class _WideMembers extends StatelessWidget {
                   child: PrimaryButton(
                     label: 'Add person by email',
                     icon: Icons.person_add_alt_1_rounded,
-                    onPressed: () => _inviteDialog(context, team),
+                    onPressed: () => showInviteDialog(context, team),
                   ),
                 ),
                 const _VDivider(),
@@ -335,7 +335,7 @@ class _WideMembers extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 18),
-        _Card(
+        DashCard(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,7 +349,7 @@ class _WideMembers extends StatelessWidget {
         ),
         if (admin && invites.isNotEmpty) ...[
           const SizedBox(height: 18),
-          _Card(
+          DashCard(
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -497,7 +497,7 @@ class _WideOverview extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        _Card(
+        DashCard(
           padding: const EdgeInsets.all(22),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -535,7 +535,7 @@ class _WideOverview extends StatelessWidget {
           children: [
             Expanded(
               flex: 3,
-              child: _Card(
+              child: DashCard(
                 padding: const EdgeInsets.all(22),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -558,7 +558,7 @@ class _WideOverview extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _Card(
+                  DashCard(
                     padding: const EdgeInsets.all(18),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -572,7 +572,7 @@ class _WideOverview extends StatelessWidget {
                   ),
                   if (st.overdueTasks.isNotEmpty) ...[
                     const SizedBox(height: 16),
-                    _Card(
+                    DashCard(
                       padding: const EdgeInsets.all(18),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -602,26 +602,6 @@ class _WideOverview extends StatelessWidget {
 }
 
 // ============================================================ small parts
-
-class _Card extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-  const _Card({required this.child, this.padding = const EdgeInsets.all(16)});
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: padding,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: const Color(0xFFEEF1F6)),
-          boxShadow: const [
-            BoxShadow(color: Color(0x0A1F2937), blurRadius: 18, offset: Offset(0, 6)),
-          ],
-        ),
-        child: child,
-      );
-}
 
 class _VDivider extends StatelessWidget {
   const _VDivider();
@@ -705,71 +685,6 @@ class _PillTabs extends StatelessWidget {
                         color: i == selected ? AppColors.primary : AppColors.text)),
               ),
             ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.primary : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: selected ? AppColors.primary : AppColors.border),
-          ),
-          child: Text(label,
-              style: TextStyle(
-                  fontWeight: FontWeight.w600, color: selected ? Colors.white : AppColors.text)),
-        ),
-      );
-}
-
-class _ViewToggle extends StatelessWidget {
-  final bool board;
-  final ValueChanged<bool> onChanged;
-  const _ViewToggle({required this.board, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    Widget item(bool isBoard, IconData icon, String tip) => Tooltip(
-          message: tip,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () => onChanged(isBoard),
-            child: Container(
-              width: 56,
-              height: 40,
-              decoration: BoxDecoration(
-                color: board == isBoard ? AppColors.primary : Colors.transparent,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon,
-                  color: board == isBoard ? Colors.white : AppColors.textMuted, size: 22),
-            ),
-          ),
-        );
-    return Container(
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEDF1F7),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          item(true, Icons.view_kanban_outlined, 'Board view'),
-          item(false, Icons.view_list_rounded, 'List view'),
         ],
       ),
     );

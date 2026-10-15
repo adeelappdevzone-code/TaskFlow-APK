@@ -604,11 +604,13 @@ class TeamStore extends ChangeNotifier {
     task
       ..status = done ? TaskStatus.completed : TaskStatus.pending
       ..completedAt = done ? DateTime.now() : null
+      ..completedBy = done ? me : null
       ..updatedAt = DateTime.now();
     final batch = _fs.batch();
     batch.update(_tasksCol(team.id).doc(task.id), {
       'status': task.status,
       'completed_at': task.completedAt?.millisecondsSinceEpoch,
+      'completed_by': task.completedBy,
       'updated_at': nowMs(),
     });
     if (done && Repeat.isOn(task.repeat)) {
@@ -639,19 +641,21 @@ class TeamStore extends ChangeNotifier {
     if (reopen) {
       task
         ..status = TaskStatus.pending
-        ..completedAt = null;
+        ..completedAt = null
+        ..completedBy = null;
     }
     notifyListeners();
     _write(_tasksCol(team.id).doc(task.id).update({
       'stage': column,
       if (reopen) 'status': TaskStatus.pending,
       if (reopen) 'completed_at': null,
+      if (reopen) 'completed_by': null,
       'updated_at': nowMs(),
     }));
   }
 
   /// Board column id for finished tasks.
-  static const boardDone = 'done';
+  static const boardDone = TaskStage.boardDone;
 
   void toggleChecklistItem(Team team, TaskItem task, ChecklistItem item) {
     item

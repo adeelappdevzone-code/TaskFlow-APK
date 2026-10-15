@@ -3,10 +3,19 @@ import 'package:flutter/material.dart';
 import '../core/theme.dart';
 import '../data/app_store.dart';
 import '../data/models.dart';
+import '../core/utils.dart';
 import '../widgets/common.dart';
+import '../widgets/dashboard.dart';
+import '../widgets/responsive.dart';
+import '../widgets/task_board.dart';
 import 'task_detail_screen.dart';
+import 'task_form_screen.dart';
 
-enum _Tab { all, pending, done }
+part 'tasks_wide.dart';
+
+enum _Tab { all, pending, done, overdue }
+
+const _sortOptions = ['Due time', 'Priority', 'Name', 'Newest'];
 
 class TasksScreen extends StatefulWidget {
   /// true when opened as its own page (e.g. "High Priority" from Home),
@@ -26,6 +35,12 @@ class _TasksScreenState extends State<TasksScreen> {
   final _search = TextEditingController();
   Priority? _priority;
   String? _categoryId;
+  String _sort = 'Due time';
+
+  // Laptop layout (tasks_wide.dart).
+  bool _wideBoard = false;
+
+  void _update(VoidCallback change) => setState(change);
 
   @override
   void initState() {
@@ -49,6 +64,9 @@ class _TasksScreenState extends State<TasksScreen> {
         case _Tab.done:
           if (!t.isCompleted) return false;
           break;
+        case _Tab.overdue:
+          if (!t.isOverdue) return false;
+          break;
         case _Tab.all:
           break;
       }
@@ -62,12 +80,20 @@ class _TasksScreenState extends State<TasksScreen> {
       return true;
     }).toList();
 
-    // Unfinished first, then by date/time.
+    // Unfinished first, then by the chosen order.
     int rank(TaskItem t) => t.status == TaskStatus.pending ? 0 : (t.isCompleted ? 1 : 2);
+    int order(TaskItem a, TaskItem b) => switch (_sort) {
+          'Priority' => b.priority.index != a.priority.index
+              ? b.priority.index.compareTo(a.priority.index)
+              : a.startAt.compareTo(b.startAt),
+          'Name' => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+          'Newest' => b.createdAt.compareTo(a.createdAt),
+          _ => a.startAt.compareTo(b.startAt),
+        };
     list.sort((a, b) {
       final r = rank(a).compareTo(rank(b));
       if (r != 0) return r;
-      return a.startAt.compareTo(b.startAt);
+      return order(a, b);
     });
     return list;
   }
@@ -134,8 +160,7 @@ class _TasksScreenState extends State<TasksScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-                PrimaryButton(
-                    label: 'Apply', onPressed: () => Navigator.pop(ctx, true)),
+                PrimaryButton(label: 'Apply', onPressed: () => Navigator.pop(ctx, true)),
               ],
             ),
           ),
@@ -153,6 +178,9 @@ class _TasksScreenState extends State<TasksScreen> {
   @override
   Widget build(BuildContext context) {
     final store = AppStore.instance;
+    if (!widget.standalone && isWideScreen(context)) {
+      return ListenableBuilder(listenable: store, builder: (context, _) => _buildWide(context));
+    }
     final body = ListenableBuilder(
       listenable: store,
       builder: (context, _) {
@@ -176,15 +204,14 @@ class _TasksScreenState extends State<TasksScreen> {
                             controller: _search,
                             autofocus: true,
                             onChanged: (_) => setState(() {}),
-                            decoration: fieldDecoration('Search tasks...',
-                                icon: Icons.search_rounded),
+                            decoration:
+                                fieldDecoration('Search tasks...', icon: Icons.search_rounded),
                           )
                         : Text(
                             widget.standalone && widget.initialPriority == Priority.high
                                 ? 'High Priority'
                                 : 'Tasks',
-                            style: const TextStyle(
-                                fontSize: 24, fontWeight: FontWeight.w800)),
+                            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800)),
                   ),
                   IconButton(
                     icon: Icon(_searching ? Icons.close_rounded : Icons.search_rounded),
@@ -192,6 +219,15 @@ class _TasksScreenState extends State<TasksScreen> {
                       _searching = !_searching;
                       if (!_searching) _search.clear();
                     }),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Sort',
+                    icon: const Icon(Icons.swap_vert_rounded),
+                    onSelected: (v) => setState(() => _sort = v),
+                    itemBuilder: (_) => [
+                      for (final o in _sortOptions)
+                        CheckedPopupMenuItem(value: o, checked: o == _sort, child: Text(o)),
+                    ],
                   ),
                   IconButton(
                     icon: Badge(
@@ -224,6 +260,11 @@ class _TasksScreenState extends State<TasksScreen> {
                       label: 'Done',
                       active: _tab == _Tab.done,
                       onTap: () => setState(() => _tab = _Tab.done)),
+                  const SizedBox(width: 8),
+                  TabPill(
+                      label: 'Overdue',
+                      active: _tab == _Tab.overdue,
+                      onTap: () => setState(() => _tab = _Tab.overdue)),
                 ],
               ),
             ),

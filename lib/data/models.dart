@@ -47,6 +47,9 @@ class TaskStage {
   static const review = 'review';
   static const all = [todo, doing, review];
 
+  /// Board column for finished tasks (not a stored stage).
+  static const boardDone = 'done';
+
   static String label(String stage) => switch (stage) {
         doing => 'In progress',
         review => 'Review',
@@ -310,6 +313,9 @@ class TaskItem {
   String? assignedBy;
   DateTime? assignedAt;
 
+  /// Who marked it done (team tasks; null for older tasks).
+  String? completedBy;
+
   /// Board column while not finished ([TaskStage]).
   String stage;
 
@@ -338,6 +344,7 @@ class TaskItem {
     this.createdBy,
     this.assignedBy,
     this.assignedAt,
+    this.completedBy,
     this.stage = TaskStage.todo,
     this.repeat = Repeat.none,
     this.repeatFrom,
@@ -381,6 +388,7 @@ class TaskItem {
         'created_by': createdBy,
         'assigned_by': assignedBy,
         'assigned_at': _ms(assignedAt),
+        'completed_by': completedBy,
         'stage': stage,
         'repeat': repeat,
         'repeat_from': repeatFrom,
@@ -405,6 +413,7 @@ class TaskItem {
         createdBy: m['created_by'] as String?,
         assignedBy: m['assigned_by'] as String?,
         assignedAt: _dt(m['assigned_at']),
+        completedBy: m['completed_by'] as String?,
         stage: TaskStage.all.contains(m['stage']) ? m['stage'] as String : TaskStage.todo,
         repeat: Repeat.all.contains(m['repeat']) ? m['repeat'] as String : Repeat.none,
         repeatFrom: m['repeat_from'] as String?,

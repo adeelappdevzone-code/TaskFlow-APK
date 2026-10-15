@@ -114,7 +114,7 @@ void main() {
   testWidgets('Teams tab shows the summary for owners', (tester) async {
     TeamStore.instance.setForTest(uid: 'own');
     await tester.pumpWidget(app(const Scaffold(body: TeamsScreen())));
-    expect(find.text('Your team at a glance'), findsOneWidget);
+    expect(find.text('Total teams'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

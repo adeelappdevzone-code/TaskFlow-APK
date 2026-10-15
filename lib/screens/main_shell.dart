@@ -205,13 +205,14 @@ extension on _MainShellState {
                 index: _index,
                 children: [
                   const CenteredContent(child: HomeScreen()),
-                  const CenteredContent(child: TasksScreen()),
+                  const TasksScreen(), // has its own laptop layout
                   const CenteredContent(child: CalendarScreen()),
                   const CenteredContent(child: ProfileScreen()),
                   Navigator(
                     key: _teamsNav,
                     onGenerateRoute: (_) => MaterialPageRoute(
-                      builder: (_) => const Scaffold(body: CenteredContent(child: TeamsScreen())),
+                      builder: (_) => const Scaffold(
+                          backgroundColor: AppColors.background, body: TeamsScreen()),
                     ),
                   ),
                 ],

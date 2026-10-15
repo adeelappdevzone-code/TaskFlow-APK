@@ -53,6 +53,7 @@ service cloud.firestore {
           && (!('stage' in d) || d.stage in ['todo', 'doing', 'review'])
           && (!('repeat' in d) || d.repeat in ['none', 'daily', 'weekly', 'monthly'])
           && optStr(d, 'repeat_from', 100)
+          && optStr(d, 'completed_by', 100)
           && (!('checklist' in d) || d.checklist == null
               || (d.checklist is list && d.checklist.size() <= 200));
     }
@@ -211,7 +212,10 @@ service cloud.firestore {
           return request.auth.uid in tm.member_ids
               && resource.data.assignee_id == request.auth.uid
               && request.resource.data.diff(resource.data).affectedKeys()
-                  .hasOnly(['status', 'completed_at', 'checklist', 'stage', 'updated_at'])
+                  .hasOnly(['status', 'completed_at', 'completed_by', 'checklist', 'stage', 'updated_at'])
+              && (!('completed_by' in request.resource.data)
+                  || request.resource.data.completed_by == null
+                  || request.resource.data.completed_by == request.auth.uid)
               && request.resource.data.status in ['pending', 'completed']
               && validTask(request.resource.data, taskId);
         }
