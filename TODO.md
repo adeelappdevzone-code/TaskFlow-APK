@@ -21,11 +21,12 @@ Dhyan: key badalne ke baad phone se purani app ek dafa uninstall karni hogi
 
 ## Review se baqi kaam
 
-- `pubspec.yaml`: Firebase packages ke versions pin karo (abhi `<100.0.0` hai,
-  naya major version build tod sakta hai).
-- README purana hai (SQLite / local account ka zikr, ab app Firebase par hai).
 - `AppStore` mein `authStateChanges` listener nahi (account disable ho to app ko pata nahi chalta).
-- Kotlin "Built-in Kotlin" warning (CI log) — Flutter ke agle versions mein masla ban sakta hai.
+- Flutter CI mein 3.47.7 par fix hai (`build-apk.yml`). Upgrade karte waqt CI log check karo.
+  Wahan "plugins that apply Kotlin Gradle Plugin (KGP): firebase_auth, firebase_core" wali
+  warning ghalat alarm hai: Flutter sirf plugin ki file mein text dhoondta hai, jabke Firebase
+  plugins Kotlin plugin tabhi lagate hain jab AGP 9 se purana ho (hamara 9.1 hai).
+  Agar kabhi is warning ki wajah se build fail ho, to firebase packages naye version par update karo.
 - APK 55 MB: `--split-per-abi` se chhoti ho sakti hai.
 - Har `main` push par nayi GitHub Release banti hai — purani releases jama hoti rahengi.
 - Reminders sirf app khuli ho tab aate hain (asli push notifications nahi).

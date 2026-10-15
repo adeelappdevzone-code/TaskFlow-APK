@@ -12,10 +12,11 @@ dependencies:
   uuid: ^4.4.0
   intl: '>=0.19.0 <0.21.0'
   shared_preferences: ^2.2.3
-  # Firebase (pub picks the newest versions that fit the Flutter version in CI)
-  firebase_core: '>=3.0.0 <100.0.0'
-  firebase_auth: '>=5.0.0 <100.0.0'
-  cloud_firestore: '>=5.0.0 <100.0.0'
+  # Firebase: minor updates allowed, a new major version is not picked up
+  # automatically (it could break the build). Versions last built in CI.
+  firebase_core: ^4.15.0
+  firebase_auth: ^6.7.0
+  cloud_firestore: ^6.10.0
   google_sign_in: ^7.0.0
 
 dev_dependencies:

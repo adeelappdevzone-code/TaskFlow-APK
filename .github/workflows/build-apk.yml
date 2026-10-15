@@ -25,6 +25,9 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          # Fixed Flutter version so a new Flutter release can't break the
+          # build on its own. To upgrade: change this number and push.
+          flutter-version: 3.47.7
           cache: true
 
       - name: Flutter version
