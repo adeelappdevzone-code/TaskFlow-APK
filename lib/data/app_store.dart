@@ -336,8 +336,22 @@ class AppStore extends ChangeNotifier {
       }
       return null;
     } on GoogleSignInException catch (e) {
-      if (e.code == GoogleSignInExceptionCode.canceled) return googleCancelled;
-      return 'Google sign-in failed (${e.code.name}). ${e.description ?? ''}'.trim();
+      final desc = e.description ?? '';
+      debugPrint('Google sign-in: ${e.code.name} $desc');
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        // Android's Credential Manager also reports a wrong Firebase setup
+        // (app SHA-1 not added) as "canceled", e.g. "[16] Account reauth
+        // failed". Only stay silent when the user really closed the picker.
+        final lower = desc.toLowerCase();
+        final byUser = desc.isEmpty ||
+            lower.contains('cancelled by the user') ||
+            lower.contains('canceled by the user');
+        if (byUser) return googleCancelled;
+        return 'Google sign-in failed: $desc\n'
+            'Make sure the app\'s SHA-1 fingerprint is added in Firebase '
+            '(Project settings → Your apps → Android).';
+      }
+      return 'Google sign-in failed (${e.code.name}). $desc'.trim();
     } on fb.FirebaseAuthException catch (e) {
       return _authError(e);
     } catch (e) {
