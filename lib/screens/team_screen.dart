@@ -41,6 +41,7 @@ class _TeamScreenState extends State<TeamScreen> {
 
   // Laptop layout (team_wide.dart).
   int _wideTab = 0;
+  int _overviewDays = 7;
   String _search = '';
 
   void _update(VoidCallback change) => setState(change);
@@ -578,11 +579,10 @@ class _DoneChart extends StatelessWidget {
   final List<int> doneByDay;
   final Color color;
 
-  /// Height of the bar area; [bare] = no card around it (already in one).
-  final double height;
-  final bool bare;
-  const _DoneChart(
-      {required this.doneByDay, required this.color, this.height = 140, this.bare = false});
+  const _DoneChart({required this.doneByDay, required this.color});
+
+  static const height = 140.0;
+  static const bare = false;
 
   static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 

@@ -90,15 +90,18 @@ void main() {
       expect(find.textContaining(col, findRichText: true), findsWidgets);
     }
     expect(find.text('Review card'), findsOneWidget);
-    // The Overview tab uses two columns and shows the chart.
+    // Overview: status ring, priorities, activity and workload.
     await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
-    expect(find.text('Done per day (this week)'), findsOneWidget);
-    // Members: stats on top, people list.
-    await tester.tap(find.text('Members (2)'));
+    expect(find.text('Task Status'), findsOneWidget);
+    expect(find.text('Tasks by Priority'), findsOneWidget);
+    expect(find.text('Team Workload'), findsOneWidget);
+    // Members: stats on top, the people table and the invite row.
+    await tester.tap(find.text('Members'));
     await tester.pumpAndSettle();
-    expect(find.text('Add person by email'), findsOneWidget);
-    expect(find.text('Team members (2)'), findsOneWidget);
+    expect(find.text('Total members'), findsOneWidget);
+    expect(find.text('Team Members'), findsOneWidget);
+    expect(find.text('Invite member'), findsOneWidget);
     expect(find.text('Adeel'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

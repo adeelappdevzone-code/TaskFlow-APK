@@ -147,19 +147,27 @@ class DonutRing extends StatelessWidget {
   final int total;
   final String center;
   final String caption;
+  final double stroke;
   const DonutRing(
-      {required this.parts, required this.total, required this.center, required this.caption});
+      {super.key,
+      required this.parts,
+      required this.total,
+      required this.center,
+      required this.caption,
+      this.stroke = 12});
 
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _DonutPainter(parts, total),
+      painter: _DonutPainter(parts, total, stroke),
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(center, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-            Text(caption, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            Text(center,
+                style: TextStyle(fontSize: stroke > 16 ? 34 : 22, fontWeight: FontWeight.w800)),
+            Text(caption,
+                style: TextStyle(fontSize: stroke > 16 ? 15 : 12, color: AppColors.textMuted)),
           ],
         ),
       ),
@@ -170,11 +178,11 @@ class DonutRing extends StatelessWidget {
 class _DonutPainter extends CustomPainter {
   final List<(int, Color)> parts;
   final int total;
-  _DonutPainter(this.parts, this.total);
+  final double stroke;
+  _DonutPainter(this.parts, this.total, this.stroke);
 
   @override
   void paint(Canvas canvas, Size size) {
-    const stroke = 12.0;
     final side = math.min(size.width, size.height);
     final rect = Rect.fromCenter(
         center: size.center(Offset.zero), width: side - stroke, height: side - stroke);
