@@ -8,6 +8,7 @@ import '../data/models.dart';
 import '../data/team_models.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
+import '../widgets/responsive.dart';
 
 /// Add Task / Edit Task form, for personal tasks or (with [team]) team tasks.
 /// Team tasks have no category/project and are assigned to team members.
@@ -515,7 +516,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           ),
         ],
       ),
-      body: Form(
+      body: CenteredContent(maxWidth: 720, child: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
@@ -689,7 +690,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
             ),
           ],
         ),
-      ),
+      )),
     );
   }
 }

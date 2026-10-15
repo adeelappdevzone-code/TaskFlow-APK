@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import '../data/team_store.dart';
+import '../widgets/responsive.dart';
 import 'calendar_screen.dart';
 import 'home_screen.dart';
 import 'profile_screen.dart';
 import 'task_form_screen.dart';
+import 'task_panel.dart';
 import 'tasks_screen.dart';
 import 'teams_screen.dart';
 
@@ -38,6 +40,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    if (isWideScreen(context)) return _buildWide(context);
     return PopScope(
       canPop: _index == 0,
       onPopInvokedWithResult: (didPop, _) {
@@ -110,6 +113,96 @@ class _MainShellState extends State<MainShell> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+extension on _MainShellState {
+  // Side menu order -> index in the IndexedStack.
+  static const _railToTab = [0, 1, 2, 4, 3]; // Home, Tasks, Calendar, Teams, Profile
+
+  /// Laptop / big screen: menu on the left, pages in the middle, the chosen
+  /// task in a panel on the right.
+  Widget _buildWide(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    return Scaffold(
+      body: Row(
+        children: [
+          ListenableBuilder(
+            listenable: TeamStore.instance,
+            builder: (context, _) {
+              final invites = TeamStore.instance.invites.length;
+              return NavigationRail(
+                extended: width >= 1200,
+                minExtendedWidth: 200,
+                backgroundColor: Colors.white,
+                selectedIndex: _railToTab.indexOf(_index),
+                onDestinationSelected: (i) => setTab(_railToTab[i]),
+                labelType: width >= 1200 ? null : NavigationRailLabelType.all,
+                leading: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: width >= 1200
+                      ? FloatingActionButton.extended(
+                          heroTag: 'rail-add',
+                          elevation: 1,
+                          onPressed: _addTask,
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('New task'),
+                        )
+                      : FloatingActionButton(
+                          heroTag: 'rail-add',
+                          elevation: 1,
+                          tooltip: 'New task',
+                          onPressed: _addTask,
+                          child: const Icon(Icons.add_rounded),
+                        ),
+                ),
+                destinations: [
+                  const NavigationRailDestination(
+                      icon: Icon(Icons.home_outlined),
+                      selectedIcon: Icon(Icons.home_rounded),
+                      label: Text('Home')),
+                  const NavigationRailDestination(
+                      icon: Icon(Icons.check_box_outlined),
+                      selectedIcon: Icon(Icons.check_box_rounded),
+                      label: Text('Tasks')),
+                  const NavigationRailDestination(
+                      icon: Icon(Icons.calendar_today_outlined),
+                      selectedIcon: Icon(Icons.calendar_today_rounded),
+                      label: Text('Calendar')),
+                  NavigationRailDestination(
+                      icon: Badge(
+                          isLabelVisible: invites > 0,
+                          label: Text('$invites'),
+                          child: const Icon(Icons.groups_outlined)),
+                      selectedIcon: const Icon(Icons.groups_rounded),
+                      label: const Text('Teams')),
+                  const NavigationRailDestination(
+                      icon: Icon(Icons.person_outline_rounded),
+                      selectedIcon: Icon(Icons.person_rounded),
+                      label: Text('Profile')),
+                ],
+              );
+            },
+          ),
+          const VerticalDivider(width: 1, color: AppColors.border),
+          Expanded(
+            child: DetailPanelHost(
+              panelBuilder: buildTaskPanel,
+              child: IndexedStack(
+                index: _index,
+                children: const [
+                  CenteredContent(child: HomeScreen()),
+                  CenteredContent(child: TasksScreen()),
+                  CenteredContent(child: CalendarScreen()),
+                  CenteredContent(child: ProfileScreen()),
+                  CenteredContent(child: TeamsScreen()),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

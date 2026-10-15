@@ -11,6 +11,7 @@ import '../data/team_models.dart';
 import '../data/team_store.dart';
 import '../data/weekly_report.dart';
 import '../widgets/common.dart';
+import '../widgets/responsive.dart';
 
 void openWeeklyReport(BuildContext context, Team team) {
   Navigator.push(
@@ -82,7 +83,7 @@ class _WeeklyReportScreenState extends State<WeeklyReportScreen> {
             weeksBack: _weeksBack);
         return Scaffold(
           appBar: AppBar(title: const Text('Weekly report')),
-          body: ListView(
+          body: CenteredContent(maxWidth: 720, child: ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
               Row(
@@ -125,7 +126,7 @@ class _WeeklyReportScreenState extends State<WeeklyReportScreen> {
                 style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(50)),
               ),
             ],
-          ),
+          )),
         );
       },
     );

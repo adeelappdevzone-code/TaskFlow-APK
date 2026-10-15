@@ -5,9 +5,17 @@ import '../core/utils.dart';
 import '../data/app_store.dart';
 import '../data/models.dart';
 import '../widgets/common.dart';
+import '../widgets/responsive.dart';
 import 'task_form_screen.dart';
 
+/// Opens a personal task: in the side panel on a wide screen, otherwise as a
+/// new page.
 void openTaskDetail(BuildContext context, TaskItem task) {
+  final panel = DetailPanelHost.of(context);
+  if (panel != null) {
+    panel.show(PanelTarget(task.id));
+    return;
+  }
   Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => TaskDetailScreen(taskId: task.id)),
@@ -16,14 +24,17 @@ void openTaskDetail(BuildContext context, TaskItem task) {
 
 class TaskDetailScreen extends StatelessWidget {
   final String taskId;
-  const TaskDetailScreen({super.key, required this.taskId});
+
+  /// Set when shown in the side panel (wide screens): closes the panel.
+  final VoidCallback? onClose;
+
+  const TaskDetailScreen({super.key, required this.taskId, this.onClose});
 
   Future<void> _onMenu(BuildContext context, String action, TaskItem task) async {
     final store = AppStore.instance;
     switch (action) {
       case 'edit':
-        Navigator.push(context,
-            MaterialPageRoute(builder: (_) => TaskFormScreen(task: task)));
+        Navigator.push(context, MaterialPageRoute(builder: (_) => TaskFormScreen(task: task)));
         break;
       case 'cancel':
         final ok = await confirmDialog(context,
@@ -44,7 +55,11 @@ class TaskDetailScreen extends StatelessWidget {
             danger: true);
         if (ok) {
           await store.deleteTask(task);
-          if (context.mounted) Navigator.pop(context);
+          if (onClose != null) {
+            onClose!();
+          } else if (context.mounted) {
+            Navigator.pop(context);
+          }
         }
         break;
     }
@@ -59,7 +74,12 @@ class TaskDetailScreen extends StatelessWidget {
         final task = store.taskById(taskId);
         if (task == null) {
           return Scaffold(
-            appBar: AppBar(),
+            appBar: AppBar(
+              leading: onClose == null
+                  ? null
+                  : IconButton(icon: const Icon(Icons.close_rounded), onPressed: onClose),
+              automaticallyImplyLeading: onClose == null,
+            ),
             body: const EmptyState(
               icon: Icons.delete_outline_rounded,
               title: 'Task not found',
@@ -83,6 +103,10 @@ class TaskDetailScreen extends StatelessWidget {
           backgroundColor: Colors.white,
           appBar: AppBar(
             backgroundColor: Colors.white,
+            leading: onClose == null
+                ? null
+                : IconButton(icon: const Icon(Icons.close_rounded), onPressed: onClose),
+            automaticallyImplyLeading: onClose == null,
             actions: [
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert_rounded),
@@ -123,8 +147,7 @@ class TaskDetailScreen extends StatelessWidget {
               if (task.description.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 Text(task.description,
-                    style: const TextStyle(
-                        color: Color(0xFF374151), fontSize: 14.5, height: 1.5)),
+                    style: const TextStyle(color: Color(0xFF374151), fontSize: 14.5, height: 1.5)),
               ],
               const SizedBox(height: 20),
               _InfoRow(
@@ -140,9 +163,7 @@ class TaskDetailScreen extends StatelessWidget {
                   TextSpan(
                       text: task.priority.label,
                       style: TextStyle(
-                          fontSize: 14,
-                          color: priorityColor,
-                          fontWeight: FontWeight.w700)),
+                          fontSize: 14, color: priorityColor, fontWeight: FontWeight.w700)),
                 ])),
               ),
               if (project != null)
@@ -162,11 +183,9 @@ class TaskDetailScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text('Assigned to',
-                              style:
-                                  TextStyle(fontSize: 12, color: AppColors.textMuted)),
+                              style: TextStyle(fontSize: 12, color: AppColors.textMuted)),
                           Text(member.name,
-                              style: const TextStyle(
-                                  fontSize: 14.5, fontWeight: FontWeight.w600)),
+                              style: const TextStyle(fontSize: 14.5, fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ],
@@ -182,9 +201,7 @@ class TaskDetailScreen extends StatelessWidget {
                   if (task.checklist.isNotEmpty)
                     Text('${task.checklistDone}/${task.checklist.length} done',
                         style: const TextStyle(
-                            color: AppColors.primary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600)),
+                            color: AppColors.primary, fontSize: 13, fontWeight: FontWeight.w600)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -207,26 +224,22 @@ class TaskDetailScreen extends StatelessWidget {
                 )
               else
                 ...task.checklist.map((c) => InkWell(
-                      onTap: task.isCancelled
-                          ? null
-                          : () => store.toggleChecklistItem(c),
+                      onTap: task.isCancelled ? null : () => store.toggleChecklistItem(c),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Row(
                           children: [
                             Checkbox(
                               value: c.isDone,
-                              onChanged: task.isCancelled
-                                  ? null
-                                  : (_) => store.toggleChecklistItem(c),
+                              onChanged:
+                                  task.isCancelled ? null : (_) => store.toggleChecklistItem(c),
                             ),
                             Expanded(
                               child: Text(c.title,
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: c.isDone ? AppColors.textMuted : AppColors.text,
-                                    decoration:
-                                        c.isDone ? TextDecoration.lineThrough : null,
+                                    decoration: c.isDone ? TextDecoration.lineThrough : null,
                                   )),
                             ),
                           ],
@@ -271,12 +284,9 @@ class TaskDetailScreen extends StatelessWidget {
   }
 
   Widget _statusChip(TaskItem t) => switch (t.displayStatus) {
-        DisplayStatus.completed =>
-          const TagChip(label: 'Completed', color: AppColors.success),
-        DisplayStatus.inProgress =>
-          const TagChip(label: 'In progress', color: AppColors.purple),
-        DisplayStatus.cancelled =>
-          const TagChip(label: 'Cancelled', color: AppColors.danger),
+        DisplayStatus.completed => const TagChip(label: 'Completed', color: AppColors.success),
+        DisplayStatus.inProgress => const TagChip(label: 'In progress', color: AppColors.purple),
+        DisplayStatus.cancelled => const TagChip(label: 'Cancelled', color: AppColors.danger),
         DisplayStatus.pending => t.isOverdue
             ? const TagChip(label: 'Overdue', color: AppColors.danger)
             : const TagChip(label: 'Pending', color: AppColors.warning),

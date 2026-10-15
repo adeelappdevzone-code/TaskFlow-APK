@@ -30,6 +30,9 @@ class TeamStats {
   /// Pending tasks whose time has passed, oldest first.
   final List<TaskItem> overdueTasks;
 
+  /// Tasks finished on each day of this week, Monday first (7 numbers).
+  final List<int> doneByDay = List.filled(7, 0);
+
   TeamStats._(this.members, this.overdueTasks);
 
   double get progress => total == 0 ? 0 : done / total;
@@ -58,6 +61,8 @@ class TeamStats {
         if (at != null && !at.isBefore(monday)) {
           stats.doneThisWeek++;
           m?.doneThisWeek++;
+          final day = DateTime(at.year, at.month, at.day).difference(monday).inDays;
+          if (day >= 0 && day < 7) stats.doneByDay[day]++;
         }
       } else {
         stats.pending++;

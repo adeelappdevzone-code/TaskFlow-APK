@@ -8,8 +8,10 @@ import '../data/team_models.dart';
 import '../data/team_stats.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
+import '../widgets/responsive.dart';
 import 'report_screen.dart';
 import 'task_form_screen.dart';
+import 'task_panel.dart';
 import 'team_task_detail_screen.dart';
 import 'teams_screen.dart';
 
@@ -154,64 +156,66 @@ class _TeamScreenState extends State<TeamScreen> {
                     label: const Text('Task'),
                   )
                 : null,
-            body: TabBarView(
-              children: [
-                // ------------------------------------------------- tasks
-                if (_board)
-                  TaskBoard(team: team, tasks: tasks)
-                else
-                  ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-                    children: [
-                      if (active.isNotEmpty) ...[
-                        Row(
-                          children: [
-                            Text('$done of ${active.length} done',
-                                style: const TextStyle(fontWeight: FontWeight.w600)),
-                            const Spacer(),
-                            Text('${(done * 100 / active.length).round()}%',
-                                style: TextStyle(
-                                    color: Color(team.color), fontWeight: FontWeight.w700)),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                            value: done / active.length,
-                            minHeight: 8,
-                            color: Color(team.color),
-                            backgroundColor: Color(team.color).withAlpha(30),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-                      Row(
+            body: DetailPanelHost(
+                panelBuilder: buildTaskPanel,
+                child: TabBarView(
+                  children: [
+                    // ------------------------------------------------- tasks
+                    if (_board)
+                      TaskBoard(team: team, tasks: tasks)
+                    else
+                      ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
                         children: [
-                          for (final f in _Filter.values) ...[
-                            if (f != _Filter.all) const SizedBox(width: 6),
-                            TabPill(
-                              label: switch (f) {
-                                _Filter.all => 'All',
-                                _Filter.mine => 'Mine',
-                                _Filter.pending => 'Pending',
-                                _Filter.done => 'Done',
-                              },
-                              active: _filter == f,
-                              onTap: () => setState(() => _filter = f),
+                          if (active.isNotEmpty) ...[
+                            Row(
+                              children: [
+                                Text('$done of ${active.length} done',
+                                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                                const Spacer(),
+                                Text('${(done * 100 / active.length).round()}%',
+                                    style: TextStyle(
+                                        color: Color(team.color), fontWeight: FontWeight.w700)),
+                              ],
                             ),
+                            const SizedBox(height: 8),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: LinearProgressIndicator(
+                                value: done / active.length,
+                                minHeight: 8,
+                                color: Color(team.color),
+                                backgroundColor: Color(team.color).withAlpha(30),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
                           ],
+                          Row(
+                            children: [
+                              for (final f in _Filter.values) ...[
+                                if (f != _Filter.all) const SizedBox(width: 6),
+                                TabPill(
+                                  label: switch (f) {
+                                    _Filter.all => 'All',
+                                    _Filter.mine => 'Mine',
+                                    _Filter.pending => 'Pending',
+                                    _Filter.done => 'Done',
+                                  },
+                                  active: _filter == f,
+                                  onTap: () => setState(() => _filter = f),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          ..._taskList(team, tasks, me, admin),
                         ],
                       ),
-                      const SizedBox(height: 14),
-                      ..._taskList(team, tasks, me, admin),
-                    ],
-                  ),
-                // ----------------------------------------------- members
-                _MembersTab(team: team, me: me),
-                if (admin) _OverviewTab(team: team, tasks: tasks),
-              ],
-            ),
+                    // ----------------------------------------------- members
+                    _MembersTab(team: team, me: me),
+                    if (admin) _OverviewTab(team: team, tasks: tasks),
+                  ],
+                )),
           ),
         );
       },
@@ -431,74 +435,160 @@ class _OverviewTab extends StatelessWidget {
         ),
       ]);
     }
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-      children: [
-        Row(
+    final summary = <Widget>[
+      Row(
+        children: [
+          _StatTile(label: 'Pending', value: st.pending, color: AppColors.warning),
+          const SizedBox(width: 10),
+          _StatTile(label: 'Overdue', value: st.overdue, color: AppColors.danger),
+          const SizedBox(width: 10),
+          _StatTile(label: 'Done this week', value: st.doneThisWeek, color: AppColors.success),
+        ],
+      ),
+      const SizedBox(height: 16),
+      WhiteCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _StatTile(label: 'Pending', value: st.pending, color: AppColors.warning),
-            const SizedBox(width: 10),
-            _StatTile(label: 'Overdue', value: st.overdue, color: AppColors.danger),
-            const SizedBox(width: 10),
-            _StatTile(label: 'Done this week', value: st.doneThisWeek, color: AppColors.success),
+            Row(
+              children: [
+                Text('${st.done} of ${st.total} tasks done',
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                const Spacer(),
+                Text('${(st.progress * 100).round()}%',
+                    style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 16)),
+              ],
+            ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: st.progress,
+                minHeight: 8,
+                color: color,
+                backgroundColor: color.withAlpha(30),
+              ),
+            ),
+            if (st.unassigned > 0) ...[
+              const SizedBox(height: 8),
+              Text('${st.unassigned} task(s) not assigned to anyone',
+                  style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
+            ],
           ],
         ),
-        const SizedBox(height: 16),
-        WhiteCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text('${st.done} of ${st.total} tasks done',
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-                  const Spacer(),
-                  Text('${(st.progress * 100).round()}%',
-                      style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 16)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: st.progress,
-                  minHeight: 8,
-                  color: color,
-                  backgroundColor: color.withAlpha(30),
-                ),
-              ),
-              if (st.unassigned > 0) ...[
-                const SizedBox(height: 8),
-                Text('${st.unassigned} task(s) not assigned to anyone',
-                    style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () => openWeeklyReport(context, team),
-          icon: const Icon(Icons.summarize_outlined),
-          label: const Text('Weekly report (share on WhatsApp)'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
-        ),
+      ),
+      const SizedBox(height: 16),
+      _DoneChart(doneByDay: st.doneByDay, color: color),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: () => openWeeklyReport(context, team),
+        icon: const Icon(Icons.summarize_outlined),
+        label: const Text('Weekly report (share on WhatsApp)'),
+        style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(46)),
+      ),
+    ];
+    final details = <Widget>[
+      const SectionHeader(title: 'People'),
+      const SizedBox(height: 10),
+      for (final m in st.members) _MemberLoad(team: team, stats: m),
+      if (st.overdueTasks.isNotEmpty) ...[
         const SizedBox(height: 20),
-        const SectionHeader(title: 'People'),
+        const SectionHeader(title: 'Overdue'),
         const SizedBox(height: 10),
-        for (final m in st.members) _MemberLoad(team: team, stats: m),
-        if (st.overdueTasks.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          const SectionHeader(title: 'Overdue'),
-          const SizedBox(height: 10),
-          for (final t in st.overdueTasks)
-            TaskTile(
-              task: t,
-              teamTask: true,
-              onTap: () => openTeamTask(context, team, t),
-              trailing: AssigneeBadge(team: team, task: t),
-            ),
-        ],
+        for (final t in st.overdueTasks)
+          TaskTile(
+            task: t,
+            teamTask: true,
+            onTap: () => openTeamTask(context, team, t),
+            trailing: AssigneeBadge(team: team, task: t),
+          ),
       ],
+    ];
+    return LayoutBuilder(builder: (context, box) {
+      // Big screen: numbers and chart on the left, people and late work on the right.
+      if (box.maxWidth >= kWideLayout) {
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 100),
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                    child:
+                        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: summary)),
+                const SizedBox(width: 24),
+                Expanded(
+                    child:
+                        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: details)),
+              ],
+            ),
+          ],
+        );
+      }
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+        children: [...summary, const SizedBox(height: 20), ...details],
+      );
+    });
+  }
+}
+
+/// Bars: tasks finished on each day of this week.
+class _DoneChart extends StatelessWidget {
+  final List<int> doneByDay;
+  final Color color;
+  const _DoneChart({required this.doneByDay, required this.color});
+
+  static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  @override
+  Widget build(BuildContext context) {
+    final most = doneByDay.fold<int>(0, (a, b) => b > a ? b : a);
+    final today = DateTime.now().weekday - 1;
+    return WhiteCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Done per day (this week)', style: TextStyle(fontWeight: FontWeight.w700)),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 140,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (var i = 0; i < 7; i++)
+                  Expanded(
+                    child: Tooltip(
+                      message: '${_days[i]}: ${doneByDay[i]} done',
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(doneByDay[i] == 0 ? '' : '${doneByDay[i]}',
+                              style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                          const SizedBox(height: 4),
+                          Container(
+                            height: most == 0 ? 3 : 3 + 67 * doneByDay[i] / most,
+                            margin: const EdgeInsets.symmetric(horizontal: 6),
+                            decoration: BoxDecoration(
+                              color: i > today ? color.withAlpha(40) : color,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(_days[i],
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: i == today ? FontWeight.w800 : FontWeight.w500,
+                                  color: i == today ? AppColors.text : AppColors.textMuted)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -608,32 +698,44 @@ class TaskBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = (MediaQuery.of(context).size.width * 0.78).clamp(220.0, 320.0);
     final visible = tasks.where((t) => !t.isCancelled).toList()
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
-    return ListView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
-      children: [
-        for (final col in _columns)
-          _BoardColumn(
-            team: team,
-            column: col,
-            width: width,
-            tasks: visible.where((t) => columnOf(t) == col).toList(),
+    List<TaskItem> inColumn(String col) => visible.where((t) => columnOf(t) == col).toList();
+    return LayoutBuilder(builder: (context, box) {
+      // Big screen: all four columns side by side, no sideways scrolling.
+      if (box.maxWidth >= kWideLayout) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final col in _columns)
+                Expanded(child: _BoardColumn(team: team, column: col, tasks: inColumn(col))),
+            ],
           ),
-      ],
-    );
+        );
+      }
+      final width = (box.maxWidth * 0.78).clamp(220.0, 320.0);
+      return ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+        children: [
+          for (final col in _columns)
+            _BoardColumn(team: team, column: col, width: width, tasks: inColumn(col)),
+        ],
+      );
+    });
   }
 }
 
 class _BoardColumn extends StatelessWidget {
   final Team team;
   final String column;
-  final double width;
+
+  /// Fixed width when scrolling sideways; null to fill the space given.
+  final double? width;
   final List<TaskItem> tasks;
-  const _BoardColumn(
-      {required this.team, required this.column, required this.width, required this.tasks});
+  const _BoardColumn({required this.team, required this.column, this.width, required this.tasks});
 
   (String, Color) get _style => switch (column) {
         TaskStage.doing => ('In progress', AppColors.purple),
@@ -693,7 +795,7 @@ class _BoardColumn extends StatelessWidget {
                                     feedback: Material(
                                       color: Colors.transparent,
                                       child: SizedBox(
-                                          width: width - 20,
+                                          width: (width ?? 260) - 20,
                                           child: _BoardCard(team: team, task: t, lifted: true)),
                                     ),
                                     childWhenDragging: Opacity(

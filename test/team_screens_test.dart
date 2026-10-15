@@ -104,6 +104,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('1 of 3 tasks done'), findsOneWidget);
     expect(find.text('Overdue'), findsWidgets);
+    expect(find.text('Done per day (this week)'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Adeel'), 200,
+        scrollable: find.byType(Scrollable).last);
     expect(find.text('Adeel'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

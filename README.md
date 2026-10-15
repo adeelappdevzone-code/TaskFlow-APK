@@ -10,6 +10,8 @@ Bohat purane (32-bit) phone ke liye: https://github.com/adeelappdevzone-code/Tas
 (GitHub par sirf aakhri 5 builds rakhi jati hain.)
 
 Web version (laptop/browser): https://taskflow-ce905.web.app — wahi login, wahi data.
+Bari screen (900px+) par laptop layout: left side menu, task par click karo to daayen panel mein
+khulta hai, board ke chaaron columns ek saath, Overview do columns + "done per day" graph.
 
 CI log: har build ka log aur result `ci-logs` branch mein save hota hai (web ka `ci-logs-web` mein).
 

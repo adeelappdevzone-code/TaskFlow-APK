@@ -7,9 +7,17 @@ import '../data/models.dart';
 import '../data/team_models.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
+import '../widgets/responsive.dart';
 import 'task_form_screen.dart';
 
+/// Opens a team task: in the side panel on a wide screen, otherwise as a
+/// new page.
 void openTeamTask(BuildContext context, Team team, TaskItem task) {
+  final panel = DetailPanelHost.of(context);
+  if (panel != null) {
+    panel.show(PanelTarget(task.id, teamId: team.id));
+    return;
+  }
   Navigator.push(
     context,
     MaterialPageRoute(builder: (_) => TeamTaskDetailScreen(teamId: team.id, taskId: task.id)),
@@ -21,7 +29,11 @@ void openTeamTask(BuildContext context, Team team, TaskItem task) {
 class TeamTaskDetailScreen extends StatelessWidget {
   final String teamId;
   final String taskId;
-  const TeamTaskDetailScreen({super.key, required this.teamId, required this.taskId});
+
+  /// Set when shown in the side panel (wide screens): closes the panel.
+  final VoidCallback? onClose;
+
+  const TeamTaskDetailScreen({super.key, required this.teamId, required this.taskId, this.onClose});
 
   Future<void> _onMenu(BuildContext context, String action, Team team, TaskItem task) async {
     final store = TeamStore.instance;
@@ -49,7 +61,11 @@ class TeamTaskDetailScreen extends StatelessWidget {
             danger: true);
         if (ok) {
           store.deleteTask(team, task);
-          if (context.mounted) Navigator.pop(context);
+          if (onClose != null) {
+            onClose!();
+          } else if (context.mounted) {
+            Navigator.pop(context);
+          }
         }
         break;
     }
@@ -65,7 +81,12 @@ class TeamTaskDetailScreen extends StatelessWidget {
         final task = team == null ? null : store.taskById(teamId, taskId);
         if (team == null || task == null) {
           return Scaffold(
-            appBar: AppBar(),
+            appBar: AppBar(
+              leading: onClose == null
+                  ? null
+                  : IconButton(icon: const Icon(Icons.close_rounded), onPressed: onClose),
+              automaticallyImplyLeading: onClose == null,
+            ),
             body: const EmptyState(
               icon: Icons.delete_outline_rounded,
               title: 'Task not found',
@@ -88,6 +109,10 @@ class TeamTaskDetailScreen extends StatelessWidget {
           backgroundColor: Colors.white,
           appBar: AppBar(
             backgroundColor: Colors.white,
+            leading: onClose == null
+                ? null
+                : IconButton(icon: const Icon(Icons.close_rounded), onPressed: onClose),
+            automaticallyImplyLeading: onClose == null,
             title: Text(team.name, style: const TextStyle(fontSize: 15)),
             actions: [
               if (admin)

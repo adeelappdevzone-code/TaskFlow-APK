@@ -5,6 +5,7 @@ import '../core/utils.dart';
 import '../data/app_store.dart';
 import '../data/models.dart';
 import '../widgets/common.dart';
+import '../widgets/responsive.dart';
 import 'task_detail_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -52,7 +53,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         ],
       ),
-      body: ListenableBuilder(
+      body: CenteredContent(child: ListenableBuilder(
         listenable: store,
         builder: (context, _) {
           final list = store.notifications
@@ -94,7 +95,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ],
           );
         },
-      ),
+      )),
     );
   }
 

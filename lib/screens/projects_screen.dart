@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import '../data/app_store.dart';
 import '../data/models.dart';
 import '../widgets/common.dart';
+import '../widgets/responsive.dart';
 import 'task_detail_screen.dart';
 import 'task_form_screen.dart';
 
@@ -107,7 +108,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
           ),
         ],
       ),
-      body: ListenableBuilder(
+      body: CenteredContent(child: ListenableBuilder(
         listenable: store,
         builder: (context, _) {
           final q = _search.text.trim().toLowerCase();
@@ -196,7 +197,7 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
             },
           );
         },
-      ),
+      )),
     );
   }
 }
@@ -270,7 +271,7 @@ class ProjectDetailScreen extends StatelessWidget {
             icon: const Icon(Icons.add_rounded),
             label: const Text('Add task'),
           ),
-          body: ListView(
+          body: CenteredContent(child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
             children: [
               WhiteCard(
@@ -317,7 +318,7 @@ class ProjectDetailScreen extends StatelessWidget {
                 ...tasks.map((t) =>
                     TaskTile(task: t, onTap: () => openTaskDetail(context, t))),
             ],
-          ),
+          )),
         );
       },
     );
