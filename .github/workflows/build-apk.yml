@@ -60,6 +60,15 @@ jobs:
           flutter build apk --release --build-number=${{ github.run_number }} 2>&1 | tee -a ci.log
           cp build/app/outputs/flutter-apk/app-release.apk TaskFlow.apk
 
+      # The SHA-1 added in Firebase must match the APK's key, otherwise Google
+      # login fails with "[16] Account reauth failed".
+      - name: Check APK signing key
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs TaskFlow.apk 2>&1 | tee -a ci.log
+          "$APKSIGNER" verify --print-certs TaskFlow.apk | grep -qi "SHA-1 digest: 2e55ddaf09a30d937e752b06c1800467fe817f59" \
+            || { echo "APK is NOT signed with tool/debug.keystore" | tee -a ci.log; exit 1; }
+
       - name: Upload APK (Actions artifact)
         uses: actions/upload-artifact@v4
         with:

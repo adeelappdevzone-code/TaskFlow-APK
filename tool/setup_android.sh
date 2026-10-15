@@ -31,4 +31,38 @@ for f in android/app/build.gradle android/app/build.gradle.kts; do
   echo "minSdk lines in $f:"; grep -nE "minSdk" "$f" || true
 done
 
-echo "Android app name, icon and minSdk set."
+# Sign every build (debug + release) with tool/debug.keystore, so the APK's
+# SHA-1 always matches the one added in Firebase (needed for Google login) and
+# a new APK installs as an update. Copying it to ~/.android is not enough: the
+# build may look for the debug key somewhere else and create a random one.
+if [ -f android/app/build.gradle.kts ] && ! grep -q "tool/debug.keystore" android/app/build.gradle.kts; then
+  cat >> android/app/build.gradle.kts <<'EOF'
+
+android {
+    signingConfigs {
+        getByName("debug") {
+            storeFile = rootProject.file("../tool/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+}
+EOF
+elif [ -f android/app/build.gradle ] && ! grep -q "tool/debug.keystore" android/app/build.gradle; then
+  cat >> android/app/build.gradle <<'EOF'
+
+android {
+    signingConfigs {
+        debug {
+            storeFile rootProject.file("../tool/debug.keystore")
+            storePassword "android"
+            keyAlias "androiddebugkey"
+            keyPassword "android"
+        }
+    }
+}
+EOF
+fi
+
+echo "Android app name, icon, minSdk and signing key set."
