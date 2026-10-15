@@ -63,7 +63,7 @@ extension on _MainShellState {
                       children: [
                         const HomeScreen(),
                         const TasksScreen(), // has its own laptop layout
-                        const CenteredContent(child: CalendarScreen()),
+                        const CalendarScreen(),
                         const ProfileScreen(), // has its own laptop layout
                         Navigator(
                           key: _teamsNav,

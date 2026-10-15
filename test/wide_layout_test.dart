@@ -5,6 +5,7 @@ import 'package:taskflow/data/app_store.dart';
 import 'package:taskflow/data/models.dart';
 import 'package:taskflow/data/team_models.dart';
 import 'package:taskflow/data/team_store.dart';
+import 'package:taskflow/screens/calendar_screen.dart';
 import 'package:taskflow/screens/main_shell.dart';
 import 'package:taskflow/screens/team_screen.dart';
 
@@ -101,5 +102,32 @@ void main() {
     expect(find.text('Team members (2)'), findsOneWidget);
     expect(find.text('Adeel'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('calendar: week, month and day views', (tester) async {
+    await laptop(tester);
+    AppStore.instance.tasks = [
+      TaskItem(
+        id: 'c1',
+        title: 'Client call',
+        startAt: DateTime(now.year, now.month, now.day, 10),
+        endAt: DateTime(now.year, now.month, now.day, 11),
+        createdAt: now,
+        updatedAt: now,
+      ),
+    ];
+    TeamStore.instance
+      ..teams = [team]
+      ..setForTest(uid: 'own');
+    await tester.pumpWidget(app(const Scaffold(body: CalendarScreen())));
+    expect(find.text('Client call'), findsOneWidget); // week view
+    await tester.tap(find.text('Month'));
+    await tester.pump();
+    expect(find.textContaining('Client call'), findsOneWidget);
+    await tester.tap(find.text('Day'));
+    await tester.pump();
+    expect(find.text('Client call'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    AppStore.instance.tasks = [];
   });
 }
