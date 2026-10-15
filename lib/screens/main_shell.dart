@@ -28,6 +28,10 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _index = 0;
 
+  /// Laptop layout: the Teams tab has its own page stack, so a team opens
+  /// next to the side menu instead of covering it.
+  final _teamsNav = GlobalKey<NavigatorState>();
+
   void setTab(int i) => setState(() => _index = i);
 
   Future<void> _addTask() async {
@@ -138,7 +142,14 @@ extension on _MainShellState {
                 minExtendedWidth: 200,
                 backgroundColor: Colors.white,
                 selectedIndex: _railToTab.indexOf(_index),
-                onDestinationSelected: (i) => setTab(_railToTab[i]),
+                onDestinationSelected: (i) {
+                  final tab = _railToTab[i];
+                  // Teams again while inside a team: back to the team list.
+                  if (tab == 4 && _index == 4) {
+                    _teamsNav.currentState?.popUntil((r) => r.isFirst);
+                  }
+                  setTab(tab);
+                },
                 labelType: width >= 1200 ? null : NavigationRailLabelType.all,
                 leading: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
@@ -192,12 +203,17 @@ extension on _MainShellState {
               panelBuilder: buildTaskPanel,
               child: IndexedStack(
                 index: _index,
-                children: const [
-                  CenteredContent(child: HomeScreen()),
-                  CenteredContent(child: TasksScreen()),
-                  CenteredContent(child: CalendarScreen()),
-                  CenteredContent(child: ProfileScreen()),
-                  CenteredContent(child: TeamsScreen()),
+                children: [
+                  const CenteredContent(child: HomeScreen()),
+                  const CenteredContent(child: TasksScreen()),
+                  const CenteredContent(child: CalendarScreen()),
+                  const CenteredContent(child: ProfileScreen()),
+                  Navigator(
+                    key: _teamsNav,
+                    onGenerateRoute: (_) => MaterialPageRoute(
+                      builder: (_) => const Scaffold(body: CenteredContent(child: TeamsScreen())),
+                    ),
+                  ),
                 ],
               ),
             ),

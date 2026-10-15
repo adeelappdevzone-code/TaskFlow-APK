@@ -15,6 +15,8 @@ import 'task_panel.dart';
 import 'team_task_detail_screen.dart';
 import 'teams_screen.dart';
 
+part 'team_wide.dart';
+
 enum _Filter { all, mine, pending, done }
 
 /// One team: its tasks and its people.
@@ -29,6 +31,13 @@ class TeamScreen extends StatefulWidget {
 class _TeamScreenState extends State<TeamScreen> {
   _Filter _filter = _Filter.all;
   bool _board = false;
+
+  // Laptop layout (team_wide.dart).
+  int _wideTab = 0;
+  bool _wideBoard = true;
+  String _search = '';
+
+  void _update(VoidCallback change) => setState(change);
 
   Future<void> _onMenu(String action, Team team) async {
     final store = TeamStore.instance;
@@ -104,6 +113,7 @@ class _TeamScreenState extends State<TeamScreen> {
             ),
           );
         }
+        if (MediaQuery.sizeOf(context).width >= kWideLayout) return _buildWide(context, team);
         final me = store.uid ?? '';
         final admin = team.isAdmin(me);
         final owner = team.ownerId == me;
@@ -252,70 +262,88 @@ class _TeamScreenState extends State<TeamScreen> {
   }
 }
 
+Future<void> _inviteDialog(BuildContext context, Team team) async {
+  final email = TextEditingController();
+  final result = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Add person'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Enter the email they use to log in to TaskFlow. They will see the '
+            'invitation in their Teams tab (they can install the app later too).',
+            style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: email,
+            autofocus: true,
+            keyboardType: TextInputType.emailAddress,
+            decoration: fieldDecoration('name@example.com', icon: Icons.mail_outline_rounded),
+            inputFormatters: [LengthLimitingTextInputFormatter(200)],
+            onSubmitted: (v) => Navigator.pop(ctx, v),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(ctx, email.text), child: const Text('Invite')),
+      ],
+    ),
+  );
+  if (result == null || !context.mounted) return;
+  final err = TeamStore.instance.inviteByEmail(team, result);
+  showSnack(context, err ?? 'Invitation sent to ${normalizeEmail(result)}');
+}
+
+Future<void> _memberAction(BuildContext context, Team team, String action, String uid) async {
+  final store = TeamStore.instance;
+  final name = team.nameOf(uid);
+  switch (action) {
+    case 'manager':
+      store.setManager(team, uid, true);
+      showSnack(context, '$name is now a manager');
+      break;
+    case 'member':
+      store.setManager(team, uid, false);
+      showSnack(context, '$name is now a member');
+      break;
+    case 'remove':
+      final ok = await confirmDialog(context,
+          title: 'Remove $name?',
+          message: '$name will no longer see this team. Their pending tasks become unassigned.',
+          confirmLabel: 'Remove',
+          danger: true);
+      if (ok) store.removeMember(team, uid);
+      break;
+  }
+}
+
+/// What the current user may do with [uid] in [team] (owner/manager menus).
+List<PopupMenuEntry<String>> _memberMenu(Team team, String me, String uid) {
+  final role = team.roleOf(uid) ?? TeamRole.member;
+  final owner = team.ownerId == me;
+  final admin = team.isAdmin(me);
+  final isMe = uid == me;
+  return [
+    if (owner && !isMe && role == TeamRole.member)
+      const PopupMenuItem(value: 'manager', child: Text('Make manager')),
+    if (owner && !isMe && role == TeamRole.manager)
+      const PopupMenuItem(value: 'member', child: Text('Make member')),
+    if (!isMe && role != TeamRole.owner && (owner || (admin && role == TeamRole.member)))
+      const PopupMenuItem(
+          value: 'remove',
+          child: Text('Remove from team', style: TextStyle(color: AppColors.danger))),
+  ];
+}
+
 class _MembersTab extends StatelessWidget {
   final Team team;
   final String me;
   const _MembersTab({required this.team, required this.me});
-
-  Future<void> _invite(BuildContext context) async {
-    final email = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add person'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Enter the email they use to log in to TaskFlow. They will see the '
-              'invitation in their Teams tab (they can install the app later too).',
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: email,
-              autofocus: true,
-              keyboardType: TextInputType.emailAddress,
-              decoration: fieldDecoration('name@example.com', icon: Icons.mail_outline_rounded),
-              inputFormatters: [LengthLimitingTextInputFormatter(200)],
-              onSubmitted: (v) => Navigator.pop(ctx, v),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, email.text), child: const Text('Invite')),
-        ],
-      ),
-    );
-    if (result == null || !context.mounted) return;
-    final err = TeamStore.instance.inviteByEmail(team, result);
-    showSnack(context, err ?? 'Invitation sent to ${normalizeEmail(result)}');
-  }
-
-  Future<void> _memberAction(BuildContext context, String action, String uid) async {
-    final store = TeamStore.instance;
-    final name = team.nameOf(uid);
-    switch (action) {
-      case 'manager':
-        store.setManager(team, uid, true);
-        showSnack(context, '$name is now a manager');
-        break;
-      case 'member':
-        store.setManager(team, uid, false);
-        showSnack(context, '$name is now a member');
-        break;
-      case 'remove':
-        final ok = await confirmDialog(context,
-            title: 'Remove $name?',
-            message: '$name will no longer see this team. Their pending tasks become unassigned.',
-            confirmLabel: 'Remove',
-            danger: true);
-        if (ok) store.removeMember(team, uid);
-        break;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -331,7 +359,7 @@ class _MembersTab extends StatelessWidget {
           PrimaryButton(
             label: 'Add person by email',
             icon: Icons.person_add_alt_1_rounded,
-            onPressed: () => _invite(context),
+            onPressed: () => _inviteDialog(context, team),
           ),
           const SizedBox(height: 18),
         ],
@@ -376,16 +404,7 @@ class _MembersTab extends StatelessWidget {
         .where((t) => t.assigneeId == uid && t.status == TaskStatus.pending)
         .length;
 
-    final actions = <PopupMenuEntry<String>>[
-      if (owner && !isMe && role == TeamRole.member)
-        const PopupMenuItem(value: 'manager', child: Text('Make manager')),
-      if (owner && !isMe && role == TeamRole.manager)
-        const PopupMenuItem(value: 'member', child: Text('Make member')),
-      if (!isMe && role != TeamRole.owner && (owner || (admin && role == TeamRole.member)))
-        const PopupMenuItem(
-            value: 'remove',
-            child: Text('Remove from team', style: TextStyle(color: AppColors.danger))),
-    ];
+    final actions = _memberMenu(team, me, uid);
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -407,7 +426,7 @@ class _MembersTab extends StatelessWidget {
           if (actions.isNotEmpty)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded),
-              onSelected: (a) => _memberAction(context, a, uid),
+              onSelected: (a) => _memberAction(context, team, a, uid),
               itemBuilder: (_) => actions,
             ),
         ],
@@ -537,7 +556,12 @@ class _OverviewTab extends StatelessWidget {
 class _DoneChart extends StatelessWidget {
   final List<int> doneByDay;
   final Color color;
-  const _DoneChart({required this.doneByDay, required this.color});
+
+  /// Height of the bar area; [bare] = no card around it (already in one).
+  final double height;
+  final bool bare;
+  const _DoneChart(
+      {required this.doneByDay, required this.color, this.height = 140, this.bare = false});
 
   static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -545,51 +569,52 @@ class _DoneChart extends StatelessWidget {
   Widget build(BuildContext context) {
     final most = doneByDay.fold<int>(0, (a, b) => b > a ? b : a);
     final today = DateTime.now().weekday - 1;
-    return WhiteCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Done per day (this week)', style: TextStyle(fontWeight: FontWeight.w700)),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 140,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (var i = 0; i < 7; i++)
-                  Expanded(
-                    child: Tooltip(
-                      message: '${_days[i]}: ${doneByDay[i]} done',
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(doneByDay[i] == 0 ? '' : '${doneByDay[i]}',
-                              style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-                          const SizedBox(height: 4),
-                          Container(
-                            height: most == 0 ? 3 : 3 + 67 * doneByDay[i] / most,
-                            margin: const EdgeInsets.symmetric(horizontal: 6),
-                            decoration: BoxDecoration(
-                              color: i > today ? color.withAlpha(40) : color,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
+    final barMax = height - 73;
+    final chart = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Done per day (this week)',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: bare ? 18 : 14)),
+        const SizedBox(height: 14),
+        SizedBox(
+          height: height,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (var i = 0; i < 7; i++)
+                Expanded(
+                  child: Tooltip(
+                    message: '${_days[i]}: ${doneByDay[i]} done',
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Text(doneByDay[i] == 0 ? '' : '${doneByDay[i]}',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                        const SizedBox(height: 4),
+                        Container(
+                          height: most == 0 ? 3 : 3 + barMax * doneByDay[i] / most,
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          decoration: BoxDecoration(
+                            color: i > today ? color.withAlpha(40) : color,
+                            borderRadius: BorderRadius.circular(6),
                           ),
-                          const SizedBox(height: 6),
-                          Text(_days[i],
-                              style: TextStyle(
-                                  fontSize: 11.5,
-                                  fontWeight: i == today ? FontWeight.w800 : FontWeight.w500,
-                                  color: i == today ? AppColors.text : AppColors.textMuted)),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(_days[i],
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: i == today ? FontWeight.w800 : FontWeight.w500,
+                                color: i == today ? AppColors.text : AppColors.textMuted)),
+                      ],
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
+    return bare ? chart : WhiteCard(child: chart);
   }
 }
 
@@ -690,7 +715,15 @@ class _MemberLoad extends StatelessWidget {
 class TaskBoard extends StatelessWidget {
   final Team team;
   final List<TaskItem> tasks;
-  const TaskBoard({super.key, required this.team, required this.tasks});
+
+  /// Space around the board on wide screens.
+  final EdgeInsetsGeometry padding;
+
+  const TaskBoard(
+      {super.key,
+      required this.team,
+      required this.tasks,
+      this.padding = const EdgeInsets.fromLTRB(12, 12, 12, 90)});
 
   static const _columns = [TaskStage.todo, TaskStage.doing, TaskStage.review, TeamStore.boardDone];
 
@@ -705,7 +738,7 @@ class TaskBoard extends StatelessWidget {
       // Big screen: all four columns side by side, no sideways scrolling.
       if (box.maxWidth >= kWideLayout) {
         return Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
+          padding: padding,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -823,10 +856,14 @@ class _BoardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final overdue = task.isOverdue;
+    final done = task.isCompleted;
+    final time = task.endAt == null
+        ? formatTime(task.startAt)
+        : '${formatTime(task.startAt)} - ${formatTime(task.endAt!)}';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
-        color: Colors.white,
+        color: done ? const Color(0xFFF0FAF3) : Colors.white,
         elevation: lifted ? 6 : 0,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
@@ -848,23 +885,27 @@ class _BoardCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    if (task.priority == Priority.high && !task.isCompleted) ...[
+                    if (done)
+                      const Icon(Icons.check_circle_rounded, size: 16, color: AppColors.success)
+                    else if (task.priority == Priority.high)
                       const Icon(Icons.local_fire_department_rounded,
-                          size: 14, color: AppColors.danger),
-                      const SizedBox(width: 3),
-                    ],
+                          size: 15, color: AppColors.danger)
+                    else
+                      const Icon(Icons.calendar_today_outlined,
+                          size: 14, color: AppColors.textMuted),
+                    const SizedBox(width: 5),
                     if (Repeat.isOn(task.repeat)) ...[
                       const Icon(Icons.repeat_rounded, size: 14, color: AppColors.primary),
                       const SizedBox(width: 3),
                     ],
                     Expanded(
                       child: Text(
-                        '${relativeDay(task.startAt)} • ${formatTime(task.startAt)}',
+                        '${relativeDay(task.startAt)} • $time',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: 11.5,
-                            color: overdue ? AppColors.danger : AppColors.textMuted),
+                            color: overdue && !done ? AppColors.danger : AppColors.textMuted),
                       ),
                     ),
                     AssigneeBadge(team: team, task: task),

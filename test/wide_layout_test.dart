@@ -84,8 +84,8 @@ void main() {
         ],
       });
     await tester.pumpWidget(app(const TeamScreen(teamId: 'T')));
-    await tester.tap(find.byTooltip('Board view'));
-    await tester.pumpAndSettle();
+    // Laptop layout opens on the board, with the summary card on top.
+    expect(find.text('0 of 1 tasks completed'), findsOneWidget);
     for (final col in ['To do', 'In progress', 'Review', 'Done']) {
       expect(find.text(col), findsWidgets);
     }
@@ -94,6 +94,12 @@ void main() {
     await tester.tap(find.text('Overview'));
     await tester.pumpAndSettle();
     expect(find.text('Done per day (this week)'), findsOneWidget);
+    // Members: stats on top, people list.
+    await tester.tap(find.text('Members (2)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Add person by email'), findsOneWidget);
+    expect(find.text('Team members (2)'), findsOneWidget);
+    expect(find.text('Adeel'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
