@@ -3,6 +3,7 @@
 Nayi chat / naya Claude: pehle ye file aur `README.md` parho. Owner Roman Urdu mein baat karta hai,
 aksar akela kaam karta hai, PR/merge nahi chahta: **changes seedha `main` par push karo**
 (branch `claude/cool-maxwell-b6rodp` bhi sath update karo). Test pehle khud karo, phir push.
+**Jawab chhota rakho:** kaam ke dauran updates/tafseel nahi, aakhir mein sirf 3-5 lines (kya bana, tests pass, push/CI ok).
 
 ## Setup (sab chal raha hai)
 
