@@ -207,7 +207,7 @@ extension on _MainShellState {
                   const CenteredContent(child: HomeScreen()),
                   const TasksScreen(), // has its own laptop layout
                   const CenteredContent(child: CalendarScreen()),
-                  const CenteredContent(child: ProfileScreen()),
+                  const ProfileScreen(), // has its own laptop layout
                   Navigator(
                     key: _teamsNav,
                     onGenerateRoute: (_) => MaterialPageRoute(

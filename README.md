@@ -114,6 +114,17 @@ tool/debug.keystore         APK signing key (sirf testing; Play Store se pehle b
   description, priority, checklist), phir ek tap mein naya task usi se bharo. Template lamba daba
   kar delete.
 
+## Profile
+
+- Header: naam, email, **job title** (Account Info mein likho, jaise "CEO"), teams mein aap ka role,
+  "Member since". Stats: total / done / pending (personal + aap ke team tasks) aur teams.
+- **Preferences** (account mein save, har device par same): task reminder kitni der pehle
+  (off / 5 / 15 / 30 / 60 min) aur phone par team alerts on/off.
+- **Security & account**: login method, password change, email verification (link bhejna),
+  cloud sync, aakhri backup copy kab ki.
+- **Recent activity**: aap ke done kiye tasks, banai teams, invites, assign kiye tasks.
+- Laptop par dashboard layout, phone par ek column.
+
 ## Teams
 
 - **Teams** tab → **New team** (jaise "SEO"). Banane wala us team ka **Owner** hai.

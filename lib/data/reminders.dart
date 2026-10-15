@@ -6,7 +6,8 @@ import 'package:timezone/timezone.dart' as tz;
 // Only these: flutter_local_notifications has its own `Priority`.
 import 'models.dart' show TaskItem, TaskStatus;
 
-/// How long before a task's start time the phone reminder is shown.
+/// Default time before a task's start when the reminder is shown (the user
+/// can change it: [AppStore.reminderMinutes]).
 const reminderLead = Duration(minutes: 15);
 
 /// Android allows a limited number of scheduled alarms per app, so only the
@@ -45,18 +46,19 @@ int reminderIdFor(String taskId) {
 /// reminder time ([reminderLead] before the start) is still in the future,
 /// soonest first, at most [max].
 List<ReminderPlan> planReminders(Iterable<TaskItem> tasks, DateTime now,
-    {int max = maxReminders}) {
+    {int max = maxReminders, Duration lead = reminderLead}) {
+  if (lead <= Duration.zero) return const [];
   final plans = <ReminderPlan>[];
   for (final t in tasks) {
     if (t.status != TaskStatus.pending) continue;
-    final at = t.startAt.subtract(reminderLead);
+    final at = t.startAt.subtract(lead);
     if (!at.isAfter(now)) continue;
     plans.add(ReminderPlan(
       id: reminderIdFor(t.id),
       taskId: t.id,
       at: at,
       title: 'Reminder: ${t.title}',
-      body: 'Starts in ${reminderLead.inMinutes} minutes',
+      body: 'Starts in ${lead.inMinutes} minutes',
     ));
   }
   plans.sort((a, b) => a.at.compareTo(b.at));
@@ -114,13 +116,13 @@ class PhoneReminders {
   }
 
   /// Replaces all scheduled reminders with the ones for [tasks].
-  Future<void> sync(Iterable<TaskItem> tasks) async {
+  Future<void> sync(Iterable<TaskItem> tasks, {Duration lead = reminderLead}) async {
     if (!_ready) return;
     try {
       // Only scheduled ones: cancelAll() would also remove notifications
       // already showing (e.g. "New task assigned").
       await _plugin.cancelAllPendingNotifications();
-      for (final p in planReminders(tasks, DateTime.now())) {
+      for (final p in planReminders(tasks, DateTime.now(), lead: lead)) {
         await _plugin.zonedSchedule(
           id: p.id,
           title: p.title,

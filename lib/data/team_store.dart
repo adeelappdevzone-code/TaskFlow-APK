@@ -319,7 +319,7 @@ class TeamStore extends ChangeNotifier {
   /// In-app notification + a phone notification right away.
   void _notify(String title, String body) {
     AppStore.instance.addNotification('task', 'team', title, body);
-    PhoneReminders.instance.showNow(title, body);
+    if (AppStore.instance.teamAlerts) PhoneReminders.instance.showNow(title, body);
   }
 
   void _onError(Object e) => debugPrint('Team stream error: $e');

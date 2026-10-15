@@ -74,7 +74,11 @@ service cloud.firestore {
     }
     function validProfile(d) {
       return d.size() <= 20 && optStr(d, 'name', 200) && optStr(d, 'email', 320)
-          && optNum(d, 'created_at');
+          && optNum(d, 'created_at')
+          && optStr(d, 'title', 100)
+          && optNum(d, 'reminder_minutes')
+          && (!('team_alerts' in d) || d.team_alerts is bool)
+          && optNum(d, 'last_backup_at');
     }
 
     function valid(collection, d, docId) {

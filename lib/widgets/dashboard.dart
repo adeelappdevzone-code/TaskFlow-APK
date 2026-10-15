@@ -227,3 +227,134 @@ class PageHeader extends StatelessWidget {
         ],
       );
 }
+
+/// Ring chart card: done / pending / overdue with a legend.
+class ProgressRingCard extends StatelessWidget {
+  final int done;
+  final int pending;
+  final int overdue;
+  final String title;
+  final String? subtitle;
+  const ProgressRingCard({
+    super.key,
+    required this.done,
+    required this.pending,
+    required this.overdue,
+    this.title = 'Task progress',
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final total = done + pending;
+    final pct = total == 0 ? 0 : (done * 100 / total).round();
+    Widget row(Color c, String label, int v) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              Container(
+                  width: 11,
+                  height: 11,
+                  decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+              const SizedBox(width: 10),
+              Expanded(child: Text(label)),
+              Text('$v', style: const TextStyle(fontWeight: FontWeight.w600)),
+            ],
+          ),
+        );
+    return DashCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          if (subtitle != null)
+            Text(subtitle!, style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5)),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              SizedBox(
+                width: 120,
+                height: 120,
+                child: CustomPaint(
+                  painter: _RingPainter(
+                    done: done,
+                    pending: pending - overdue,
+                    overdue: overdue,
+                  ),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('$pct%',
+                            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+                        Text('$done of $total done',
+                            style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(
+                  children: [
+                    row(AppColors.success, 'Done', done),
+                    row(AppColors.warning, 'Pending', pending),
+                    row(AppColors.danger, 'Overdue', overdue),
+                    row(const Color(0xFFD1D5DB), 'Total', total),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  final int done;
+  final int pending;
+  final int overdue;
+  _RingPainter({required this.done, required this.pending, required this.overdue});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const stroke = 12.0;
+    final rect = Rect.fromLTWH(stroke / 2, stroke / 2, size.width - stroke, size.height - stroke);
+    final base = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..color = const Color(0xFFEDF1F7);
+    canvas.drawArc(rect, 0, 6.2832, false, base);
+    final total = done + pending + overdue;
+    if (total == 0) return;
+    var start = -1.5708; // 12 o'clock
+    for (final (value, color) in [
+      (done, AppColors.success),
+      (pending, AppColors.warning),
+      (overdue, AppColors.danger),
+    ]) {
+      if (value == 0) continue;
+      final sweep = 6.2832 * value / total;
+      canvas.drawArc(
+        rect,
+        start,
+        sweep,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = stroke
+          ..strokeCap = StrokeCap.butt
+          ..color = color,
+      );
+      start += sweep;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) =>
+      old.done != done || old.pending != pending || old.overdue != overdue;
+}

@@ -18,6 +18,9 @@ async function t(name, p){ try{ await p; ok++; console.log('PASS', name);}catch(
 const d=(db,p)=>doc(db,p);
 await t('profile create', assertSucceeds(setDoc(d(me,'users/u1'), {name:'A', email:'a@b.c', created_at:now}, {merge:true})));
 await t('profile name merge', assertSucceeds(setDoc(d(me,'users/u1'), {name:'B'}, {merge:true})));
+await t('profile prefs', assertSucceeds(setDoc(d(me,'users/u1'), {title:'CEO', reminder_minutes:30, team_alerts:false, last_backup_at:now}, {merge:true})));
+await t('profile bad prefs denied', assertFails(setDoc(d(me,'users/u1'), {team_alerts:'yes'}, {merge:true})));
+await t('profile long title denied', assertFails(setDoc(d(me,'users/u1'), {title:'x'.repeat(200)}, {merge:true})));
 await t('task', assertSucceeds(setDoc(d(me,'users/u1/tasks/t1'), task)));
 await t('task completed', assertSucceeds(setDoc(d(me,'users/u1/tasks/t1'), {...task, status:'completed', completed_at:now})));
 await t('category', assertSucceeds(setDoc(d(me,'users/u1/categories/c1'), cat)));

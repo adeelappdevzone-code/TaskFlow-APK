@@ -58,6 +58,13 @@ class AppStore extends ChangeNotifier {
   List<AppNotification> notifications = [];
   List<TaskTemplate> templates = [];
 
+  // Profile extras and preferences, saved in users/{uid} so they are the
+  // same on every phone / browser.
+  String jobTitle = '';
+  int reminderMinutes = 15; // 0 = no reminders
+  bool teamAlerts = true; // phone notifications for team events
+  DateTime? lastBackupAt;
+
   Timer? _reminderTimer;
   Timer? _phoneReminderSync;
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -157,6 +164,10 @@ class AppStore extends ChangeNotifier {
     tasks = [];
     notifications = [];
     templates = [];
+    jobTitle = '';
+    reminderMinutes = 15;
+    teamAlerts = true;
+    lastBackupAt = null;
   }
 
   // ------------------------------------------------------- live listeners
@@ -170,6 +181,17 @@ class AppStore extends ChangeNotifier {
 
   void _listen() {
     _cancelSubs();
+
+    _subs.add(_userDoc.snapshots().listen((s) {
+      final d = s.data() ?? const {};
+      jobTitle = (d['title'] as String?) ?? '';
+      reminderMinutes = (d['reminder_minutes'] as int?) ?? 15;
+      teamAlerts = (d['team_alerts'] as bool?) ?? true;
+      final backup = d['last_backup_at'];
+      lastBackupAt = backup is int ? DateTime.fromMillisecondsSinceEpoch(backup) : null;
+      schedulePhoneReminders();
+      notifyListeners();
+    }, onError: _onStreamError));
 
     _subs.add(_col('categories').snapshots().listen((s) {
       categories = _parse(s.docs.map((d) => d.data()), Category.fromMap)
@@ -231,7 +253,8 @@ class AppStore extends ChangeNotifier {
     _phoneReminderSync?.cancel();
     _phoneReminderSync = Timer(const Duration(seconds: 2), () {
       if (currentUser != null) {
-        PhoneReminders.instance.sync([...tasks, ...TeamStore.instance.myTeamTasks]);
+        PhoneReminders.instance.sync([...tasks, ...TeamStore.instance.myTeamTasks],
+            lead: Duration(minutes: reminderMinutes));
       }
     });
   }
@@ -484,6 +507,62 @@ class AppStore extends ChangeNotifier {
     _write(_userDoc.set({'name': clean}, SetOptions(merge: true)));
     notifyListeners();
     return null;
+  }
+
+  // ------------------------------------------------- profile & preferences
+
+  void _savePrefs(Map<String, dynamic> data) {
+    if (currentUser == null) return;
+    _write(_userDoc.set(data, SetOptions(merge: true)));
+    notifyListeners();
+  }
+
+  void updateJobTitle(String title) {
+    jobTitle = title.trim();
+    _savePrefs({'title': jobTitle});
+  }
+
+  void setReminderMinutes(int minutes) {
+    reminderMinutes = minutes;
+    _savePrefs({'reminder_minutes': minutes});
+    schedulePhoneReminders();
+  }
+
+  void setTeamAlerts(bool on) {
+    teamAlerts = on;
+    _savePrefs({'team_alerts': on});
+  }
+
+  void markBackupCopied() {
+    lastBackupAt = DateTime.now();
+    _savePrefs({'last_backup_at': nowMs()});
+  }
+
+  /// "google.com" / "password" for the logged-in account.
+  List<String> get signInMethods {
+    try {
+      return _auth.currentUser?.providerData.map((p) => p.providerId).toList() ?? const [];
+    } catch (_) {
+      return const []; // Firebase not started (tests)
+    }
+  }
+
+  bool get emailVerified {
+    try {
+      return _auth.currentUser?.emailVerified ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Asks Firebase again (e.g. after the user opened the verify link).
+  Future<void> refreshAccount() async {
+    try {
+      await _auth.currentUser?.reload();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Refresh account: $e');
+    }
   }
 
   Future<String?> changePassword(String newPassword) async {
@@ -846,7 +925,7 @@ class AppStore extends ChangeNotifier {
   }
 
   /// In-app reminders: while the app is open, every minute we check for tasks
-  /// starting in the next 15 minutes and add a reminder (once per task).
+  /// starting within [reminderMinutes] and add a reminder (once per task).
   void _startReminderTimer() {
     _reminderTimer?.cancel();
     _reminderTimer =
@@ -855,8 +934,9 @@ class AppStore extends ChangeNotifier {
 
   void _checkReminders() {
     if (currentUser == null) return;
+    if (reminderMinutes <= 0) return;
     final now = DateTime.now();
-    final soon = now.add(const Duration(minutes: 15));
+    final soon = now.add(Duration(minutes: reminderMinutes));
     for (final t in tasks) {
       if (t.status != TaskStatus.pending) continue;
       if (t.startAt.isBefore(now) || t.startAt.isAfter(soon)) continue;
