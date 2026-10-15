@@ -74,6 +74,8 @@ lib/
   data/models.dart          User, Task, Category, Project, Member, ChecklistItem, Notification
   data/app_store.dart       saara login (Firebase Auth + Google) aur data read/write (Firestore) yahin
   data/reminders.dart       phone notifications (task se 15 min pehle)
+  data/team_models.dart     Team, TeamInvite, roles
+  data/team_store.dart      teams, team tasks, invitations (Firestore)
   screens/                  har screen ki file
   widgets/common.dart       shared UI (TaskTile, buttons, chips...)
 firestore.rules             Firestore security rules (Console mein paste karni hain)
@@ -82,6 +84,23 @@ tool/rules_test/          firestore.rules ke tests (Firestore emulator, CI mein 
 test/                     unit tests (`flutter test`)
 tool/debug.keystore         APK signing key (sirf testing; Play Store se pehle badalni hai, TODO.md dekho)
 ```
+
+## Teams
+
+- **Teams** tab → **New team** (jaise "SEO"). Banane wala us team ka **Owner** hai.
+- **Members → Add person by email**: wo email daalo jis se banda TaskFlow mein login karta hai.
+  Usay Teams tab mein invitation dikhegi (**Accept / Decline**). App baad mein install kare to bhi
+  invitation intezar karti hai.
+- Accept karne ke liye email **verified** honi chahiye (Google login wale hamesha verified hain;
+  email/password wale ko verify link bheja jata hai), taake koi kisi aur ke email se join na kar sake.
+- Roles:
+  - **Owner**: sab kuch (team edit/delete, manager banana, kisi ko bhi nikalna)
+  - **Manager**: log add karna, members ko nikalna, tasks banana / edit / assign karna
+  - **Member**: team aur us ke tasks dekhna, apna task Done karna aur checklist tick karna
+- Naya task assign ho, invitation aaye ya koi team join kare to notification aati hai (jab app
+  khuli ho ya abhi abhi band ki ho). Assigned tasks ke 15-minute reminders bhi aate hain.
+- Data: `teams/{teamId}` (members, roles), `teams/{teamId}/tasks/...`, `invites/{teamId}_{email}`.
+  Ijazatein `firestore.rules` mein lagti hain (tests: `tool/rules_test`).
 
 ## Data kahan aur kaise save hota hai
 

@@ -277,12 +277,26 @@ class TaskTile extends StatelessWidget {
   final TaskItem task;
   final VoidCallback onTap;
   final bool showDay;
-  const TaskTile({super.key, required this.task, required this.onTap, this.showDay = true});
+
+  /// Team tasks: what the round status button does (null = not allowed) and
+  /// what is shown on the right (instead of the personal category).
+  final bool teamTask;
+  final VoidCallback? onToggle;
+  final Widget? trailing;
+
+  const TaskTile(
+      {super.key,
+      required this.task,
+      required this.onTap,
+      this.showDay = true,
+      this.teamTask = false,
+      this.onToggle,
+      this.trailing});
 
   @override
   Widget build(BuildContext context) {
     final store = AppStore.instance;
-    final cat = store.categoryById(task.categoryId);
+    final cat = teamTask ? null : store.categoryById(task.categoryId);
     final done = task.isCompleted || task.isCancelled;
     final time = task.endAt == null
         ? formatTime(task.startAt)
@@ -298,7 +312,7 @@ class TaskTile extends StatelessWidget {
           children: [
             StatusCircle(
               task: task,
-              onTap: () => store.setCompleted(task, !task.isCompleted),
+              onTap: teamTask ? onToggle : () => store.setCompleted(task, !task.isCompleted),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -352,6 +366,10 @@ class TaskTile extends StatelessWidget {
             if (cat != null) ...[
               const SizedBox(width: 8),
               TagChip(label: cat.name, color: Color(cat.color)),
+            ],
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              trailing!,
             ],
           ],
         ),
@@ -480,4 +498,36 @@ Future<String?> textInputDialog(BuildContext context,
       ],
     ),
   );
+}
+
+/// Segmented-control style tab (All / Pending / Done ...).
+class TabPill extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  const TabPill({super.key, required this.label, required this.active, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? AppColors.primary : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: active ? AppColors.primary : AppColors.border),
+          ),
+          alignment: Alignment.center,
+          child: Text(label,
+              style: TextStyle(
+                  color: active ? Colors.white : AppColors.text,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5)),
+        ),
+      ),
+    );
+  }
 }

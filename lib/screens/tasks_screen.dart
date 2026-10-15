@@ -210,17 +210,17 @@ class _TasksScreenState extends State<TasksScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  _TabPill(
+                  TabPill(
                       label: 'All',
                       active: _tab == _Tab.all,
                       onTap: () => setState(() => _tab = _Tab.all)),
                   const SizedBox(width: 8),
-                  _TabPill(
+                  TabPill(
                       label: 'Pending',
                       active: _tab == _Tab.pending,
                       onTap: () => setState(() => _tab = _Tab.pending)),
                   const SizedBox(width: 8),
-                  _TabPill(
+                  TabPill(
                       label: 'Done',
                       active: _tab == _Tab.done,
                       onTap: () => setState(() => _tab = _Tab.done)),
@@ -259,36 +259,5 @@ class _TasksScreenState extends State<TasksScreen> {
       return Scaffold(body: SafeArea(child: body));
     }
     return SafeArea(child: body);
-  }
-}
-
-class _TabPill extends StatelessWidget {
-  final String label;
-  final bool active;
-  final VoidCallback onTap;
-  const _TabPill({required this.label, required this.active, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: active ? AppColors.primary : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: active ? AppColors.primary : AppColors.border),
-          ),
-          alignment: Alignment.center,
-          child: Text(label,
-              style: TextStyle(
-                  color: active ? Colors.white : AppColors.text,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13.5)),
-        ),
-      ),
-    );
   }
 }

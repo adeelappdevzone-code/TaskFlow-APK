@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
+import '../data/team_store.dart';
 import 'calendar_screen.dart';
 import 'home_screen.dart';
 import 'profile_screen.dart';
 import 'task_form_screen.dart';
 import 'tasks_screen.dart';
+import 'teams_screen.dart';
 
-/// Bottom navigation: Home | Tasks | (+) | Calendar | Profile
+/// Bottom navigation: Home | Tasks | (+) | Teams | Profile.
+/// Calendar (index 2) opens from the shortcut on Home.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -48,6 +51,7 @@ class _MainShellState extends State<MainShell> {
             TasksScreen(),
             CalendarScreen(),
             ProfileScreen(),
+            TeamsScreen(),
           ],
         ),
         floatingActionButton: SizedBox(
@@ -71,34 +75,39 @@ class _MainShellState extends State<MainShell> {
           notchMargin: 7,
           height: 68,
           padding: EdgeInsets.zero,
-          child: Row(
-            children: [
-              _NavItem(
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
-                  label: 'Home',
-                  active: _index == 0,
-                  onTap: () => setTab(0)),
-              _NavItem(
-                  icon: Icons.check_box_outlined,
-                  activeIcon: Icons.check_box_rounded,
-                  label: 'Tasks',
-                  active: _index == 1,
-                  onTap: () => setTab(1)),
-              const SizedBox(width: 64),
-              _NavItem(
-                  icon: Icons.calendar_today_outlined,
-                  activeIcon: Icons.calendar_today_rounded,
-                  label: 'Calendar',
-                  active: _index == 2,
-                  onTap: () => setTab(2)),
-              _NavItem(
-                  icon: Icons.person_outline_rounded,
-                  activeIcon: Icons.person_rounded,
-                  label: 'Profile',
-                  active: _index == 3,
-                  onTap: () => setTab(3)),
-            ],
+          // Rebuilds for the invitation badge on Teams.
+          child: ListenableBuilder(
+            listenable: TeamStore.instance,
+            builder: (context, _) => Row(
+              children: [
+                _NavItem(
+                    icon: Icons.home_outlined,
+                    activeIcon: Icons.home_rounded,
+                    label: 'Home',
+                    active: _index == 0,
+                    onTap: () => setTab(0)),
+                _NavItem(
+                    icon: Icons.check_box_outlined,
+                    activeIcon: Icons.check_box_rounded,
+                    label: 'Tasks',
+                    active: _index == 1,
+                    onTap: () => setTab(1)),
+                const SizedBox(width: 64),
+                _NavItem(
+                    icon: Icons.groups_outlined,
+                    activeIcon: Icons.groups_rounded,
+                    label: 'Teams',
+                    badge: TeamStore.instance.invites.length,
+                    active: _index == 4,
+                    onTap: () => setTab(4)),
+                _NavItem(
+                    icon: Icons.person_outline_rounded,
+                    activeIcon: Icons.person_rounded,
+                    label: 'Profile',
+                    active: _index == 3,
+                    onTap: () => setTab(3)),
+              ],
+            ),
           ),
         ),
       ),
@@ -112,6 +121,7 @@ class _NavItem extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
+  final int badge;
 
   const _NavItem({
     required this.icon,
@@ -119,6 +129,7 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.active,
     required this.onTap,
+    this.badge = 0,
   });
 
   @override
@@ -130,7 +141,11 @@ class _NavItem extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(active ? activeIcon : icon, color: color, size: 24),
+            Badge(
+              isLabelVisible: badge > 0,
+              label: Text('$badge'),
+              child: Icon(active ? activeIcon : icon, color: color, size: 24),
+            ),
             const SizedBox(height: 3),
             Text(label,
                 style: TextStyle(

@@ -82,5 +82,163 @@ service cloud.firestore {
             && valid(collection, request.resource.data, docId);
       }
     }
+
+    // ================================================================ TEAMS
+    //
+    // teams/{teamId}: owner_id, member_ids (everyone, owner included),
+    // manager_ids (managers, owner not included), members {uid: {name, email}}.
+    //   Owner   : rename, change managers, remove people, delete the team
+    //   Manager : invite people, remove plain members, create/edit/assign tasks
+    //   Member  : see the team, mark own tasks done, leave the team
+    // Nobody is added directly: people join by accepting an invite sent to
+    // their (verified) email address.
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+    function teamData(teamId) {
+      return get(/databases/$(database)/documents/teams/$(teamId)).data;
+    }
+    function isTeamAdmin(tm) {
+      return request.auth.uid == tm.owner_id || request.auth.uid in tm.manager_ids;
+    }
+
+    function validTeam(d, teamId) {
+      return d.size() <= 20
+          && str(d, 'id', 100) && d.id == teamId
+          && str(d, 'name', 100) && d.name.size() > 0
+          && num(d, 'color')
+          && d.owner_id is string
+          && d.member_ids is list && d.member_ids.size() <= 200
+          && d.owner_id in d.member_ids
+          && d.manager_ids is list
+          && d.member_ids.toSet().hasAll(d.manager_ids)
+          && !(d.owner_id in d.manager_ids)
+          && d.members is map
+          && d.members.keys().toSet() == d.member_ids.toSet()
+          && num(d, 'created_at') && optNum(d, 'updated_at');
+    }
+    function validMemberInfo(info) {
+      return info is map && info.keys().hasOnly(['name', 'email'])
+          && info.name is string && info.name.size() <= 200
+          && info.email is string && info.email.size() <= 320;
+    }
+
+    match /teams/{teamId} {
+      function before() { return resource.data; }
+      function after() { return request.resource.data; }
+      function changed() { return after().diff(before()).affectedKeys(); }
+      function added() { return after().member_ids.toSet().difference(before().member_ids.toSet()); }
+      function removed() { return before().member_ids.toSet().difference(after().member_ids.toSet()); }
+      function infoChanged() { return after().members.diff(before().members).affectedKeys(); }
+      function me() { return request.auth.uid; }
+
+      // Owner: anything except adding people or changing the owner.
+      function ownerEdit() {
+        return me() == before().owner_id && added().size() == 0;
+      }
+      // Manager: may only remove plain members (not the owner or managers).
+      function managerRemoves() {
+        return me() in before().manager_ids
+            && changed().hasOnly(['member_ids', 'members', 'updated_at'])
+            && added().size() == 0 && removed().size() > 0
+            && removed().intersection(before().manager_ids.toSet().union([before().owner_id].toSet())).size() == 0
+            && infoChanged() == removed();
+      }
+      // Accepting an invite: add yourself, nothing else.
+      function joinByInvite() {
+        return !(me() in before().member_ids)
+            && changed().hasOnly(['member_ids', 'members', 'updated_at'])
+            && added() == [me()].toSet() && removed().size() == 0
+            && infoChanged() == [me()].toSet()
+            && validMemberInfo(after().members[me()])
+            && request.auth.token.email_verified == true
+            && exists(/databases/$(database)/documents/invites/$(teamId + '_' + myEmail()));
+      }
+      // Leaving: remove yourself (the owner cannot leave, only delete).
+      function leave() {
+        return me() in before().member_ids && me() != before().owner_id
+            && changed().hasOnly(['member_ids', 'members', 'manager_ids', 'updated_at'])
+            && removed() == [me()].toSet() && added().size() == 0
+            && infoChanged() == [me()].toSet()
+            && after().manager_ids.toSet() == before().manager_ids.toSet().difference([me()].toSet());
+      }
+      // Updating your own name/email in the team.
+      function selfInfo() {
+        return me() in before().member_ids
+            && changed().hasOnly(['members', 'updated_at'])
+            && infoChanged() == [me()].toSet()
+            && validMemberInfo(after().members[me()]);
+      }
+
+      allow read: if signedIn() && request.auth.uid in resource.data.member_ids;
+      allow create: if signedIn()
+          && validTeam(request.resource.data, teamId)
+          && request.resource.data.owner_id == request.auth.uid
+          && request.resource.data.member_ids == [request.auth.uid]
+          && request.resource.data.manager_ids.size() == 0
+          && validMemberInfo(request.resource.data.members[request.auth.uid]);
+      allow update: if signedIn()
+          && validTeam(request.resource.data, teamId)
+          && after().owner_id == before().owner_id
+          && after().created_at == before().created_at
+          && (ownerEdit() || managerRemoves() || joinByInvite() || leave() || selfInfo());
+      allow delete: if signedIn() && request.auth.uid == resource.data.owner_id;
+
+      match /tasks/{taskId} {
+        function assigneeOk(d, tm) {
+          return !('assignee_id' in d) || d.assignee_id == null || d.assignee_id in tm.member_ids;
+        }
+        // A member may only mark their own task done / not done and tick its checklist.
+        function assigneeUpdate(tm) {
+          return request.auth.uid in tm.member_ids
+              && resource.data.assignee_id == request.auth.uid
+              && request.resource.data.diff(resource.data).affectedKeys()
+                  .hasOnly(['status', 'completed_at', 'checklist', 'updated_at'])
+              && request.resource.data.status in ['pending', 'completed']
+              && validTask(request.resource.data, taskId);
+        }
+
+        allow read: if signedIn() && request.auth.uid in teamData(teamId).member_ids;
+        allow create: if signedIn()
+            && isTeamAdmin(teamData(teamId))
+            && validTask(request.resource.data, taskId)
+            && request.resource.data.created_by == request.auth.uid
+            && assigneeOk(request.resource.data, teamData(teamId));
+        allow update: if signedIn() && (
+            (isTeamAdmin(teamData(teamId))
+                && validTask(request.resource.data, taskId)
+                && assigneeOk(request.resource.data, teamData(teamId)))
+            || assigneeUpdate(teamData(teamId)));
+        allow delete: if signedIn() && isTeamAdmin(teamData(teamId));
+      }
+    }
+
+    // invites/{teamId}_{email}: readable by the invited email and the team's
+    // owner/managers. Accepting = joining the team + deleting the invite.
+    match /invites/{inviteId} {
+      function validInvite(d) {
+        return d.size() <= 10
+            && str(d, 'id', 500) && d.id == inviteId
+            && str(d, 'team_id', 100) && str(d, 'team_name', 100)
+            && str(d, 'email', 320) && d.email == d.email.lower() && d.email.matches('[^@ ]+@[^@ ]+')
+            && inviteId == d.team_id + '_' + d.email
+            && d.invited_by == request.auth.uid
+            && optStr(d, 'invited_by_name', 200)
+            && num(d, 'created_at');
+      }
+
+      allow read: if signedIn()
+          && (resource.data.email == myEmail() || isTeamAdmin(teamData(resource.data.team_id)));
+      allow create: if signedIn()
+          && validInvite(request.resource.data)
+          && isTeamAdmin(teamData(request.resource.data.team_id))
+          && !(request.resource.data.email == myEmail());
+      allow delete: if signedIn()
+          && (resource.data.email == myEmail() || isTeamAdmin(teamData(resource.data.team_id)));
+    }
   }
 }

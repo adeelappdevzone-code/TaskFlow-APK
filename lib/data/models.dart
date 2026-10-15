@@ -246,7 +246,12 @@ class TaskItem {
   DateTime updatedAt;
   DateTime? deletedAt;
 
-  /// Loaded separately from the checklist_items table.
+  /// Team tasks only: who created the task, who assigned it and when.
+  String? createdBy;
+  String? assignedBy;
+  DateTime? assignedAt;
+
+  /// Stored inside the task document.
   List<ChecklistItem> checklist;
 
   TaskItem({
@@ -264,6 +269,9 @@ class TaskItem {
     required this.createdAt,
     required this.updatedAt,
     this.deletedAt,
+    this.createdBy,
+    this.assignedBy,
+    this.assignedAt,
     List<ChecklistItem>? checklist,
   }) : checklist = checklist ?? [];
 
@@ -301,6 +309,9 @@ class TaskItem {
         'created_at': _ms(createdAt),
         'updated_at': _ms(updatedAt),
         'deleted_at': _ms(deletedAt),
+        'created_by': createdBy,
+        'assigned_by': assignedBy,
+        'assigned_at': _ms(assignedAt),
         'is_synced': 0,
       };
 
@@ -319,6 +330,9 @@ class TaskItem {
         createdAt: _dt(m['created_at'])!,
         updatedAt: _dt(m['updated_at'])!,
         deletedAt: _dt(m['deleted_at']),
+        createdBy: m['created_by'] as String?,
+        assignedBy: m['assigned_by'] as String?,
+        assignedAt: _dt(m['assigned_at']),
       );
 }
 

@@ -5,15 +5,19 @@ import '../core/theme.dart';
 import '../core/utils.dart';
 import '../data/app_store.dart';
 import '../data/models.dart';
+import '../data/team_models.dart';
+import '../data/team_store.dart';
 import '../widgets/common.dart';
 
-/// Add Task / Edit Task form.
+/// Add Task / Edit Task form, for personal tasks or (with [team]) team tasks.
+/// Team tasks have no category/project and are assigned to team members.
 class TaskFormScreen extends StatefulWidget {
   final TaskItem? task; // null = new task
   final DateTime? initialDate;
   final String? initialProjectId;
+  final Team? team;
 
-  const TaskFormScreen({super.key, this.task, this.initialDate, this.initialProjectId});
+  const TaskFormScreen({super.key, this.task, this.initialDate, this.initialProjectId, this.team});
 
   @override
   State<TaskFormScreen> createState() => _TaskFormScreenState();
@@ -37,6 +41,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   bool _saving = false;
 
   bool get _isNew => widget.task == null;
+  Team? get _team => widget.team;
 
   @override
   void initState() {
@@ -80,7 +85,9 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       }
       _end = TimeOfDay(hour: (_start.hour + 1) % 24, minute: _start.minute);
       _projectId = widget.initialProjectId;
-      if (store.categories.isNotEmpty) _categoryId = store.categories.first.id;
+      if (_team == null && store.categories.isNotEmpty) {
+        _categoryId = store.categories.first.id;
+      }
     }
   }
 
@@ -92,8 +99,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     super.dispose();
   }
 
-  DateTime _combine(TimeOfDay t) =>
-      DateTime(_date.year, _date.month, _date.day, t.hour, t.minute);
+  DateTime _combine(TimeOfDay t) => DateTime(_date.year, _date.month, _date.day, t.hour, t.minute);
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -116,9 +122,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         final duration = _combine(_end).difference(_combine(_start));
         _start = picked;
         final newEnd = _combine(_start).add(
-            duration.isNegative || duration == Duration.zero
-                ? const Duration(hours: 1)
-                : duration);
+            duration.isNegative || duration == Duration.zero ? const Duration(hours: 1) : duration);
         _end = isSameDay(newEnd, _date)
             ? TimeOfDay.fromDateTime(newEnd)
             : const TimeOfDay(hour: 23, minute: 59);
@@ -195,8 +199,13 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
 
     final messenger = ScaffoldMessenger.of(context);
     final wasNew = _isNew;
-    await store.saveTask(task, items,
-        isNew: wasNew, previousAssigneeId: _originalAssigneeId);
+    final team = _team;
+    if (team != null) {
+      TeamStore.instance
+          .saveTask(team, task, items, isNew: wasNew, previousAssigneeId: _originalAssigneeId);
+    } else {
+      await store.saveTask(task, items, isNew: wasNew, previousAssigneeId: _originalAssigneeId);
+    }
     if (!mounted) return;
     Navigator.pop(context, true);
     messenger.showSnackBar(SnackBar(
@@ -255,13 +264,26 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   }
 
   Future<void> _pickAssignee() async {
+    final team = _team;
+    if (team != null) {
+      final result = await _showOptions<String>(
+        title: 'Assign to',
+        options: [
+          const _Option(_noneKey, 'Not assigned', icon: Icons.person_off_outlined),
+          for (final uid in team.sortedMemberIds)
+            _Option(uid, team.nameOf(uid), icon: Icons.person_rounded),
+        ],
+        selected: _assigneeId ?? _noneKey,
+      );
+      if (result != null) setState(() => _assigneeId = result == _noneKey ? null : result);
+      return;
+    }
     final store = AppStore.instance;
     final result = await _showOptions<String>(
       title: 'Assign to',
       options: [
         const _Option(_noneKey, 'Nobody (me)', icon: Icons.person_off_outlined),
-        for (final m in store.members)
-          _Option(m.id, m.name, icon: Icons.person_rounded),
+        for (final m in store.members) _Option(m.id, m.name, icon: Icons.person_rounded),
       ],
       selected: _assigneeId ?? _noneKey,
       addLabel: 'Add team member',
@@ -284,7 +306,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     required String title,
     required List<_Option> options,
     required String? selected,
-    required String addLabel,
+    String? addLabel,
   }) {
     return showModalBottomSheet<String>(
       context: context,
@@ -294,16 +316,15 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
       builder: (ctx) => SafeArea(
         child: ConstrainedBox(
-          constraints:
-              BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.7),
           child: ListView(
             shrinkWrap: true,
             padding: const EdgeInsets.symmetric(vertical: 12),
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                child: Text(title,
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                child:
+                    Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
               ),
               for (final o in options)
                 ListTile(
@@ -314,13 +335,14 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                       : null,
                   onTap: () => Navigator.pop(ctx, o.value),
                 ),
-              ListTile(
-                leading: const Icon(Icons.add_rounded, color: AppColors.primary),
-                title: Text(addLabel,
-                    style: const TextStyle(
-                        color: AppColors.primary, fontWeight: FontWeight.w600)),
-                onTap: () => Navigator.pop(ctx, _addKey),
-              ),
+              if (addLabel != null)
+                ListTile(
+                  leading: const Icon(Icons.add_rounded, color: AppColors.primary),
+                  title: Text(addLabel,
+                      style:
+                          const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+                  onTap: () => Navigator.pop(ctx, _addKey),
+                ),
             ],
           ),
         ),
@@ -335,7 +357,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     final store = AppStore.instance;
     final cat = store.categoryById(_categoryId);
     final project = store.projectById(_projectId);
-    final member = store.memberById(_assigneeId);
+    final team = _team;
+    final assigneeName = team != null
+        ? (_assigneeId == null ? null : team.nameOf(_assigneeId))
+        : store.memberById(_assigneeId)?.name;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -345,7 +370,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           icon: const Icon(Icons.close_rounded),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(_isNew ? 'Add Task' : 'Edit Task',
+        title: Text(
+            team != null
+                ? (_isNew ? 'New task • ${team.name}' : 'Edit task • ${team.name}')
+                : (_isNew ? 'Add Task' : 'Edit Task'),
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
       ),
       body: Form(
@@ -359,8 +387,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               textCapitalization: TextCapitalization.sentences,
               decoration: fieldDecoration('Enter task title'),
               inputFormatters: [LengthLimitingTextInputFormatter(200)],
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Title is required' : null,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
             ),
             const SizedBox(height: 18),
             const _Label('Description'),
@@ -372,15 +399,17 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
               decoration: fieldDecoration('Add a description (optional)'),
               inputFormatters: [LengthLimitingTextInputFormatter(5000)],
             ),
-            const SizedBox(height: 18),
-            const _Label('Category'),
-            _SelectField(
-              icon: Icons.label_outline_rounded,
-              iconColor: cat == null ? null : Color(cat.color),
-              text: cat?.name ?? 'Select category',
-              muted: cat == null,
-              onTap: _pickCategory,
-            ),
+            if (team == null) ...[
+              const SizedBox(height: 18),
+              const _Label('Category'),
+              _SelectField(
+                icon: Icons.label_outline_rounded,
+                iconColor: cat == null ? null : Color(cat.color),
+                text: cat?.name ?? 'Select category',
+                muted: cat == null,
+                onTap: _pickCategory,
+              ),
+            ],
             const SizedBox(height: 18),
             const _Label('Priority'),
             Row(
@@ -437,21 +466,24 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 18),
-            const _Label('Project'),
-            _SelectField(
-              icon: Icons.folder_outlined,
-              iconColor: project == null ? null : Color(project.color),
-              text: project?.name ?? 'No project (optional)',
-              muted: project == null,
-              onTap: _pickProject,
-            ),
+            if (team == null) ...[
+              const SizedBox(height: 18),
+              const _Label('Project'),
+              _SelectField(
+                icon: Icons.folder_outlined,
+                iconColor: project == null ? null : Color(project.color),
+                text: project?.name ?? 'No project (optional)',
+                muted: project == null,
+                onTap: _pickProject,
+              ),
+            ],
             const SizedBox(height: 18),
             const _Label('Assign to'),
             _SelectField(
               icon: Icons.person_outline_rounded,
-              text: member?.name ?? 'Select member (optional)',
-              muted: member == null,
+              text: assigneeName ??
+                  (team != null ? 'Choose a team member' : 'Select member (optional)'),
+              muted: assigneeName == null,
               onTap: _pickAssignee,
             ),
             const SizedBox(height: 18),
@@ -468,13 +500,11 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   children: [
                     Checkbox(
                       value: _checklist[i].isDone,
-                      onChanged: (v) =>
-                          setState(() => _checklist[i].isDone = v ?? false),
+                      onChanged: (v) => setState(() => _checklist[i].isDone = v ?? false),
                     ),
                     Expanded(child: Text(_checklist[i].title)),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded,
-                          size: 20, color: AppColors.textMuted),
+                      icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.textMuted),
                       onPressed: () => setState(() => _checklist.removeAt(i)),
                     ),
                   ],
@@ -486,8 +516,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   child: TextField(
                     controller: _newItem,
                     textCapitalization: TextCapitalization.sentences,
-                    decoration: fieldDecoration('Add checklist item',
-                        icon: Icons.checklist_rounded),
+                    decoration:
+                        fieldDecoration('Add checklist item', icon: Icons.checklist_rounded),
                     inputFormatters: [LengthLimitingTextInputFormatter(200)],
                     onSubmitted: (_) => _addChecklistItem(),
                   ),
@@ -539,8 +569,7 @@ class _Label extends StatelessWidget {
           text: text,
           style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
           children: [
-            if (required)
-              const TextSpan(text: ' *', style: TextStyle(color: AppColors.danger)),
+            if (required) const TextSpan(text: ' *', style: TextStyle(color: AppColors.danger)),
           ],
         ),
       ),
@@ -581,8 +610,7 @@ class _SelectField extends StatelessWidget {
               child: Text(
                 text,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                    fontSize: 14, color: muted ? AppColors.textMuted : AppColors.text),
+                style: TextStyle(fontSize: 14, color: muted ? AppColors.textMuted : AppColors.text),
               ),
             ),
             const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.textMuted),
@@ -626,8 +654,7 @@ class _PriorityChip extends StatelessWidget {
               Icon(icon, size: 17, color: color),
               const SizedBox(width: 5),
               Text(label,
-                  style: TextStyle(
-                      color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+                  style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
             ],
           ),
         ),

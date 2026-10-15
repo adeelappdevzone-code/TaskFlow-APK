@@ -132,6 +132,7 @@ class _NotificationRow extends StatelessWidget {
       'reminder' => (Icons.notifications_active_rounded, AppColors.purple),
       'cancelled' => (Icons.cancel_rounded, AppColors.danger),
       'project' => (Icons.folder_rounded, AppColors.primary),
+      'team' => (Icons.groups_rounded, AppColors.primary),
       _ => (Icons.info_rounded, AppColors.textMuted),
     };
     final store = AppStore.instance;

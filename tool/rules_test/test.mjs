@@ -1,7 +1,7 @@
 // Checks firestore.rules against the exact shapes of the app's writes.
 // Run: cd tool/rules_test && npm install && npm test   (needs Java)
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, getDoc, getDocs, updateDoc, writeBatch, collection, query, where, arrayUnion, arrayRemove, deleteField } from 'firebase/firestore';
 import fs from 'fs';
 const env = await initializeTestEnvironment({ projectId: 'demo-tf', firestore: { rules: fs.readFileSync('../../firestore.rules','utf8'), host:'127.0.0.1', port:8085 } });
 const me = env.authenticatedContext('u1').firestore();
@@ -37,5 +37,83 @@ await t('bad status denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), {...t
 await t('title string required', assertFails(setDoc(d(me,'users/u1/tasks/t1'), {...task, title:5})));
 await t('huge title denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), {...task, title:'x'.repeat(600)})));
 await t('bad notif type denied', assertFails(setDoc(d(me,'users/u1/notifications/n2'), {...notif, id:'n2', type:'spam'})));
+
+// ------------------------------------------------------------------ teams
+const ctx = (uid, email, verified = true) =>
+  env.authenticatedContext(uid, { email, email_verified: verified }).firestore();
+const owner = ctx('own', 'Owner@x.com');
+const adeel = ctx('adl', 'adeel@x.com');
+const sara = ctx('sar', 'sara@x.com');
+const fake = ctx('fak', 'adeel@x.com', false); // same email, not verified
+const outsider = ctx('out', 'out@x.com');
+const T = 'team1';
+const teamDoc = {
+  id: T, name: 'SEO', color: 1, owner_id: 'own', member_ids: ['own'], manager_ids: [],
+  members: { own: { name: 'Owner', email: 'owner@x.com' } }, created_at: now, updated_at: now,
+};
+const invite = (email, by = 'own') => ({
+  id: `${T}_${email}`, team_id: T, team_name: 'SEO', email, invited_by: by,
+  invited_by_name: 'Owner', created_at: now,
+});
+const join = (db, uid, email) => {
+  const b = writeBatch(db);
+  b.update(doc(db, `teams/${T}`), { member_ids: arrayUnion(uid), [`members.${uid}`]: { name: uid, email }, updated_at: now });
+  b.delete(doc(db, `invites/${T}_${email}`));
+  return b.commit();
+};
+const ttask = (id, assignee, by = 'own') => ({ ...task, id, checklist: [], assignee_id: assignee, created_by: by, assigned_by: by, assigned_at: now });
+
+await t('team: create', assertSucceeds(setDoc(doc(owner, `teams/${T}`), teamDoc)));
+await t('team: create with other members denied', assertFails(setDoc(doc(owner, 'teams/t2'), { ...teamDoc, id: 't2', member_ids: ['own', 'adl'], members: { own: teamDoc.members.own, adl: { name: 'a', email: 'a' } } })));
+await t('team: create for someone else denied', assertFails(setDoc(doc(adeel, 'teams/t3'), { ...teamDoc, id: 't3' })));
+await t('team: outsider cannot read', assertFails(getDoc(doc(outsider, `teams/${T}`))));
+await t('invite: owner invites adeel', assertSucceeds(setDoc(doc(owner, `invites/${T}_adeel@x.com`), invite('adeel@x.com'))));
+await t('invite: owner invites sara', assertSucceeds(setDoc(doc(owner, `invites/${T}_sara@x.com`), invite('sara@x.com'))));
+await t('invite: outsider cannot invite', assertFails(setDoc(doc(outsider, `invites/${T}_x@x.com`), invite('x@x.com', 'out'))));
+await t('invite: uppercase email denied', assertFails(setDoc(doc(owner, `invites/${T}_Big@x.com`), invite('Big@x.com'))));
+await t('invite: adeel sees own invites', assertSucceeds(getDocs(query(collection(adeel, 'invites'), where('email', '==', 'adeel@x.com')))));
+await t('invite: owner lists team invites', assertSucceeds(getDocs(query(collection(owner, 'invites'), where('team_id', '==', T)))));
+await t('invite: outsider cannot read', assertFails(getDoc(doc(outsider, `invites/${T}_adeel@x.com`))));
+await t('join: unverified email denied', assertFails(join(fake, 'fak', 'adeel@x.com')));
+await t('join: no invite denied', assertFails(join(outsider, 'out', 'out@x.com')));
+await t('join: adeel accepts', assertSucceeds(join(adeel, 'adl', 'adeel@x.com')));
+await t('join: sara accepts', assertSucceeds(join(sara, 'sar', 'sara@x.com')));
+await t('team: member can read', assertSucceeds(getDoc(doc(adeel, `teams/${T}`))));
+await t('team: member cannot rename', assertFails(updateDoc(doc(adeel, `teams/${T}`), { name: 'Hacked' })));
+await t('team: member cannot make self manager', assertFails(updateDoc(doc(adeel, `teams/${T}`), { manager_ids: ['adl'] })));
+await t('team: member updates own name', assertSucceeds(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com' }, updated_at: now })));
+await t('team: member cannot change others name', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.sar': { name: 'x', email: 'x' } })));
+
+await t('task: owner creates task for adeel', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/a1`), ttask('a1', 'adl'))));
+await t('task: owner creates task for sara', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/s1`), ttask('s1', 'sar'))));
+await t('task: assign to non-member denied', assertFails(setDoc(doc(owner, `teams/${T}/tasks/x1`), ttask('x1', 'out'))));
+await t('task: member cannot create', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/a2`), ttask('a2', 'adl', 'adl'))));
+await t('task: member reads team tasks', assertSucceeds(getDocs(collection(adeel, `teams/${T}/tasks`))));
+await t('task: outsider cannot read', assertFails(getDocs(collection(outsider, `teams/${T}/tasks`))));
+await t('task: adeel marks own task done', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_at: now, updated_at: now })));
+await t('task: adeel ticks checklist', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { checklist: [], updated_at: now })));
+await t('task: adeel cannot edit title', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { title: 'changed' })));
+await t('task: adeel cannot reassign', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { assignee_id: 'sar' })));
+await t('task: adeel cannot cancel', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'cancelled' })));
+await t('task: adeel cannot complete saras task', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { status: 'completed', completed_at: now, updated_at: now })));
+await t('task: member cannot delete', assertFails(deleteDoc(doc(adeel, `teams/${T}/tasks/s1`))));
+
+await t('role: owner makes adeel manager', assertSucceeds(updateDoc(doc(owner, `teams/${T}`), { manager_ids: ['adl'], updated_at: now })));
+await t('role: manager creates task', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/m1`), ttask('m1', 'sar', 'adl'))));
+await t('role: manager edits any task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { title: 'Edited', updated_at: now })));
+await t('role: manager cannot make others manager', assertFails(updateDoc(doc(adeel, `teams/${T}`), { manager_ids: ['adl', 'sar'] })));
+await t('role: manager can invite', assertSucceeds(setDoc(doc(adeel, `invites/${T}_new@x.com`), invite('new@x.com', 'adl'))));
+await t('role: manager cannot remove owner', assertFails(updateDoc(doc(adeel, `teams/${T}`), { member_ids: arrayRemove('own'), 'members.own': deleteField() })));
+await t('role: manager cannot delete team', assertFails(deleteDoc(doc(adeel, `teams/${T}`))));
+await t('role: manager removes sara', assertSucceeds(updateDoc(doc(adeel, `teams/${T}`), { member_ids: arrayRemove('sar'), 'members.sar': deleteField(), updated_at: now })));
+await t('role: removed sara cannot read tasks', assertFails(getDocs(collection(sara, `teams/${T}/tasks`))));
+await t('leave: owner cannot leave', assertFails(updateDoc(doc(owner, `teams/${T}`), { member_ids: arrayRemove('own'), 'members.own': deleteField() })));
+await t('leave: adeel (manager) leaves', assertSucceeds(updateDoc(doc(adeel, `teams/${T}`), { member_ids: arrayRemove('adl'), manager_ids: arrayRemove('adl'), 'members.adl': deleteField(), updated_at: now })));
+await t('leave: adeel no longer reads team', assertFails(getDoc(doc(adeel, `teams/${T}`))));
+await t('invite: invitee can decline (delete)', assertSucceeds(deleteDoc(doc(ctx('nw', 'new@x.com'), `invites/${T}_new@x.com`))));
+await t('team: owner renames', assertSucceeds(updateDoc(doc(owner, `teams/${T}`), { name: 'SEO Team', updated_at: now })));
+await t('team: owner deletes task', assertSucceeds(deleteDoc(doc(owner, `teams/${T}/tasks/a1`))));
+await t('team: owner deletes team', assertSucceeds(deleteDoc(doc(owner, `teams/${T}`))));
+
 await env.cleanup();
 console.log(`ok=${ok} bad=${bad}`); process.exit(bad?1:0);

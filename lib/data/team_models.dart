@@ -1,0 +1,174 @@
+// Teams: shared spaces where an owner (and managers) create tasks and assign
+// them to members.
+//
+// Firestore layout:
+//   teams/{teamId}               the team (who is in it and their roles)
+//   teams/{teamId}/tasks/{id}    the team's tasks (same fields as personal tasks)
+//   invites/{teamId}_{email}     an open invitation for that email address
+
+int _ms(DateTime d) => d.millisecondsSinceEpoch;
+DateTime _dt(dynamic v) => DateTime.fromMillisecondsSinceEpoch(v as int);
+
+enum TeamRole { owner, manager, member }
+
+extension TeamRoleX on TeamRole {
+  String get label => switch (this) {
+        TeamRole.owner => 'Owner',
+        TeamRole.manager => 'Manager',
+        TeamRole.member => 'Member',
+      };
+}
+
+/// Name/email shown for a team member (copied into the team so everyone in
+/// the team can see it).
+class TeamMemberInfo {
+  final String name;
+  final String email;
+  const TeamMemberInfo({required this.name, required this.email});
+
+  Map<String, dynamic> toMap() => {'name': name, 'email': email};
+
+  factory TeamMemberInfo.fromMap(Map<String, dynamic> m) => TeamMemberInfo(
+        name: (m['name'] as String?) ?? '',
+        email: (m['email'] as String?) ?? '',
+      );
+}
+
+class Team {
+  final String id;
+  String name;
+  int color;
+  final String ownerId;
+
+  /// Everyone in the team, owner included.
+  List<String> memberIds;
+
+  /// Members who can also create tasks and manage people (owner not included).
+  List<String> managerIds;
+  Map<String, TeamMemberInfo> members;
+  final DateTime createdAt;
+  DateTime updatedAt;
+
+  Team({
+    required this.id,
+    required this.name,
+    required this.color,
+    required this.ownerId,
+    required this.memberIds,
+    required this.managerIds,
+    required this.members,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  TeamRole? roleOf(String uid) {
+    if (uid == ownerId) return TeamRole.owner;
+    if (managerIds.contains(uid)) return TeamRole.manager;
+    if (memberIds.contains(uid)) return TeamRole.member;
+    return null;
+  }
+
+  /// Owner or manager: can create/edit/assign tasks and manage people.
+  bool isAdmin(String uid) => uid == ownerId || managerIds.contains(uid);
+
+  String nameOf(String? uid) {
+    if (uid == null) return '';
+    final info = members[uid];
+    if (info == null) return 'Former member';
+    if (info.name.isNotEmpty) return info.name;
+    return info.email.isEmpty ? 'Member' : info.email.split('@').first;
+  }
+
+  /// Owner first, then managers, then members, each by name.
+  List<String> get sortedMemberIds {
+    int rank(String uid) => switch (roleOf(uid)) {
+          TeamRole.owner => 0,
+          TeamRole.manager => 1,
+          _ => 2,
+        };
+    return [...memberIds]..sort((a, b) {
+        final r = rank(a).compareTo(rank(b));
+        if (r != 0) return r;
+        return nameOf(a).toLowerCase().compareTo(nameOf(b).toLowerCase());
+      });
+  }
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'color': color,
+        'owner_id': ownerId,
+        'member_ids': memberIds,
+        'manager_ids': managerIds,
+        'members': {for (final e in members.entries) e.key: e.value.toMap()},
+        'created_at': _ms(createdAt),
+        'updated_at': _ms(updatedAt),
+      };
+
+  factory Team.fromMap(Map<String, dynamic> m) {
+    final rawMembers = (m['members'] as Map?) ?? const {};
+    return Team(
+      id: m['id'] as String,
+      name: m['name'] as String,
+      color: m['color'] as int,
+      ownerId: m['owner_id'] as String,
+      memberIds: List<String>.from(m['member_ids'] as List),
+      managerIds: List<String>.from((m['manager_ids'] as List?) ?? const []),
+      members: {
+        for (final e in rawMembers.entries)
+          if (e.value is Map)
+            e.key as String: TeamMemberInfo.fromMap(Map<String, dynamic>.from(e.value as Map)),
+      },
+      createdAt: _dt(m['created_at']),
+      updatedAt: _dt(m['updated_at'] ?? m['created_at']),
+    );
+  }
+}
+
+/// Invitations are stored under this id, so the security rules can check
+/// "is there an invite for this team and my email?".
+String inviteIdFor(String teamId, String email) => '${teamId}_${normalizeEmail(email)}';
+
+String normalizeEmail(String email) => email.trim().toLowerCase();
+
+bool looksLikeEmail(String email) => RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email.trim());
+
+class TeamInvite {
+  final String id;
+  final String teamId;
+  final String teamName;
+  final String email;
+  final String invitedBy;
+  final String invitedByName;
+  final DateTime createdAt;
+
+  TeamInvite({
+    required this.id,
+    required this.teamId,
+    required this.teamName,
+    required this.email,
+    required this.invitedBy,
+    required this.invitedByName,
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'team_id': teamId,
+        'team_name': teamName,
+        'email': email,
+        'invited_by': invitedBy,
+        'invited_by_name': invitedByName,
+        'created_at': _ms(createdAt),
+      };
+
+  factory TeamInvite.fromMap(Map<String, dynamic> m) => TeamInvite(
+        id: m['id'] as String,
+        teamId: m['team_id'] as String,
+        teamName: m['team_name'] as String,
+        email: m['email'] as String,
+        invitedBy: m['invited_by'] as String,
+        invitedByName: (m['invited_by_name'] as String?) ?? '',
+        createdAt: _dt(m['created_at']),
+      );
+}

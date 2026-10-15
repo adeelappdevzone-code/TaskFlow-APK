@@ -116,7 +116,9 @@ class PhoneReminders {
   Future<void> sync(Iterable<TaskItem> tasks) async {
     if (!_ready) return;
     try {
-      await _plugin.cancelAll();
+      // Only scheduled ones: cancelAll() would also remove notifications
+      // already showing (e.g. "New task assigned").
+      await _plugin.cancelAllPendingNotifications();
       for (final p in planReminders(tasks, DateTime.now())) {
         await _plugin.zonedSchedule(
           id: p.id,
@@ -135,6 +137,35 @@ class PhoneReminders {
       debugPrint('Reminders sync: $e');
     }
   }
+
+  int _nextNowId = 0;
+
+  /// Shows a notification right away (e.g. "New task assigned to you").
+  Future<void> showNow(String title, String body) async {
+    if (!_ready) return;
+    try {
+      // Negative ids never clash with reminder ids (0 .. 2^31-1, see
+      // [reminderIdFor]).
+      await _plugin.show(
+        id: -1 - (_nextNowId++ % 1000),
+        title: title,
+        body: body,
+        notificationDetails: _nowDetails,
+      );
+    } catch (e) {
+      debugPrint('Notification: $e');
+    }
+  }
+
+  static const _nowDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'team_updates',
+      'Team updates',
+      channelDescription: 'New tasks, invitations and team changes',
+      importance: Importance.high,
+      priority: Priority.high,
+    ),
+  );
 
   /// Removes all scheduled reminders (e.g. on logout).
   Future<void> clear() async {

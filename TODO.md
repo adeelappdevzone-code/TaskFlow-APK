@@ -19,6 +19,13 @@ Repo private hai aur app sirf apne phone par chal rahi hai, is liye abhi theek h
 Dhyan: key badalne ke baad phone se purani app ek dafa uninstall karni hogi
 (data Firebase mein hai, login karte hi wapas aa jayega).
 
+## Teams: agle phase
+
+- Phase 2: Owner/Manager dashboard (kis ke paas kitne pending/late tasks), task par comments.
+- Phase 3 (Blaze plan + Cloud Functions): app band ho tab bhi assign hone par push notification.
+- Profile ka "Team Members" (sirf naam, personal tasks ke liye) asli Teams se alag hai; baad mein
+  isay hata dena ya "Contacts" naam dena.
+
 ## Review se baqi kaam
 
 - Flutter CI mein 3.47.7 par fix hai (`build-apk.yml`). Upgrade karte waqt CI log check karo.

@@ -20,6 +20,7 @@ import 'package:uuid/uuid.dart';
 import '../core/utils.dart';
 import 'models.dart';
 import 'reminders.dart';
+import 'team_store.dart';
 
 const _uuid = Uuid();
 String newId() => _uuid.v4();
@@ -134,6 +135,7 @@ class AppStore extends ChangeNotifier {
     _listen();
     _startReminderTimer();
     PhoneReminders.instance.askPermission();
+    TeamStore.instance.start(uid: u.uid, email: email, name: currentUser!.name);
     notifyListeners();
   }
 
@@ -141,6 +143,7 @@ class AppStore extends ChangeNotifier {
     _reminderTimer?.cancel();
     _phoneReminderSync?.cancel();
     PhoneReminders.instance.clear();
+    TeamStore.instance.stop();
     _cancelSubs();
     currentUser = null;
     categories = [];
@@ -183,7 +186,7 @@ class AppStore extends ChangeNotifier {
     _subs.add(_col('tasks').snapshots().listen((s) {
       tasks = _parse(s.docs.map((d) => d.data()), _taskFromMap)
         ..sort((a, b) => a.startAt.compareTo(b.startAt));
-      _schedulePhoneReminders();
+      schedulePhoneReminders();
       notifyListeners();
     }, onError: _onStreamError));
 
@@ -210,11 +213,14 @@ class AppStore extends ChangeNotifier {
   }
 
   /// Tasks can change many times in a row (e.g. a batch write), so the phone
-  /// reminders are re-scheduled once things settle.
-  void _schedulePhoneReminders() {
+  /// reminders are re-scheduled once things settle. Covers personal tasks and
+  /// team tasks assigned to me.
+  void schedulePhoneReminders() {
     _phoneReminderSync?.cancel();
     _phoneReminderSync = Timer(const Duration(seconds: 2), () {
-      if (currentUser != null) PhoneReminders.instance.sync(tasks);
+      if (currentUser != null) {
+        PhoneReminders.instance.sync([...tasks, ...TeamStore.instance.myTeamTasks]);
+      }
     });
   }
 
@@ -229,12 +235,16 @@ class AppStore extends ChangeNotifier {
     });
   }
 
-  _Json _taskToMap(TaskItem t) => {
+  _Json _taskToMap(TaskItem t) => taskToMap(t);
+  TaskItem _taskFromMap(_Json m) => taskFromMap(m);
+
+  /// Task document = task fields + its checklist (personal and team tasks).
+  static Map<String, dynamic> taskToMap(TaskItem t) => {
         ...t.toMap(),
         'checklist': t.checklist.map((c) => c.toMap()).toList(),
       };
 
-  TaskItem _taskFromMap(_Json m) {
+  static TaskItem taskFromMap(Map<String, dynamic> m) {
     final t = TaskItem.fromMap(m);
     final raw = m['checklist'];
     if (raw is List) {
@@ -309,6 +319,8 @@ class AppStore extends ChangeNotifier {
       try {
         await u.updateDisplayName(cleanName);
       } catch (_) {}
+      // Needed later to accept team invitations (proves the email is theirs).
+      u.sendEmailVerification().catchError((Object e) => debugPrint('Verify email: $e'));
       _startSession(u, name: cleanName);
       _write(_userDoc.set({
         'name': cleanName,
@@ -428,6 +440,7 @@ class AppStore extends ChangeNotifier {
     } catch (_) {}
     user.name = clean;
     user.updatedAt = DateTime.now();
+    TeamStore.instance.updateMyName(clean);
     _write(_userDoc.set({'name': clean}, SetOptions(merge: true)));
     notifyListeners();
     return null;
@@ -709,6 +722,10 @@ class AppStore extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------- notifications
+
+  /// Adds an entry to the Notifications screen.
+  void addNotification(String type, String kind, String title, String body) =>
+      _notify(type, kind, title, body);
 
   void _notify(String type, String kind, String title, String body,
       {String? taskId}) {
