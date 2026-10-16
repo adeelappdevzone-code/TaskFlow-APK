@@ -1,6 +1,7 @@
 import '../data/inbox.dart';
 import 'inbox_screen.dart';
 import 'planner_screen.dart';
+import 'time_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -1082,15 +1083,24 @@ class _PhoneHome extends StatelessWidget {
                 ),
               ),
               IconButton(
+                tooltip: 'Time Tracking',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => Navigator.push(
+                    context, MaterialPageRoute(builder: (_) => const TimeScreen(page: true))),
+                icon: const Icon(Icons.timer_outlined, size: 26),
+              ),
+              IconButton(
                 tooltip: 'Planner',
-                onPressed: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const PlannerScreen(page: true))),
+                visualDensity: VisualDensity.compact,
+                onPressed: () => Navigator.push(
+                    context, MaterialPageRoute(builder: (_) => const PlannerScreen(page: true))),
                 icon: const Icon(Icons.event_note_outlined, size: 26),
               ),
               ListenableBuilder(
                 listenable: InboxStore.instance,
                 builder: (context, _) => IconButton(
                   tooltip: 'Inbox',
+                  visualDensity: VisualDensity.compact,
                   onPressed: () => Navigator.push(
                       context, MaterialPageRoute(builder: (_) => const InboxScreen(page: true))),
                   icon: Badge(

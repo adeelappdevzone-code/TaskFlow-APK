@@ -822,24 +822,32 @@ class AppStore extends ChangeNotifier {
   }
 
   /// Stops the timer and saves the session ([end] fixes a forgotten timer).
-  void stopTimer(TaskItem task, {DateTime? end}) {
+  void stopTimer(TaskItem task, {DateTime? end, String note = ''}) {
     if (currentUser == null || !task.timerRunning) return;
-    _endTimer(task, end ?? DateTime.now());
+    _endTimer(task, end ?? DateTime.now(), note: note);
     _saveTaskDoc(task);
     notifyListeners();
   }
 
   /// Sessions under a minute are not saved.
-  void _endTimer(TaskItem task, DateTime end) {
+  void _endTimer(TaskItem task, DateTime end, {String note = ''}) {
     final at = task.timerAt;
     final by = task.timerBy ?? currentUser?.id;
     if (at == null) return;
     if (by != null && end.difference(at) >= const Duration(minutes: 1)) {
-      task.timeLog.add(TimeEntry(by: by, start: at, end: end));
+      task.timeLog.add(TimeEntry(by: by, start: at, end: end, note: note.trim()));
     }
     task
       ..timerAt = null
       ..timerBy = null;
+  }
+
+  /// Replaces the time log (edit / delete / add an entry by hand).
+  void setTimeLog(TaskItem task, List<TimeEntry> log) {
+    if (currentUser == null) return;
+    task.timeLog = [...log];
+    _saveTaskDoc(task);
+    notifyListeners();
   }
 
   /// Finishing a repeating task adds its next copy (once).

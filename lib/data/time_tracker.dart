@@ -25,11 +25,19 @@ class TimeTracker {
     }
   }
 
-  static void stop(TaskItem task, {Team? team, DateTime? end}) {
+  static void stop(TaskItem task, {Team? team, DateTime? end, String note = ''}) {
     if (team == null) {
-      AppStore.instance.stopTimer(task, end: end);
+      AppStore.instance.stopTimer(task, end: end, note: note);
     } else {
-      TeamStore.instance.stopTimer(team, task, end: end);
+      TeamStore.instance.stopTimer(team, task, end: end, note: note);
+    }
+  }
+
+  static void setLog(TaskItem task, List<TimeEntry> log, {Team? team}) {
+    if (team == null) {
+      AppStore.instance.setTimeLog(task, log);
+    } else {
+      TeamStore.instance.setTimeLog(team, task, log);
     }
   }
 }

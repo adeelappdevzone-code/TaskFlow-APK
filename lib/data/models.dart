@@ -380,14 +380,33 @@ class TimeEntry {
   final DateTime start;
   final DateTime end;
 
-  const TimeEntry({required this.by, required this.start, required this.end});
+  /// Can be charged to a client (default yes).
+  final bool billable;
+  final String note;
+
+  const TimeEntry(
+      {required this.by,
+      required this.start,
+      required this.end,
+      this.billable = true,
+      this.note = ''});
 
   Duration get duration => end.difference(start);
+
+  TimeEntry copyWith({DateTime? start, DateTime? end, bool? billable, String? note}) => TimeEntry(
+        by: by,
+        start: start ?? this.start,
+        end: end ?? this.end,
+        billable: billable ?? this.billable,
+        note: note ?? this.note,
+      );
 
   Map<String, dynamic> toMap() => {
         'by': by,
         'start': start.millisecondsSinceEpoch,
         'end': end.millisecondsSinceEpoch,
+        if (!billable) 'billable': false,
+        if (note.isNotEmpty) 'note': note,
       };
 
   static TimeEntry? tryFrom(dynamic m) {
@@ -396,6 +415,8 @@ class TimeEntry {
       by: m['by'] as String,
       start: DateTime.fromMillisecondsSinceEpoch(m['start'] as int),
       end: DateTime.fromMillisecondsSinceEpoch(m['end'] as int),
+      billable: m['billable'] != false,
+      note: m['note'] is String ? m['note'] as String : '',
     );
   }
 }

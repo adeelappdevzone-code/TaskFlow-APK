@@ -72,7 +72,11 @@ quick capture.
 - [x] **Side menu** dark navy, design order: Dashboard, My Tasks, Inbox, Daily Planner, Calendar,
   Teams, Team Workload, Approvals, Notifications, (My Teams), Settings (neeche).
   Automation / Clients = Phase 2; Reports / Templates menu mein jab banenge tab aayenge.
-- [ ] Timesheet + time entry edit
+- [x] **Time Tracking** (screen 16, side menu after Calendar; phone: Home ka timer icon): week
+  picker, My Time (tracked / billable / non-billable / % of work hours, running timer with note,
+  pause / resume / stop, today's summary by project, entries table with billable switch, edit,
+  delete, start), Team tab (owners/managers: time per person + entries), Timesheet (task x day
+  grid, tap a day to fix entries), "Log Time" by hand. Entries keep `billable` and `note`.
 - [ ] PDF report
 
 Note: "Done ≠ Approved" (faisla 6) abhi poora nahi: member ab bhi seedha Done kar sakta hai.

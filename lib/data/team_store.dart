@@ -811,16 +811,16 @@ class TeamStore extends ChangeNotifier {
 
   /// Stops the timer and saves the session. [end] can be set to fix a timer
   /// that was left running.
-  void stopTimer(Team team, TaskItem task, {DateTime? end}) {
+  void stopTimer(Team team, TaskItem task, {DateTime? end, String note = ''}) {
     if (!canStopTimer(team, task)) return;
-    final fields = _stopTimerFields(task, end ?? DateTime.now());
+    final fields = _stopTimerFields(task, end ?? DateTime.now(), note: note);
     notifyListeners();
     _write(_tasksCol(team.id).doc(task.id).update({...fields, 'updated_at': nowMs()}));
   }
 
   /// Ends a running timer on [task] (in memory) and returns the fields to
   /// write. Sessions under a minute are not saved.
-  Map<String, dynamic> _stopTimerFields(TaskItem task, DateTime end) {
+  Map<String, dynamic> _stopTimerFields(TaskItem task, DateTime end, {String note = ''}) {
     final at = task.timerAt;
     final by = task.timerBy;
     if (at == null) return const {};
@@ -828,7 +828,7 @@ class TeamStore extends ChangeNotifier {
       ..timerAt = null
       ..timerBy = null;
     final entry = by != null && end.difference(at) >= const Duration(minutes: 1)
-        ? TimeEntry(by: by, start: at, end: end)
+        ? TimeEntry(by: by, start: at, end: end, note: note.trim())
         : null;
     if (entry != null) task.timeLog.add(entry);
     return {
@@ -836,6 +836,19 @@ class TeamStore extends ChangeNotifier {
       'timer_at': null,
       if (entry != null) 'time_log': FieldValue.arrayUnion([entry.toMap()]),
     };
+  }
+
+  /// Replaces the time log (edit / delete / add an entry by hand). The
+  /// assignee or an owner/manager.
+  void setTimeLog(Team team, TaskItem task, List<TimeEntry> log) {
+    task
+      ..timeLog = [...log]
+      ..updatedAt = DateTime.now();
+    notifyListeners();
+    _write(_tasksCol(team.id).doc(task.id).update({
+      'time_log': log.map((e) => e.toMap()).toList(),
+      'updated_at': nowMs(),
+    }));
   }
 
   /// Board column id for finished tasks.
