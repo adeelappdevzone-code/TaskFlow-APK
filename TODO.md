@@ -34,7 +34,9 @@ Abhi code nahi. Owner screen by screen UI dega, jo screen ke saath samajh aaye w
 9. **Roles:** Owner / Manager / Member hi rahein. Automations sirf Owner/Manager banayein.
 10. **Report share:** sirf Owner/Manager, hamesha preview ke baad, internal comments bahar na jayein.
 
-Abhi bhi pending: Blaze card ka faisla (Phase 2 — email, background notifications — isi par).
+Blaze card: **NAHI** lena (owner ka faisla). Phase 2 (email, background/scheduled notifications) ke liye
+baad mein sasti Pakistani hosting (~3-4k PKR/saal, shared PHP + cron) dekhenge: wahan cron se Firestore
+read karke FCM push + SMTP email bheja ja sakta hai. Tab tak sab kuch free Spark plan par.
 Phase 1 (free plan): Inbox, Notification Center deep links, saved views, team templates, recurrence,
 estimates + Daily Planner/Rescue, Workload, timesheet + time entry edit, internal approvals, PDF report,
 quick capture.
