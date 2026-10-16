@@ -57,38 +57,98 @@ class TaskStage {
 }
 
 /// How often a task comes back after it is done (stored as `repeat`).
+/// How a task repeats. Simple ones are fixed words; on chosen weekdays it is
+/// "days:1,4" (1 = Monday ... 7 = Sunday).
 class Repeat {
   static const none = 'none';
   static const daily = 'daily';
+  static const weekdays = 'weekdays'; // Monday to Friday
   static const weekly = 'weekly';
+  static const biweekly = 'biweekly';
   static const monthly = 'monthly';
-  static const all = [none, daily, weekly, monthly];
+  static const monthEnd = 'month_end'; // last day of every month
+  static const yearly = 'yearly';
 
-  static String label(String repeat) => switch (repeat) {
-        daily => 'Every day',
-        weekly => 'Every week',
-        monthly => 'Every month',
-        _ => 'Never',
-      };
+  /// The fixed choices, in menu order.
+  static const all = [none, daily, weekdays, weekly, biweekly, monthly, monthEnd, yearly];
 
-  static bool isOn(String? repeat) => repeat == daily || repeat == weekly || repeat == monthly;
+  static const _dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  /// "days:1,4" for [days] (1 = Monday), or [none] when empty.
+  static String onDays(Iterable<int> days) {
+    final list = days.where((d) => d >= 1 && d <= 7).toSet().toList()..sort();
+    return list.isEmpty ? none : 'days:${list.join(',')}';
+  }
+
+  /// The weekdays of a "days:" repeat (empty for the others).
+  static List<int> daysOf(String? repeat) {
+    if (repeat == null || !repeat.startsWith('days:')) return const [];
+    return [
+      for (final p in repeat.substring(5).split(','))
+        if (int.tryParse(p) case final d? when d >= 1 && d <= 7) d
+    ];
+  }
+
+  static bool isValid(String? r) => r != null && (all.contains(r) || daysOf(r).isNotEmpty);
+
+  static String label(String repeat) {
+    final days = daysOf(repeat);
+    if (days.isNotEmpty) return 'Every ${days.map((d) => _dayNames[d - 1]).join(', ')}';
+    return switch (repeat) {
+      daily => 'Every day',
+      weekdays => 'Every weekday (Mon–Fri)',
+      weekly => 'Every week',
+      biweekly => 'Every 2 weeks',
+      monthly => 'Every month',
+      monthEnd => 'Last day of every month',
+      yearly => 'Every year',
+      _ => 'Never',
+    };
+  }
+
+  static bool isOn(String? repeat) => repeat != null && repeat != none && isValid(repeat);
 }
 
 /// Start of the next copy of a repeating task: one step after [start], and
 /// later steps if that day is already past (a task finished late does not
 /// create copies for the days that were missed).
 DateTime nextOccurrence(DateTime start, String repeat, DateTime now) {
-  DateTime step(DateTime d) => switch (repeat) {
-        Repeat.daily => DateTime(d.year, d.month, d.day + 1, d.hour, d.minute),
-        Repeat.weekly => DateTime(d.year, d.month, d.day + 7, d.hour, d.minute),
-        _ => _addMonth(d, start.day),
-      };
+  final days = Repeat.daysOf(repeat);
+  DateTime plusDays(DateTime d, int n) => DateTime(d.year, d.month, d.day + n, d.hour, d.minute);
+  DateTime nextOn(DateTime d, bool Function(int weekday) ok) {
+    var n = plusDays(d, 1);
+    while (!ok(n.weekday)) {
+      n = plusDays(n, 1);
+    }
+    return n;
+  }
+
+  DateTime step(DateTime d) {
+    if (days.isNotEmpty) return nextOn(d, days.contains);
+    return switch (repeat) {
+      Repeat.daily => plusDays(d, 1),
+      Repeat.weekdays => nextOn(d, (w) => w <= 5),
+      Repeat.weekly => plusDays(d, 7),
+      Repeat.biweekly => plusDays(d, 14),
+      Repeat.monthEnd => DateTime(d.year, d.month + 2, 0, d.hour, d.minute),
+      Repeat.yearly => _addYear(d, start),
+      _ => _addMonth(d, start.day),
+    };
+  }
+
   final today = DateTime(now.year, now.month, now.day);
   var next = step(start);
   while (next.isBefore(today)) {
     next = step(next);
   }
   return next;
+}
+
+/// Same date next year (29 Feb -> 28 Feb).
+DateTime _addYear(DateTime d, DateTime start) {
+  final y = d.year + 1;
+  final last = DateTime(y, start.month + 1, 0).day;
+  return DateTime(y, start.month, start.day > last ? last : start.day, d.hour, d.minute);
 }
 
 /// Same day next month, or the month's last day (31 Jan -> 28/29 Feb -> 31 Mar).
@@ -666,7 +726,7 @@ class TaskItem {
         assignedAt: _dt(m['assigned_at']),
         completedBy: m['completed_by'] as String?,
         stage: TaskStage.all.contains(m['stage']) ? m['stage'] as String : TaskStage.todo,
-        repeat: Repeat.all.contains(m['repeat']) ? m['repeat'] as String : Repeat.none,
+        repeat: Repeat.isValid(m['repeat'] as String?) ? m['repeat'] as String : Repeat.none,
         repeatFrom: m['repeat_from'] as String?,
         links: _listOf(m['links'], TaskLink.tryFrom),
         history: _listOf(m['history'], TaskEvent.tryFrom),
@@ -851,6 +911,54 @@ class TemplateTask {
         for (final c in (m['checklist'] as List?) ?? const [])
           if (c is String) c,
       ],
+    );
+  }
+}
+
+/// A saved My Tasks filter: tab, where from, priority, sort, list / board.
+class SavedView {
+  final String id;
+  final String name;
+  final String tab;
+  final String? source;
+  final int? priority;
+  final bool byMe;
+  final String sort;
+  final bool board;
+
+  const SavedView({
+    required this.id,
+    required this.name,
+    this.tab = 'all',
+    this.source,
+    this.priority,
+    this.byMe = false,
+    this.sort = 'Due date',
+    this.board = false,
+  });
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'name': name,
+        'tab': tab,
+        if (source != null) 'source': source,
+        if (priority != null) 'priority': priority,
+        if (byMe) 'by_me': true,
+        'sort': sort,
+        if (board) 'board': true,
+      };
+
+  static SavedView? tryFrom(dynamic m) {
+    if (m is! Map || m['id'] is! String || m['name'] is! String) return null;
+    return SavedView(
+      id: m['id'] as String,
+      name: m['name'] as String,
+      tab: m['tab'] is String ? m['tab'] as String : 'all',
+      source: m['source'] as String?,
+      priority: m['priority'] is int ? m['priority'] as int : null,
+      byMe: m['by_me'] == true,
+      sort: m['sort'] is String ? m['sort'] as String : 'Due date',
+      board: m['board'] == true,
     );
   }
 }

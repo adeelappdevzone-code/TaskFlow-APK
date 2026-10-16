@@ -72,6 +72,9 @@ class AppStore extends ChangeNotifier {
   bool notifApprovals = true;
   bool notifComments = true;
 
+  /// My Tasks filters saved by name (in users/{uid}, at most 20).
+  List<SavedView> savedViews = [];
+
   /// Work day for the planner, minutes after midnight.
   int workStart = 9 * 60;
   int workEnd = 17 * 60 + 30;
@@ -184,6 +187,7 @@ class AppStore extends ChangeNotifier {
     notifComments = true;
     workStart = 9 * 60;
     workEnd = 17 * 60 + 30;
+    savedViews = [];
     lastBackupAt = null;
   }
 
@@ -207,6 +211,9 @@ class AppStore extends ChangeNotifier {
       notifAssign = (d['notif_assign'] as bool?) ?? true;
       notifApprovals = (d['notif_approvals'] as bool?) ?? true;
       notifComments = (d['notif_comments'] as bool?) ?? true;
+      savedViews = [
+        ...((d['saved_views'] as List?) ?? const []).map(SavedView.tryFrom).whereType<SavedView>(),
+      ];
       workStart = (d['work_start'] as int?) ?? 9 * 60;
       workEnd = (d['work_end'] as int?) ?? 17 * 60 + 30;
       final backup = d['last_backup_at'];
@@ -532,7 +539,10 @@ class AppStore extends ChangeNotifier {
   // ------------------------------------------------- profile & preferences
 
   void _savePrefs(Map<String, dynamic> data) {
-    if (currentUser == null) return;
+    if (currentUser == null) {
+      notifyListeners();
+      return;
+    }
     _write(_userDoc.set(data, SetOptions(merge: true)));
     notifyListeners();
   }
@@ -561,6 +571,17 @@ class AppStore extends ChangeNotifier {
         'comments' => notifComments,
         _ => true,
       };
+
+  void saveView(SavedView v) {
+    savedViews = [...savedViews.where((x) => x.id != v.id), v];
+    if (savedViews.length > 20) savedViews = savedViews.sublist(savedViews.length - 20);
+    _savePrefs({'saved_views': savedViews.map((x) => x.toMap()).toList()});
+  }
+
+  void deleteView(SavedView v) {
+    savedViews = savedViews.where((x) => x.id != v.id).toList();
+    _savePrefs({'saved_views': savedViews.map((x) => x.toMap()).toList()});
+  }
 
   void setWorkHours(int start, int end) {
     workStart = start;

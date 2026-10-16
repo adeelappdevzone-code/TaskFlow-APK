@@ -158,6 +158,13 @@ await t('mention: comment with mentions', assertSucceeds(setDoc(doc(sara, `teams
 await t('mention: mentions must be a list', assertFails(setDoc(doc(sara, `teams/${T}/comments/m2`), comment('m2', 'sar', 'a1', { mentions: 'adl' }))));
 await t('repeat: owner makes weekly task for adeel', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/w1`), { ...ttask('w1', 'adl'), repeat: 'weekly' })));
 const nextCopy = (by, extra = {}) => ({ ...ttask('w2', 'adl'), repeat: 'weekly', repeat_from: 'w1', start_at: now + 7 * 864e5, ...extra });
+await t('repeat: owner makes Mon/Thu task for adeel', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/d1`), { ...ttask('d1', 'adl'), repeat: 'days:1,4' })));
+await t('repeat: adeel makes next Mon/Thu copy', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/d2`), { ...ttask('d2', 'adl'), repeat: 'days:1,4', repeat_from: 'd1', start_at: now + 864e5 })));
+await t('repeat: month end / weekdays / yearly / biweekly ok', assertSucceeds(setDoc(d(me,'users/u1/tasks/t1'), { ...task, repeat: 'month_end' })));
+await t('repeat: bad days denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, repeat: 'days:8' })));
+await t('repeat: unknown denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, repeat: 'hourly' })));
+await t('views: saved views on profile', assertSucceeds(setDoc(d(me,'users/u1'), { saved_views: [{ id: 'v', name: 'Urgent', tab: 'overdue', sort: 'Due date' }] }, { merge: true })));
+await t('views: too many denied', assertFails(setDoc(d(me,'users/u1'), { saved_views: Array(21).fill({ id: 'v', name: 'x' }) }, { merge: true })));
 await t('repeat: other member cannot copy', assertFails(setDoc(doc(sara, `teams/${T}/tasks/w2`), nextCopy('sar'))));
 await t('repeat: copy with changed title denied', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/w2`), nextCopy('adl', { title: 'Other' }))));
 await t('repeat: copy assigned to someone else denied', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/w2`), nextCopy('adl', { assignee_id: 'sar' }))));

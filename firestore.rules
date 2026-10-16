@@ -51,7 +51,7 @@ service cloud.firestore {
           && d.status in ['pending', 'completed', 'cancelled']
           && num(d, 'start_at') && optNum(d, 'end_at') && optNum(d, 'completed_at')
           && (!('stage' in d) || d.stage in ['todo', 'doing', 'review'])
-          && (!('repeat' in d) || d.repeat in ['none', 'daily', 'weekly', 'monthly'])
+          && (!('repeat' in d) || validRepeat(d.repeat))
           && optStr(d, 'repeat_from', 100)
           && optStr(d, 'completed_by', 100)
           && (!('checklist' in d) || d.checklist == null
@@ -62,6 +62,12 @@ service cloud.firestore {
           && optStr(d, 'timer_by', 100) && optNum(d, 'timer_at')
           && (!('estimate_min' in d) || d.estimate_min == null
               || (d.estimate_min is int && d.estimate_min > 0 && d.estimate_min <= 1440));
+    }
+    // none, daily, weekdays, weekly, biweekly, monthly, month_end, yearly, or
+    // chosen weekdays "days:1,4" (1 = Monday).
+    function validRepeat(r) {
+      return r is string && (r in ['none', 'daily', 'weekdays', 'weekly', 'biweekly', 'monthly',
+          'month_end', 'yearly'] || r.matches('days:[1-7](,[1-7]){0,6}'));
     }
     function optList(d, f, maxLen) {
       return !(f in d) || d[f] == null || (d[f] is list && d[f].size() <= maxLen);
@@ -108,6 +114,7 @@ service cloud.firestore {
           && optStr(d, 'title', 100)
           && optNum(d, 'reminder_minutes')
           && (!('team_alerts' in d) || d.team_alerts is bool)
+          && optList(d, 'saved_views', 20)
           && (!('notif_assign' in d) || d.notif_assign is bool)
           && (!('notif_approvals' in d) || d.notif_approvals is bool)
           && (!('notif_comments' in d) || d.notif_comments is bool)
@@ -288,7 +295,7 @@ service cloud.firestore {
           let src = get(/databases/$(database)/documents/teams/$(teamId)/tasks/$(d.repeat_from)).data;
           return request.auth.uid in tm.member_ids
               && src.assignee_id == request.auth.uid
-              && src.repeat in ['daily', 'weekly', 'monthly']
+              && validRepeat(src.repeat) && src.repeat != 'none'
               && d.repeat == src.repeat
               && d.title == src.title
               && d.assignee_id == src.assignee_id

@@ -66,7 +66,9 @@ extension _WideTasks on _TasksScreenState {
                       label: 'Done')),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          _viewsBar(),
+          const SizedBox(height: 12),
           _toolbar(data),
           const SizedBox(height: 16),
           if (_board)

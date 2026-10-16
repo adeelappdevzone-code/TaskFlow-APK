@@ -41,7 +41,7 @@ Phase 1 (free plan): Inbox, Notification Center deep links, saved views, team te
 estimates + Daily Planner/Rescue, Workload, timesheet + time entry edit, internal approvals, PDF report,
 quick capture.
 
-## Phase 1 progress (sirf branch par — main par push NAHI jab tak poora Phase 1 na ho)
+## Phase 1 (poora ho gaya, main par push)
 
 - [x] **Inbox** (screen 11): Quick Capture (Enter se add; "kal 5pm !high #Marketing" jaisi
   dates/time/priority/#team/#label khud samajhta hai), Voice (keyboard ka mic), Import from Email
@@ -64,7 +64,12 @@ quick capture.
   templates (`teams/{id}/templates`, owner/manager save, members use). Category tabs, source
   filter, search, preview, "Use Template" (personal + optional new project, or team + assign all,
   start date → tasks with due days, checklist, estimate), create/edit/copy with a task list.
-- [ ] Saved views (My Tasks), recurrence improvements
+- [x] **Saved Views** (My Tasks): current tab / source / priority / "assigned by me" / sort /
+  board saved by name (profile field `saved_views`, max 20); chips above the tabs, x deletes.
+- [x] **Repeat**: every day, weekdays (Mon–Fri), every week, every 2 weeks, every month, last day
+  of every month, every year, or chosen days ("days:1,4" = Mon & Thu) from the task form.
+
+**Phase 1 poora (Oct 2026) — main par push.**
 - [x] **Estimates** (task form "Estimate", `estimate_min`; planner mein "Set time") +
   **Daily Planner / Rescue** (screen 14, side menu "Planner"; phone: Home ka planner icon):
   work hours (Work hours button, `work_start`/`work_end`), available vs planned, overdue,

@@ -72,6 +72,92 @@ class _TasksScreenState extends State<TasksScreen> {
 
   bool get _hasFilter => _priority != null || _source != null || _assignedByMe;
 
+  // ------------------------------------------------------------ saved views
+
+  bool _matches(SavedView v) =>
+      v.tab == _tab.name &&
+      v.source == _source &&
+      v.priority == _priority?.index &&
+      v.byMe == _assignedByMe &&
+      v.sort == _sort &&
+      v.board == _board;
+
+  void _applyView(SavedView v) => setState(() {
+        _tab = _Tab.values.firstWhere((t) => t.name == v.tab, orElse: () => _Tab.all);
+        _source = v.source;
+        _priority = v.priority == null ? null : Priority.values[v.priority!.clamp(0, 2)];
+        _assignedByMe = v.byMe;
+        _sort = _sortOptions.contains(v.sort) ? v.sort : 'Due date';
+        _board = v.board;
+      });
+
+  Future<void> _saveView() async {
+    final name = await textInputDialog(context,
+        title: 'Save this view', hint: 'e.g. Urgent this week', okLabel: 'Save');
+    if (name == null || name.trim().isEmpty || !mounted) return;
+    AppStore.instance.saveView(SavedView(
+      id: newId(),
+      name: name.trim(),
+      tab: _tab.name,
+      source: _source,
+      priority: _priority?.index,
+      byMe: _assignedByMe,
+      sort: _sort,
+      board: _board,
+    ));
+    showSnack(context, 'View "${name.trim()}" saved');
+  }
+
+  Future<void> _deleteView(SavedView v) async {
+    final ok = await confirmDialog(context,
+        title: 'Delete view "${v.name}"?',
+        message: 'Your tasks stay; only the saved filter is removed.',
+        confirmLabel: 'Delete',
+        danger: true);
+    if (ok) AppStore.instance.deleteView(v);
+  }
+
+  /// Saved filters as chips, and "Save view".
+  Widget _viewsBar({EdgeInsets padding = EdgeInsets.zero}) {
+    final views = AppStore.instance.savedViews;
+    final active = views.where(_matches).map((v) => v.id).toSet();
+    return SizedBox(
+      height: 40,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: padding,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: Center(
+              child: Icon(Icons.bookmarks_outlined, size: 20, color: AppColors.textMuted),
+            ),
+          ),
+          for (final v in views) ...[
+            InputChip(
+              label: Text(v.name),
+              selected: active.contains(v.id),
+              showCheckmark: false,
+              selectedColor: AppColors.primaryLight,
+              onPressed: () => _applyView(v),
+              onDeleted: () => _deleteView(v),
+              deleteIcon: const Icon(Icons.close_rounded, size: 16),
+              deleteButtonTooltipMessage: 'Delete view',
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (active.isEmpty)
+            ActionChip(
+              avatar: const Icon(Icons.add_rounded, size: 18, color: AppColors.primary),
+              label: Text(views.isEmpty ? 'Save this view' : 'Save view',
+                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
+              onPressed: _saveView,
+            ),
+        ],
+      ),
+    );
+  }
+
   /// Tasks after source, priority and search (all tabs).
   List<TaskRef> _base() {
     final q = _search.text.trim().toLowerCase();
@@ -414,7 +500,9 @@ class _TasksScreenState extends State<TasksScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
+        _viewsBar(padding: const EdgeInsets.symmetric(horizontal: 16)),
+        const SizedBox(height: 8),
         // --------------------------------------------------------- tabs
         SizedBox(
           height: 40,

@@ -395,16 +395,25 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   }
 
   Future<void> _pickRepeat() async {
+    final days = Repeat.daysOf(_repeat);
     final result = await _showOptions<String>(
       title: 'Repeat',
       options: [
         for (final r in Repeat.all)
           _Option(r, Repeat.label(r),
               icon: r == Repeat.none ? Icons.block_rounded : Icons.repeat_rounded),
+        _Option('custom', days.isEmpty ? 'On chosen days...' : '${Repeat.label(_repeat)}...',
+            icon: Icons.date_range_rounded),
       ],
-      selected: _repeat,
+      selected: days.isEmpty ? _repeat : 'custom',
     );
-    if (result != null) setState(() => _repeat = result);
+    if (result == null || !mounted) return;
+    if (result != 'custom') {
+      setState(() => _repeat = result);
+      return;
+    }
+    final picked = await pickRepeatDays(context, days.isEmpty ? [_date.weekday] : days);
+    if (picked != null) setState(() => _repeat = Repeat.onDays(picked));
   }
 
   // ----------------------------------------------------------- templates
@@ -981,4 +990,37 @@ class _ChoiceCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Weekday chips (Mon ... Sun) for "repeat on chosen days". Null: cancelled.
+Future<List<int>?> pickRepeatDays(BuildContext context, List<int> initial) {
+  final chosen = {...initial};
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return showDialog<List<int>>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: const Text('Repeat on'),
+        content: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var d = 1; d <= 7; d++)
+              FilterChip(
+                label: Text(names[d - 1]),
+                selected: chosen.contains(d),
+                onSelected: (on) => setState(() => on ? chosen.add(d) : chosen.remove(d)),
+              ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: chosen.isEmpty ? null : () => Navigator.pop(ctx, chosen.toList()..sort()),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
