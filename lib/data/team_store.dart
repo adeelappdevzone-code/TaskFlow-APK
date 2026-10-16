@@ -42,6 +42,8 @@ class TeamStore extends ChangeNotifier {
   final Map<String, StreamSubscription<dynamic>> _taskSubs = {};
   final Map<String, StreamSubscription<dynamic>> _sentInviteSubs = {};
   final Map<String, StreamSubscription<dynamic>> _commentSubs = {};
+  final Map<String, StreamSubscription<dynamic>> _templateSubs = {};
+  final Map<String, List<TaskTemplate>> _templates = {};
 
   /// Members per team at the last update, to notice who joined.
   final Map<String, Set<String>> _knownMembers = {};
@@ -114,6 +116,11 @@ class TeamStore extends ChangeNotifier {
       s.cancel();
     }
     _commentSubs.clear();
+    for (final s in _templateSubs.values) {
+      s.cancel();
+    }
+    _templateSubs.clear();
+    _templates.clear();
     _teamsSub = null;
     _invitesSub = null;
     _taskSubs.clear();
@@ -184,10 +191,24 @@ class TeamStore extends ChangeNotifier {
       if (!ids.contains(id)) {
         _taskSubs.remove(id)?.cancel();
         _commentSubs.remove(id)?.cancel();
+        _templateSubs.remove(id)?.cancel();
+        _templates.remove(id);
         _tasks.remove(id);
       }
     }
     for (final id in ids) {
+      _templateSubs[id] ??= _teamDoc(id).collection('templates').snapshots().listen((s) {
+        final list = <TaskTemplate>[];
+        for (final d in s.docs) {
+          try {
+            list.add(TaskTemplate.fromMap(d.data())..teamId = id);
+          } catch (e) {
+            debugPrint('Skipped bad team template: $e');
+          }
+        }
+        _templates[id] = list;
+        notifyListeners();
+      }, onError: _onError);
       _taskSubs[id] ??= _tasksCol(id)
           .snapshots()
           .listen((s) => _onTasks(id, s.docs.map((d) => d.data())), onError: _onError);
@@ -460,6 +481,38 @@ class TeamStore extends ChangeNotifier {
     _write(_teamDoc(t.id).set(t.toMap()));
     notifyListeners();
     return t;
+  }
+
+  // ------------------------------------------------------------ templates
+
+  /// Templates shared in my teams.
+  List<TaskTemplate> get teamTemplates => [for (final l in _templates.values) ...l];
+
+  /// Owner/manager: save a template for the whole team.
+  void saveTeamTemplate(Team team, TaskTemplate t) {
+    t
+      ..teamId = team.id
+      ..createdBy ??= _uid;
+    final list = [...(_templates[team.id] ?? const <TaskTemplate>[])]
+      ..removeWhere((x) => x.id == t.id)
+      ..add(t);
+    _templates[team.id] = list;
+    notifyListeners();
+    if (_testing) return;
+    _write(_teamDoc(team.id).collection('templates').doc(t.id).set(t.toMap()));
+  }
+
+  void deleteTeamTemplate(Team team, TaskTemplate t) {
+    _templates[team.id] = [...(_templates[team.id] ?? const <TaskTemplate>[])]
+      ..removeWhere((x) => x.id == t.id);
+    notifyListeners();
+    if (_testing) return;
+    _write(_teamDoc(team.id).collection('templates').doc(t.id).delete());
+  }
+
+  /// Tests only.
+  void setTemplatesForTest(String teamId, List<TaskTemplate> list) {
+    _templates[teamId] = list;
   }
 
   /// Owner: work hours per person per week (Team Workload).

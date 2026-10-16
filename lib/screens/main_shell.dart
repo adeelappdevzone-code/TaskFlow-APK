@@ -15,6 +15,8 @@ import 'approvals_screen.dart';
 import 'planner_screen.dart';
 import 'workload_screen.dart';
 import 'time_screen.dart';
+import 'reports_screen.dart';
+import 'templates_screen.dart';
 import '../data/inbox.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
@@ -100,6 +102,8 @@ class _MainShellState extends State<MainShell> {
             SafeArea(child: PlannerScreen()),
             SafeArea(child: WorkloadScreen()),
             SafeArea(child: TimeScreen()),
+            SafeArea(child: ReportsScreen()),
+            SafeArea(child: TemplatesScreen()),
           ],
         ),
         floatingActionButton: SizedBox(

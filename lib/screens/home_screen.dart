@@ -1,3 +1,5 @@
+import 'reports_screen.dart';
+import 'templates_screen.dart';
 import '../data/inbox.dart';
 import 'inbox_screen.dart';
 import 'planner_screen.dart';
@@ -475,6 +477,16 @@ final _shortcuts = [
       (c) => MainShell.switchTab(c, 2)),
   _Shortcut(Icons.folder_outlined, AppColors.purple, 'Projects', 'Browse all projects',
       (c) => Navigator.push(c, MaterialPageRoute(builder: (_) => const ProjectsScreen()))),
+];
+
+/// Phone: the side menu's extra pages too.
+final _phoneShortcuts = [
+  ..._shortcuts,
+  _Shortcut(Icons.bar_chart_rounded, AppColors.success, 'Reports', 'Reports and PDF',
+      (c) => Navigator.push(c, MaterialPageRoute(builder: (_) => const ReportsScreen(page: true)))),
+  _Shortcut(Icons.description_outlined, const Color(0xFFEA7A0C), 'Templates', 'Ready-made tasks',
+      (c) =>
+          Navigator.push(c, MaterialPageRoute(builder: (_) => const TemplatesScreen(page: true)))),
 ];
 
 class _ShortcutCard extends StatelessWidget {
@@ -1153,14 +1165,17 @@ class _PhoneHome extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              for (final (i, s) in _shortcuts.indexed) ...[
-                if (i > 0) const SizedBox(width: 8),
-                Expanded(child: _PhoneShortcut(shortcut: s)),
+          for (final row in [_phoneShortcuts.sublist(0, 3), _phoneShortcuts.sublist(3)]) ...[
+            Row(
+              children: [
+                for (final (i, s) in row.indexed) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  Expanded(child: _PhoneShortcut(shortcut: s)),
+                ],
               ],
-            ],
-          ),
+            ),
+            if (row.first == _phoneShortcuts.first) const SizedBox(height: 8),
+          ],
           const SizedBox(height: 22),
           _MyDayCard(data: data, wide: false),
           const SizedBox(height: 22),

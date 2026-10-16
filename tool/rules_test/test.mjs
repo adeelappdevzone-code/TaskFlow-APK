@@ -193,6 +193,16 @@ await t('notif: new fields', assertSucceeds(setDoc(doc(sara, 'users/sar/notifica
 await t('profile: notification switches', assertSucceeds(setDoc(doc(sara, 'users/sar'), { notif_assign: false, notif_approvals: true, notif_comments: false }, { merge: true })));
 await t('profile: bad switch denied', assertFails(setDoc(doc(sara, 'users/sar'), { notif_assign: 'no' }, { merge: true })));
 
+const tpl = (id, extra = {}) => ({ id, name: 'Website', title: 'Kickoff', description: '', priority: 1, checklist: [], created_at: now,
+  category: 'Agency', color: 1, icon: 'web', tasks: [{ title: 'Kickoff', offset: 0, priority: 2 }], created_by: 'own', ...extra });
+await t('templates: owner saves team template', assertSucceeds(setDoc(doc(owner, `teams/${T}/templates/tp1`), tpl('tp1'))));
+await t('templates: member reads team templates', assertSucceeds(getDocs(collection(sara, `teams/${T}/templates`))));
+await t('templates: member cannot save', assertFails(setDoc(doc(sara, `teams/${T}/templates/tp2`), tpl('tp2'))));
+await t('templates: member cannot delete', assertFails(deleteDoc(doc(sara, `teams/${T}/templates/tp1`))));
+await t('templates: outsider cannot read', assertFails(getDocs(collection(outsider, `teams/${T}/templates`))));
+await t('templates: too many tasks denied', assertFails(setDoc(doc(owner, `teams/${T}/templates/tp3`), tpl('tp3', { tasks: Array(61).fill({ title: 'x' }) }))));
+await t('templates: personal workflow template', assertSucceeds(setDoc(doc(sara, 'users/sar/templates/tp4'), tpl('tp4'))));
+await t('templates: owner deletes', assertSucceeds(deleteDoc(doc(owner, `teams/${T}/templates/tp1`))));
 await t('role: owner makes adeel manager', assertSucceeds(updateDoc(doc(owner, `teams/${T}`), { manager_ids: ['adl'], updated_at: now })));
 await t('role: manager creates task', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/m1`), ttask('m1', 'sar', 'adl'))));
 await t('role: manager edits any task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { title: 'Edited', updated_at: now })));

@@ -24,6 +24,8 @@ const _navEntries = [
   _NavEntry(Icons.groups_outlined, Icons.groups_rounded, 'Teams', 4),
   _NavEntry(Icons.stacked_bar_chart_rounded, Icons.stacked_bar_chart_rounded, 'Team Workload', 9),
   _NavEntry(Icons.fact_check_outlined, Icons.fact_check_rounded, 'Approvals', 7),
+  _NavEntry(Icons.bar_chart_rounded, Icons.bar_chart_rounded, 'Reports', 11),
+  _NavEntry(Icons.description_outlined, Icons.description_rounded, 'Templates', 12),
   _NavEntry(Icons.notifications_none_rounded, Icons.notifications_rounded, 'Notifications', 6),
 ];
 
@@ -102,6 +104,8 @@ extension on _MainShellState {
                         const PlannerScreen(),
                         const WorkloadScreen(),
                         const TimeScreen(),
+                        const ReportsScreen(),
+                        const TemplatesScreen(),
                       ],
                     ),
                   ),

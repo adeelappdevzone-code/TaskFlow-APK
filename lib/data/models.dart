@@ -816,6 +816,51 @@ class AppNotification {
 
 /// A saved task "recipe" (title, description, priority, checklist) to create
 /// similar tasks quickly. Stored in users/{uid}/templates.
+/// One task inside a workflow template: due [offsetDays] after the start.
+class TemplateTask {
+  String title;
+  int offsetDays;
+  Priority priority;
+  int? estimateMinutes;
+  List<String> checklist;
+
+  TemplateTask({
+    required this.title,
+    this.offsetDays = 0,
+    this.priority = Priority.medium,
+    this.estimateMinutes,
+    List<String>? checklist,
+  }) : checklist = checklist ?? [];
+
+  Map<String, dynamic> toMap() => {
+        'title': title,
+        'offset': offsetDays,
+        'priority': priority.index,
+        if (estimateMinutes != null) 'estimate': estimateMinutes,
+        if (checklist.isNotEmpty) 'checklist': checklist,
+      };
+
+  static TemplateTask? tryFrom(dynamic m) {
+    if (m is! Map || m['title'] is! String) return null;
+    return TemplateTask(
+      title: m['title'] as String,
+      offsetDays: m['offset'] is int ? m['offset'] as int : 0,
+      priority: _priorityFrom(m['priority'] is int ? m['priority'] as int : 1),
+      estimateMinutes: m['estimate'] is int ? m['estimate'] as int : null,
+      checklist: [
+        for (final c in (m['checklist'] as List?) ?? const [])
+          if (c is String) c,
+      ],
+    );
+  }
+}
+
+/// Template categories (tabs in the Templates Library).
+const kTemplateCategories = ['Agency', 'Marketing', 'Development', 'Operations', 'Personal'];
+
+/// A saved task "recipe": one task (title, description, priority, checklist)
+/// or a whole workflow of [tasks]. Personal ones are stored in
+/// users/{uid}/templates, team ones in teams/{teamId}/templates.
 class TaskTemplate {
   final String id;
   String name;
@@ -825,6 +870,20 @@ class TaskTemplate {
   List<String> checklist;
   final DateTime createdAt;
 
+  String category;
+  int color;
+
+  /// Icon key ([templateIcons] in the library screen).
+  String icon;
+  List<TemplateTask> tasks;
+  String? createdBy;
+
+  /// Set for team templates (not stored: it is the collection's team).
+  String? teamId;
+
+  /// Ready-made template that ships with the app.
+  bool builtIn;
+
   TaskTemplate({
     required this.id,
     required this.name,
@@ -833,7 +892,27 @@ class TaskTemplate {
     this.priority = Priority.medium,
     List<String>? checklist,
     required this.createdAt,
-  }) : checklist = checklist ?? [];
+    this.category = 'Personal',
+    this.color = 0xFF1F6FEB,
+    this.icon = 'task',
+    List<TemplateTask>? tasks,
+    this.createdBy,
+    this.teamId,
+    this.builtIn = false,
+  })  : checklist = checklist ?? [],
+        tasks = tasks ?? [];
+
+  /// The tasks it creates (a one-task template is its own single task).
+  List<TemplateTask> get workflow => tasks.isNotEmpty
+      ? tasks
+      : [TemplateTask(title: title, priority: priority, checklist: checklist)];
+
+  /// Days from the first to the last task.
+  int get spanDays {
+    final w = workflow;
+    final offs = w.map((t) => t.offsetDays);
+    return offs.reduce((a, b) => a > b ? a : b) - offs.reduce((a, b) => a < b ? a : b) + 1;
+  }
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -843,6 +922,11 @@ class TaskTemplate {
         'priority': priority.index,
         'checklist': checklist,
         'created_at': _ms(createdAt),
+        'category': category,
+        'color': color,
+        'icon': icon,
+        'tasks': tasks.map((t) => t.toMap()).toList(),
+        if (createdBy != null) 'created_by': createdBy,
       };
 
   factory TaskTemplate.fromMap(Map<String, dynamic> m) => TaskTemplate(
@@ -856,5 +940,11 @@ class TaskTemplate {
             if (c is String) c,
         ],
         createdAt: _dt(m['created_at'])!,
+        category:
+            kTemplateCategories.contains(m['category']) ? m['category'] as String : 'Personal',
+        color: m['color'] is int ? m['color'] as int : 0xFF1F6FEB,
+        icon: m['icon'] is String ? m['icon'] as String : 'task',
+        tasks: _listOf(m['tasks'], TemplateTask.tryFrom),
+        createdBy: m['created_by'] as String?,
       );
 }

@@ -59,7 +59,12 @@ quick capture.
   Approve work / Request changes), feedback page with numbered changes, approval history per
   task + "Copy report". Member: "Send for approval" with message + links (rules: assignee may
   now change `links`). Client login / Client Portal / file upload skipped (Phase 2, no Storage).
-- [ ] Saved views, team templates, recurrence improvements
+- [x] **Templates Library** (screen 18): 11 ready-made workflows (Website, Content, Social, SEO,
+  Client Onboarding, Brand, App, Launch, Event, HR, Weekly review), my templates and team
+  templates (`teams/{id}/templates`, owner/manager save, members use). Category tabs, source
+  filter, search, preview, "Use Template" (personal + optional new project, or team + assign all,
+  start date → tasks with due days, checklist, estimate), create/edit/copy with a task list.
+- [ ] Saved views (My Tasks), recurrence improvements
 - [x] **Estimates** (task form "Estimate", `estimate_min`; planner mein "Set time") +
   **Daily Planner / Rescue** (screen 14, side menu "Planner"; phone: Home ka planner icon):
   work hours (Work hours button, `work_start`/`work_end`), available vs planned, overdue,
@@ -77,7 +82,10 @@ quick capture.
   pause / resume / stop, today's summary by project, entries table with billable switch, edit,
   delete, start), Team tab (owners/managers: time per person + entries), Timesheet (task x day
   grid, tap a day to fix entries), "Log Time" by hand. Entries keep `billable` and `note`.
-- [ ] PDF report
+- [x] **Reports Center** (screen 17): date range (presets + custom), Overview (4 numbers with
+  change vs previous period, trend chart, tasks by project, team performance, upcoming
+  deadlines), Team, Projects, Time Tracking tabs; **Export PDF** (package `pdf`, shared via
+  share_plus). Clients / Custom reports skipped (Phase 2).
 
 Note: "Done ≠ Approved" (faisla 6) abhi poora nahi: member ab bhi seedha Done kar sakta hai.
 Sakht karna ho to baad mein rule lagana.

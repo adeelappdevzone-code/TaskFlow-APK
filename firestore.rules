@@ -73,7 +73,9 @@ service cloud.firestore {
           && optStr(d, 'description', 20000)
           && num(d, 'priority')
           && (!('checklist' in d) || (d.checklist is list && d.checklist.size() <= 200))
-          && num(d, 'created_at');
+          && num(d, 'created_at')
+          && optStr(d, 'category', 40) && optNum(d, 'color') && optStr(d, 'icon', 40)
+          && optList(d, 'tasks', 60) && optStr(d, 'created_by', 100);
     }
     function validNotification(d, docId) {
       return base(d, docId)
@@ -321,6 +323,15 @@ service cloud.firestore {
                 && validTask(request.resource.data, taskId)));
         allow delete: if signedIn() && (isTeamAdmin(teamData(teamId))
             || (request.auth.uid in teamData(teamId).member_ids && ownTask(resource.data)));
+      }
+
+      // Templates shared with the team: members use them, owner/managers
+      // create, change and delete them.
+      match /templates/{templateId} {
+        allow read: if signedIn() && request.auth.uid in teamData(teamId).member_ids;
+        allow create, update: if signedIn() && isTeamAdmin(teamData(teamId))
+            && validTemplate(request.resource.data, templateId);
+        allow delete: if signedIn() && isTeamAdmin(teamData(teamId));
       }
 
       // Comments on the team's tasks: any member can write (as themselves);
