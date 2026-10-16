@@ -223,19 +223,18 @@ class _TeamScreenState extends State<TeamScreen> {
                           ],
                           Row(
                             children: [
-                              for (final f in _Filter.values) ...[
-                                if (f != _Filter.all) const SizedBox(width: 6),
-                                TabPill(
-                                  label: switch (f) {
-                                    _Filter.all => 'All',
-                                    _Filter.mine => 'Mine',
-                                    _Filter.pending => 'Pending',
-                                    _Filter.done => 'Done',
-                                  },
-                                  active: _filter == f,
-                                  onTap: () => setState(() => _filter = f),
-                                ),
-                              ],
+                              TabPill(
+                                label: 'All (${active.length})',
+                                active: _filter != _Filter.mine,
+                                onTap: () => setState(() => _filter = _Filter.all),
+                              ),
+                              const SizedBox(width: 6),
+                              TabPill(
+                                label:
+                                    'Assigned to me (${active.where((t) => t.assigneeId == me).length})',
+                                active: _filter == _Filter.mine,
+                                onTap: () => setState(() => _filter = _Filter.mine),
+                              ),
                             ],
                           ),
                           const SizedBox(height: 14),
@@ -271,14 +270,42 @@ class _TeamScreenState extends State<TeamScreen> {
     final store = TeamStore.instance;
     return [
       for (final t in list)
-        TaskTile(
-          task: t,
-          teamTask: true,
-          onTap: () => openTeamTask(context, team, t),
-          onToggle:
-              store.canComplete(team, t) ? () => store.setCompleted(team, t, !t.isCompleted) : null,
-          trailing: AssigneeBadge(team: team, task: t),
-        ),
+        if (t.assigneeId != null && t.assigneeId == me)
+          // My tasks: a blue bar on the left and "Assigned to you".
+          Container(
+            margin: const EdgeInsets.only(bottom: 2),
+            decoration: const BoxDecoration(
+              border: Border(left: BorderSide(color: AppColors.primary, width: 4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(left: 10, top: 4),
+                  child: AssignedToYouChip(),
+                ),
+                TaskTile(
+                  task: t,
+                  teamTask: true,
+                  onTap: () => openTeamTask(context, team, t),
+                  onToggle: store.canComplete(team, t)
+                      ? () => store.setCompleted(team, t, !t.isCompleted)
+                      : null,
+                  trailing: AssigneeBadge(team: team, task: t),
+                ),
+              ],
+            ),
+          )
+        else
+          TaskTile(
+            task: t,
+            teamTask: true,
+            onTap: () => openTeamTask(context, team, t),
+            onToggle: store.canComplete(team, t)
+                ? () => store.setCompleted(team, t, !t.isCompleted)
+                : null,
+            trailing: AssigneeBadge(team: team, task: t),
+          ),
     ];
   }
 }

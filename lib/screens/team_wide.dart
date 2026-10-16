@@ -29,7 +29,21 @@ extension _WideTeam on _TeamScreenState {
           }),
           onOpenMembers: () => _update(() => _wideTab = 2),
         ),
-      _ => TeamBoard(team: team, tasks: tasks, padding: const EdgeInsets.only(bottom: 20)),
+      _ => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _mineBar(team, tasks, me, list: false),
+            const SizedBox(height: 14),
+            Expanded(
+              child: TeamBoard(
+                  team: team,
+                  tasks: _searched(_filter == _Filter.mine
+                      ? tasks.where((t) => t.assigneeId == me).toList()
+                      : tasks),
+                  padding: const EdgeInsets.only(bottom: 20)),
+            ),
+          ],
+        ),
     };
 
     return Scaffold(
@@ -168,44 +182,46 @@ extension _WideTeam on _TeamScreenState {
     );
   }
 
-  // ------------------------------------------------------------------ list
+  // --------------------------------------------------------------- filters
 
-  Widget _wideList(BuildContext context, Team team, List<TaskItem> tasks, String me) {
-    final active = tasks.where((t) => !t.isCancelled).toList();
+  List<TaskItem> _searched(List<TaskItem> tasks) {
     final q = _search.trim().toLowerCase();
-    final shown = _filtered(tasks, me)
-        .where((t) =>
-            !t.isCancelled &&
-            (q.isEmpty ||
-                t.title.toLowerCase().contains(q) ||
-                t.description.toLowerCase().contains(q)))
+    if (q.isEmpty) return tasks;
+    return tasks
+        .where((t) => t.title.toLowerCase().contains(q) || t.description.toLowerCase().contains(q))
         .toList();
-    int count(_Filter f) => switch (f) {
-          _Filter.all => active.length,
-          _Filter.mine => active.where((t) => t.assigneeId == me).length,
-          _Filter.pending => active.where((t) => t.status == TaskStatus.pending).length,
-          _Filter.done => active.where((t) => t.isCompleted).length,
-        };
-    final now = DateTime.now();
-    const head = TextStyle(fontSize: 13, color: AppColors.textMuted, fontWeight: FontWeight.w600);
+  }
 
+  /// All | Assigned to me (+ the overview's Pending / Done on the list),
+  /// search, and a note when only my tasks are shown.
+  Widget _mineBar(Team team, List<TaskItem> tasks, String me, {required bool list}) {
+    final active = tasks.where((t) => !t.isCancelled).toList();
+    final mine = active.where((t) => t.assigneeId == me).length;
+    final filter =
+        !list && (_filter == _Filter.pending || _filter == _Filter.done) ? _Filter.all : _filter;
+    Widget pill(_Filter f, String label) => FilterPill(
+          label: label,
+          selected: filter == f,
+          onTap: () => _update(() => _filter = f),
+        );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            for (final f in _Filter.values) ...[
-              FilterPill(
-                label: '${switch (f) {
-                  _Filter.all => 'All',
-                  _Filter.mine => 'Mine',
-                  _Filter.pending => 'Pending',
-                  _Filter.done => 'Done',
-                }} (${count(f)})',
-                selected: _filter == f,
-                onTap: () => _update(() => _filter = f),
-              ),
+            pill(_Filter.all, 'All (${active.length})'),
+            const SizedBox(width: 10),
+            pill(_Filter.mine, 'Assigned to me ($mine)'),
+            if (list && (filter == _Filter.pending || filter == _Filter.done)) ...[
               const SizedBox(width: 10),
+              InputChip(
+                label: Text(filter == _Filter.pending
+                    ? 'Pending (${active.where((t) => t.status == TaskStatus.pending).length})'
+                    : 'Done (${active.where((t) => t.isCompleted).length})'),
+                selected: true,
+                showCheckmark: false,
+                onDeleted: () => _update(() => _filter = _Filter.all),
+              ),
             ],
             const Spacer(),
             SizedBox(
@@ -219,6 +235,62 @@ extension _WideTeam on _TeamScreenState {
             ),
           ],
         ),
+        if (filter == _Filter.mine) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+            decoration: BoxDecoration(
+              color: AppColors.primaryLight.withAlpha(150),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(children: [
+              Avatar(name: team.nameOf(me), size: 40),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                      mine == 0
+                          ? 'Nothing is assigned to you in ${team.name}'
+                          : '$mine ${mine == 1 ? 'task' : 'tasks'} assigned to you',
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                  Text(
+                      list
+                          ? 'Only your tasks are listed. Clear the filter to see the whole team.'
+                          : 'The board shows only your tasks, in the column each one is in.',
+                      style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                ]),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _update(() => _filter = _Filter.all),
+                icon: const Icon(Icons.close_rounded, size: 18),
+                label: const Text('Clear filter'),
+              ),
+            ]),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ------------------------------------------------------------------ list
+
+  Widget _wideList(BuildContext context, Team team, List<TaskItem> tasks, String me) {
+    final q = _search.trim().toLowerCase();
+    final shown = _filtered(tasks, me)
+        .where((t) =>
+            !t.isCancelled &&
+            (q.isEmpty ||
+                t.title.toLowerCase().contains(q) ||
+                t.description.toLowerCase().contains(q)))
+        .toList();
+    final now = DateTime.now();
+    const head = TextStyle(fontSize: 13, color: AppColors.textMuted, fontWeight: FontWeight.w600);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _mineBar(team, tasks, me, list: true),
         const SizedBox(height: 14),
         Expanded(
           child: DashCard(
@@ -273,10 +345,18 @@ class _ListRow extends StatelessWidget {
     final t = task;
     final ref = TaskRef(t, team);
     final assignee = t.assigneeId == null ? 'Unassigned' : team.nameOf(t.assigneeId);
+    final mine = t.assigneeId != null && t.assigneeId == TeamStore.instance.uid;
     return InkWell(
       onTap: () => openTaskRef(context, ref),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      child: Container(
+        // My tasks: blue bar on the left and a light blue row.
+        decoration: mine
+            ? BoxDecoration(
+                color: AppColors.primaryLight.withAlpha(90),
+                border: const Border(left: BorderSide(color: AppColors.primary, width: 4)),
+              )
+            : null,
+        padding: EdgeInsets.fromLTRB(mine ? 12 : 16, 8, 8, 8),
         child: Row(
           children: [
             SizedBox(
@@ -290,15 +370,20 @@ class _ListRow extends StatelessWidget {
             ),
             Expanded(
               flex: 5,
-              child: Text(t.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: t.isCompleted ? AppColors.textMuted : AppColors.text,
-                    decoration: t.isCompleted ? TextDecoration.lineThrough : null,
-                  )),
+              child: Row(children: [
+                Flexible(
+                  child: Text(t.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: mine ? FontWeight.w700 : FontWeight.w600,
+                        color: t.isCompleted ? AppColors.textMuted : AppColors.text,
+                        decoration: t.isCompleted ? TextDecoration.lineThrough : null,
+                      )),
+                ),
+                if (mine) ...[const SizedBox(width: 10), const AssignedToYouChip()],
+              ]),
             ),
             SizedBox(
               width: 120,

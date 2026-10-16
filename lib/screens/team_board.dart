@@ -220,6 +220,25 @@ class _Column extends StatelessWidget {
   }
 }
 
+/// "Assigned to you" label on my tasks in a team.
+class AssignedToYouChip extends StatelessWidget {
+  const AssignedToYouChip({super.key});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration:
+            BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(8)),
+        child: const Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.account_circle_rounded, size: 14, color: AppColors.primary),
+          SizedBox(width: 4),
+          Text('Assigned to you',
+              style:
+                  TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
+        ]),
+      );
+}
+
 class _Card extends StatelessWidget {
   final Team team;
   final TaskItem task;
@@ -240,98 +259,112 @@ class _Card extends StatelessWidget {
         : DateFormat(t.startAt.year == now.year ? 'd MMM' : 'd MMM yy').format(t.startAt);
     final assignee = t.assigneeId == null ? null : team.nameOf(t.assigneeId);
     const muted = TextStyle(fontSize: 13.5, color: Color(0xFF4B5563));
+    final mine = t.assigneeId != null && t.assigneeId == TeamStore.instance.uid;
 
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
       elevation: 0,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
         onTap: () => openTaskRef(context, ref),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 4, 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(t.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w700,
-                            decoration: t.isCompleted ? TextDecoration.lineThrough : null,
-                            color: t.isCompleted ? AppColors.textMuted : AppColors.text,
-                          )),
-                    ),
-                  ),
-                  SizedBox(width: 36, height: 34, child: TaskActionsMenu(ref: ref)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                    decoration: BoxDecoration(color: dueBg, borderRadius: BorderRadius.circular(8)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.calendar_today_outlined, size: 14, color: dueFg),
-                      const SizedBox(width: 6),
-                      Text(dueText,
-                          style:
-                              TextStyle(color: dueFg, fontSize: 12.5, fontWeight: FontWeight.w600)),
-                    ]),
-                  ),
-                  PriorityChip(priority: t.priority),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.only(right: 10),
-                child: Row(
+        // My tasks: a blue bar on the left and "Assigned to you".
+        child: Container(
+          decoration: mine
+              ? const BoxDecoration(
+                  border: Border(left: BorderSide(color: AppColors.primary, width: 4)))
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 4, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (t.checklist.isNotEmpty) ...[
-                      const Icon(Icons.check_box_outlined, size: 18, color: Color(0xFF6B7280)),
-                      const SizedBox(width: 4),
-                      Text('${t.checklistDone}/${t.checklist.length}', style: muted),
-                      const SizedBox(width: 12),
-                    ],
-                    if (t.links.isNotEmpty) ...[
-                      const Icon(Icons.link_rounded, size: 18, color: Color(0xFF6B7280)),
-                      const SizedBox(width: 4),
-                      Text('${t.links.length}', style: muted),
-                      const SizedBox(width: 12),
-                    ],
-                    if (t.timerRunning)
-                      const Icon(Icons.timer_rounded, size: 18, color: AppColors.primary),
-                    const Spacer(),
-                    if (assignee != null)
-                      Tooltip(
-                        message: assignee,
-                        child: Avatar(
-                            name: assignee,
-                            size: 32,
-                            color: t.assigneeId == TeamStore.instance.uid
-                                ? AppColors.primary
-                                : AppColors.purple),
-                      )
-                    else
-                      const Tooltip(
-                        message: 'Not assigned',
-                        child:
-                            Icon(Icons.person_off_outlined, size: 20, color: AppColors.textMuted),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(t.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w700,
+                              decoration: t.isCompleted ? TextDecoration.lineThrough : null,
+                              color: t.isCompleted ? AppColors.textMuted : AppColors.text,
+                            )),
                       ),
+                    ),
+                    SizedBox(width: 36, height: 34, child: TaskActionsMenu(ref: ref)),
                   ],
                 ),
-              ),
-            ],
+                if (mine) ...[
+                  const SizedBox(height: 6),
+                  const AssignedToYouChip(),
+                ],
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                      decoration:
+                          BoxDecoration(color: dueBg, borderRadius: BorderRadius.circular(8)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.calendar_today_outlined, size: 14, color: dueFg),
+                        const SizedBox(width: 6),
+                        Text(dueText,
+                            style: TextStyle(
+                                color: dueFg, fontSize: 12.5, fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                    PriorityChip(priority: t.priority),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: Row(
+                    children: [
+                      if (t.checklist.isNotEmpty) ...[
+                        const Icon(Icons.check_box_outlined, size: 18, color: Color(0xFF6B7280)),
+                        const SizedBox(width: 4),
+                        Text('${t.checklistDone}/${t.checklist.length}', style: muted),
+                        const SizedBox(width: 12),
+                      ],
+                      if (t.links.isNotEmpty) ...[
+                        const Icon(Icons.link_rounded, size: 18, color: Color(0xFF6B7280)),
+                        const SizedBox(width: 4),
+                        Text('${t.links.length}', style: muted),
+                        const SizedBox(width: 12),
+                      ],
+                      if (t.timerRunning)
+                        const Icon(Icons.timer_rounded, size: 18, color: AppColors.primary),
+                      const Spacer(),
+                      if (assignee != null)
+                        Tooltip(
+                          message: assignee,
+                          child: Avatar(
+                              name: assignee,
+                              size: 32,
+                              color: t.assigneeId == TeamStore.instance.uid
+                                  ? AppColors.primary
+                                  : AppColors.purple),
+                        )
+                      else
+                        const Tooltip(
+                          message: 'Not assigned',
+                          child:
+                              Icon(Icons.person_off_outlined, size: 20, color: AppColors.textMuted),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
