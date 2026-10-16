@@ -18,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/utils.dart';
+import 'chat_store.dart';
 import 'inbox.dart';
 import 'models.dart';
 import 'reminders.dart';
@@ -162,6 +163,7 @@ class AppStore extends ChangeNotifier {
     PhoneReminders.instance.askPermission();
     TeamStore.instance.start(uid: u.uid, email: email, name: currentUser!.name);
     InboxStore.instance.start(u.uid);
+    ChatStore.instance.start(uid: u.uid, email: email, name: currentUser!.name);
     notifyListeners();
   }
 
@@ -171,6 +173,7 @@ class AppStore extends ChangeNotifier {
     PhoneReminders.instance.clear();
     TeamStore.instance.stop();
     InboxStore.instance.stop();
+    ChatStore.instance.stop();
     _cancelSubs();
     currentUser = null;
     categories = [];

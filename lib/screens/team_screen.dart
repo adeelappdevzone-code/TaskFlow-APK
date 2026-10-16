@@ -17,6 +17,8 @@ import 'create_task_dialog.dart';
 import 'task_open.dart';
 import 'task_ui.dart';
 import 'team_board.dart';
+import 'messages_screen.dart';
+import '../data/chat_store.dart';
 import '../data/task_repository.dart';
 
 part 'team_wide.dart';
@@ -311,47 +313,115 @@ class _TeamScreenState extends State<TeamScreen> {
 }
 
 /// "Add person" dialog: invites an email address to [team].
+/// "Add person": pick people you already work with (in your other teams),
+/// or type an email. Each gets an invitation to accept, as before.
 Future<void> showInviteDialog(BuildContext context, Team team) async {
+  final store = TeamStore.instance;
+  final me = store.uid;
+  final invited = {
+    for (final i in store.sentInvites[team.id] ?? const <TeamInvite>[]) normalizeEmail(i.email)
+  };
+  // People from my other teams who are not in this one yet.
+  final contacts = <String, (String, String)>{};
+  for (final t in store.teams) {
+    if (t.id == team.id) continue;
+    for (final uid in t.memberIds) {
+      if (uid == me || team.memberIds.contains(uid)) continue;
+      final info = t.members[uid];
+      if (info == null || info.email.isEmpty) continue;
+      contacts.putIfAbsent(uid, () => (t.nameOf(uid), normalizeEmail(info.email)));
+    }
+  }
+  final list = contacts.values.toList()..sort((a, b) => a.$1.compareTo(b.$1));
+  final picked = <String>{};
   final email = TextEditingController();
-  final result = await showDialog<String>(
+  final ok = await showDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Add person'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Enter the email they use to log in to TaskFlow. They will see the '
-            'invitation in their Teams tab (they can install the app later too).',
-            style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: Text('Add people to ${team.name}'),
+        content: SizedBox(
+          width: 440,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (list.isNotEmpty) ...[
+                  const Text('People you work with', style: TextStyle(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  for (final (name, mail) in list)
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      value: picked.contains(mail) || invited.contains(mail),
+                      onChanged: invited.contains(mail)
+                          ? null
+                          : (v) =>
+                              setState(() => v == true ? picked.add(mail) : picked.remove(mail)),
+                      secondary: Avatar(name: name, size: 34),
+                      title: Text(name),
+                      subtitle: Text(invited.contains(mail) ? '$mail • already invited' : mail),
+                    ),
+                  const Divider(height: 24),
+                ],
+                const Text('Or invite by email', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: fieldDecoration('name@example.com', icon: Icons.mail_outline_rounded),
+                  inputFormatters: [LengthLimitingTextInputFormatter(200)],
+                  onSubmitted: (_) => Navigator.pop(ctx, true),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'They get an invitation (in the app and their Teams tab) and join when '
+                  'they accept.',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12.5),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: email,
-            autofocus: true,
-            keyboardType: TextInputType.emailAddress,
-            decoration: fieldDecoration('name@example.com', icon: Icons.mail_outline_rounded),
-            inputFormatters: [LengthLimitingTextInputFormatter(200)],
-            onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(picked.isEmpty
+                ? 'Invite'
+                : 'Invite (${picked.length + (email.text.trim().isEmpty ? 0 : 1)})'),
           ),
         ],
       ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-        TextButton(onPressed: () => Navigator.pop(ctx, email.text), child: const Text('Invite')),
-      ],
     ),
   );
-  if (result == null || !context.mounted) return;
-  final err = TeamStore.instance.inviteByEmail(team, result);
-  showSnack(context, err ?? 'Invitation sent to ${normalizeEmail(result)}');
+  if (ok != true || !context.mounted) return;
+  final emails = {...picked, if (email.text.trim().isNotEmpty) email.text.trim()};
+  if (emails.isEmpty) return;
+  final errors = <String>[];
+  for (final e in emails) {
+    final err = store.inviteByEmail(team, e);
+    if (err != null) errors.add(err);
+  }
+  final sent = emails.length - errors.length;
+  showSnack(
+      context,
+      errors.isEmpty
+          ? (sent == 1
+              ? 'Invitation sent to ${normalizeEmail(emails.first)}'
+              : '$sent invitations sent')
+          : '${sent > 0 ? '$sent sent. ' : ''}${errors.first}');
 }
 
 Future<void> _memberAction(BuildContext context, Team team, String action, String uid) async {
   final store = TeamStore.instance;
   final name = team.nameOf(uid);
   switch (action) {
+    case 'message':
+      final email = team.members[uid]?.email ?? '';
+      openChatWith(context, Contact(uid, name, email, [team.id]));
+      break;
     case 'manager':
       store.setManager(team, uid, true);
       showSnack(context, '$name is now a manager');
@@ -378,6 +448,7 @@ List<PopupMenuEntry<String>> _memberMenu(Team team, String me, String uid) {
   final admin = team.isAdmin(me);
   final isMe = uid == me;
   return [
+    if (!isMe) const PopupMenuItem(value: 'message', child: Text('Message')),
     if (owner && !isMe && role == TeamRole.member)
       const PopupMenuItem(value: 'manager', child: Text('Make manager')),
     if (owner && !isMe && role == TeamRole.manager)

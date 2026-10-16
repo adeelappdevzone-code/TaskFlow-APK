@@ -21,6 +21,7 @@ const _navEntries = [
   _NavEntry(Icons.event_note_outlined, Icons.event_note_rounded, 'Daily Planner', 8),
   _NavEntry(Icons.calendar_today_outlined, Icons.calendar_today_rounded, 'Calendar', 2),
   _NavEntry(Icons.timer_outlined, Icons.timer_rounded, 'Time Tracking', 10),
+  _NavEntry(Icons.forum_outlined, Icons.forum_rounded, 'Messages', 13),
   _NavEntry(Icons.groups_outlined, Icons.groups_rounded, 'Teams', 4),
   _NavEntry(Icons.stacked_bar_chart_rounded, Icons.stacked_bar_chart_rounded, 'Team Workload', 9),
   _NavEntry(Icons.fact_check_outlined, Icons.fact_check_rounded, 'Approvals', 7),
@@ -50,7 +51,8 @@ extension on _MainShellState {
         children: [
           ListenableBuilder(
             listenable:
-                Listenable.merge([TeamStore.instance, InboxStore.instance, AppStore.instance]),
+                Listenable.merge(
+                [TeamStore.instance, InboxStore.instance, AppStore.instance, ChatStore.instance]),
             builder: (context, _) => _SideMenu(
               onOpenTeam: _showTeam,
               compact: compact,
@@ -59,6 +61,7 @@ extension on _MainShellState {
               inbox: InboxStore.instance.count,
               unread: AppStore.instance.unreadCount,
               approvals: TeamStore.instance.awaitingMyApproval.length,
+              messages: ChatStore.instance.unreadCount,
               onNewTask: _addTask,
               onSelect: (tab) {
                 // Teams again while inside a team: back to the team list.
@@ -106,6 +109,7 @@ extension on _MainShellState {
                         const TimeScreen(),
                         const ReportsScreen(),
                         const TemplatesScreen(),
+                        const MessagesScreen(),
                       ],
                     ),
                   ),
@@ -126,6 +130,7 @@ class _SideMenu extends StatelessWidget {
   final int inbox;
   final int unread;
   final int approvals;
+  final int messages;
   final VoidCallback onNewTask;
   final ValueChanged<int> onSelect;
   final ValueChanged<Team> onOpenTeam;
@@ -137,6 +142,7 @@ class _SideMenu extends StatelessWidget {
     required this.inbox,
     required this.unread,
     required this.approvals,
+    required this.messages,
     required this.onNewTask,
     required this.onSelect,
   });
@@ -227,6 +233,7 @@ class _SideMenu extends StatelessWidget {
                           5 => inbox,
                           6 => unread,
                           7 => approvals,
+                          13 => messages,
                           _ => 0
                         },
                         onTap: () => onSelect(e.tab),

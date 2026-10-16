@@ -1127,6 +1127,15 @@ class _PhoneHome extends StatelessWidget {
                 ),
               ),
               _BellButton(count: AppStore.instance.unreadCount),
+              const SizedBox(width: 4),
+              InkWell(
+                customBorder: const CircleBorder(),
+                onTap: () => MainShell.switchTab(context, 3),
+                child: Tooltip(
+                  message: 'Profile & settings',
+                  child: Avatar(name: AppStore.instance.currentUser?.name ?? '', size: 34),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 16),

@@ -220,6 +220,44 @@ await t('templates: outsider cannot read', assertFails(getDocs(collection(outsid
 await t('templates: too many tasks denied', assertFails(setDoc(doc(owner, `teams/${T}/templates/tp3`), tpl('tp3', { tasks: Array(61).fill({ title: 'x' }) }))));
 await t('templates: personal workflow template', assertSucceeds(setDoc(doc(sara, 'users/sar/templates/tp4'), tpl('tp4'))));
 await t('templates: owner deletes', assertSucceeds(deleteDoc(doc(owner, `teams/${T}/templates/tp1`))));
+// ------------------------------------------------------------------- chats
+const dm = 'adl_sar';
+const chat = (id, extra = {}) => ({ id, type: 'direct', member_ids: ['adl', 'sar'], names: { adl: 'Adeel', sar: 'Sara' }, via_team: T, status: 'active', created_by: 'adl', created_at: now, read: { adl: now }, ...extra });
+const msg = (id, from, extra = {}) => ({ id, from, from_name: from, text: 'Hi', at: now, ...extra });
+await t('chat: teammates start a direct chat', assertSucceeds(setDoc(doc(adeel, `chats/${dm}`), chat(dm))));
+await t('chat: outsider cannot read it', assertFails(getDoc(doc(outsider, `chats/${dm}`))));
+await t('chat: cannot start chat with a non-teammate', assertFails(setDoc(doc(adeel, 'chats/adl_out'), chat('adl_out', { member_ids: ['adl', 'out'] }))));
+await t('chat: cannot make a chat for two others', assertFails(setDoc(doc(outsider, `chats/${dm}x`), chat(`${dm}x`, { created_by: 'out' }))));
+await t('chat: member sends a message', assertSucceeds(setDoc(doc(adeel, `chats/${dm}/messages/m1`), msg('m1', 'adl'))));
+await t('chat: cannot send as someone else', assertFails(setDoc(doc(adeel, `chats/${dm}/messages/m2`), msg('m2', 'sar'))));
+await t('chat: outsider cannot send', assertFails(setDoc(doc(outsider, `chats/${dm}/messages/m3`), msg('m3', 'out'))));
+await t('chat: other member reads messages', assertSucceeds(getDocs(collection(sara, `chats/${dm}/messages`))));
+await t('chat: outsider cannot read messages', assertFails(getDocs(collection(outsider, `chats/${dm}/messages`))));
+await t('chat: member updates last message', assertSucceeds(updateDoc(doc(adeel, `chats/${dm}`), { last_text: 'Hi', last_at: now, last_from: 'adl', 'read.adl': now })));
+await t('chat: member marks read', assertSucceeds(updateDoc(doc(sara, `chats/${dm}`), { 'read.sar': now })));
+await t('chat: cannot add people', assertFails(updateDoc(doc(adeel, `chats/${dm}`), { member_ids: ['adl', 'sar', 'own'] })));
+await t('chat: my chat list query', assertSucceeds(getDocs(query(collection(sara, 'chats'), where('member_ids', 'array-contains', 'sar')))));
+await t('chat: message too long denied', assertFails(setDoc(doc(adeel, `chats/${dm}/messages/m4`), msg('m4', 'adl', { text: 'x'.repeat(4001) }))));
+// team chat
+const tc = `team_${T}`;
+await t('chat: team chat doc readable before it exists', assertSucceeds(getDoc(doc(sara, `chats/${tc}`))));
+await t('chat: outsider cannot read team chat', assertFails(getDoc(doc(outsider, `chats/${tc}`))));
+await t('chat: member creates team chat', assertSucceeds(setDoc(doc(sara, `chats/${tc}`), { id: tc, type: 'team', team_id: T, member_ids: [], created_by: 'sar', created_at: now })));
+await t('chat: team member posts in team chat', assertSucceeds(setDoc(doc(adeel, `chats/${tc}/messages/t1`), msg('t1', 'adl'))));
+await t('chat: outsider cannot post in team chat', assertFails(setDoc(doc(outsider, `chats/${tc}/messages/t2`), msg('t2', 'out'))));
+await t('chat: team chat for a team I am not in denied', assertFails(setDoc(doc(outsider, `chats/${tc}2`), { id: `${tc}2`, type: 'team', team_id: T, member_ids: [], created_by: 'out', created_at: now })));
+// chat request by email
+const rq = 'req_adl_out@x.com';
+const req = { id: rq, type: 'direct', member_ids: ['adl'], names: { adl: 'Adeel' }, invite_email: 'out@x.com', status: 'pending', created_by: 'adl', created_at: now };
+await t('chat: request by email', assertSucceeds(setDoc(doc(adeel, `chats/${rq}`), req)));
+await t('chat: invitee sees the request', assertSucceeds(getDocs(query(collection(outsider, 'chats'), where('invite_email', '==', 'out@x.com'), where('status', '==', 'pending')))));
+await t('chat: invitee cannot read messages before accepting', assertFails(getDocs(collection(outsider, `chats/${rq}/messages`))));
+await t('chat: someone else cannot accept', assertFails(updateDoc(doc(sara, `chats/${rq}`), { member_ids: arrayUnion('sar'), status: 'active' })));
+await t('chat: invitee accepts', assertSucceeds(updateDoc(doc(outsider, `chats/${rq}`), { member_ids: arrayUnion('out'), 'names.out': 'Out', status: 'active', 'read.out': now })));
+await t('chat: after accepting, invitee reads messages', assertSucceeds(getDocs(collection(outsider, `chats/${rq}/messages`))));
+await t('chat: request id must match', assertFails(setDoc(doc(adeel, 'chats/req_x'), { ...req, id: 'req_x' })));
+await t('chat: member deletes direct chat', assertSucceeds(deleteDoc(doc(adeel, `chats/${rq}`))));
+
 await t('role: owner makes adeel manager', assertSucceeds(updateDoc(doc(owner, `teams/${T}`), { manager_ids: ['adl'], updated_at: now })));
 await t('role: manager creates task', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/m1`), ttask('m1', 'sar', 'adl'))));
 await t('role: manager edits any task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { title: 'Edited', updated_at: now })));

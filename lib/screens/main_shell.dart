@@ -11,6 +11,8 @@ import '../widgets/responsive.dart';
 import 'calendar_screen.dart';
 import 'home_screen.dart';
 import 'inbox_screen.dart';
+import 'messages_screen.dart';
+import '../data/chat_store.dart';
 import 'approvals_screen.dart';
 import 'planner_screen.dart';
 import 'workload_screen.dart';
@@ -29,7 +31,8 @@ import 'create_task_dialog.dart';
 
 part 'main_shell_wide.dart';
 
-/// Bottom navigation: Home | Tasks | (+) | Teams | Profile.
+/// Bottom navigation: Home | Tasks | (+) | Teams | Chats. Profile opens from
+/// the avatar on Home.
 /// Calendar (index 2) opens from the shortcut on Home.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -104,6 +107,7 @@ class _MainShellState extends State<MainShell> {
             SafeArea(child: TimeScreen()),
             SafeArea(child: ReportsScreen()),
             SafeArea(child: TemplatesScreen()),
+            SafeArea(child: MessagesScreen()),
           ],
         ),
         floatingActionButton: SizedBox(
@@ -129,7 +133,7 @@ class _MainShellState extends State<MainShell> {
           padding: EdgeInsets.zero,
           // Rebuilds for the invitation badge on Teams.
           child: ListenableBuilder(
-            listenable: TeamStore.instance,
+            listenable: Listenable.merge([TeamStore.instance, ChatStore.instance]),
             builder: (context, _) => Row(
               children: [
                 _NavItem(
@@ -153,11 +157,12 @@ class _MainShellState extends State<MainShell> {
                     active: _index == 4,
                     onTap: () => setTab(4)),
                 _NavItem(
-                    icon: Icons.person_outline_rounded,
-                    activeIcon: Icons.person_rounded,
-                    label: 'Profile',
-                    active: _index == 3,
-                    onTap: () => setTab(3)),
+                    icon: Icons.forum_outlined,
+                    activeIcon: Icons.forum_rounded,
+                    label: 'Chats',
+                    badge: ChatStore.instance.unreadCount,
+                    active: _index == 13,
+                    onTap: () => setTab(13)),
               ],
             ),
           ),

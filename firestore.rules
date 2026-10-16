@@ -369,6 +369,103 @@ service cloud.firestore {
       }
     }
 
+    // ============================================================= MESSAGES
+    //
+    // chats/{id}: direct chats between two people who share a team (id
+    // "<uidA>_<uidB>"), chat requests to someone outside my teams (id
+    // "req_<uid>_<email>", accepted by that email) and one chat per team
+    // (id "team_<teamId>"). Only the people in a chat can read or write it.
+    function teamChatMember(teamId) {
+      return request.auth.uid in teamData(teamId).member_ids;
+    }
+    function inChat(c) {
+      return request.auth.uid in c.member_ids
+          || (c.type == 'team' && teamChatMember(c.team_id));
+    }
+
+    match /chats/{chatId} {
+      function d() { return request.resource.data; }
+      function validChat() {
+        return d().size() <= 15
+            && d().id == chatId
+            && d().type in ['direct', 'team']
+            && d().member_ids is list && d().member_ids.size() <= 2
+            && d().created_by == request.auth.uid
+            && num(d(), 'created_at')
+            && (!('names' in d()) || d().names is map);
+      }
+      function teammates() {
+        return d().type == 'direct' && d().status == 'active'
+            && d().member_ids.size() == 2 && request.auth.uid in d().member_ids
+            && chatId == d().member_ids[0] + '_' + d().member_ids[1]
+            && d().via_team is string
+            && d().member_ids[0] in teamData(d().via_team).member_ids
+            && d().member_ids[1] in teamData(d().via_team).member_ids;
+      }
+      function chatRequest() {
+        return d().type == 'direct' && d().status == 'pending'
+            && d().member_ids == [request.auth.uid]
+            && d().invite_email is string && d().invite_email == d().invite_email.lower()
+            && d().invite_email != myEmail()
+            && chatId == 'req_' + request.auth.uid + '_' + d().invite_email;
+      }
+      function teamChat() {
+        return d().type == 'team' && d().team_id is string
+            && chatId == 'team_' + d().team_id
+            && d().member_ids.size() == 0
+            && teamChatMember(d().team_id);
+      }
+      function changed() { return d().diff(resource.data).affectedKeys(); }
+
+      allow get: if signedIn() && (
+          (resource == null && chatId.matches('team_.+')
+              && teamChatMember(chatId.replace('^team_', '')))
+          || (resource != null && (inChat(resource.data)
+              || resource.data.get('invite_email', '') == myEmail())));
+      allow list: if signedIn() && (request.auth.uid in resource.data.member_ids
+          || resource.data.invite_email == myEmail());
+      allow create: if signedIn() && validChat() && (teammates() || chatRequest() || teamChat());
+      allow update: if signedIn() && (
+          // New message / read: the list fields only.
+          (inChat(resource.data)
+              && changed().hasOnly(['last_text', 'last_at', 'last_from', 'read'])
+              && optStr(d(), 'last_text', 300) && optNum(d(), 'last_at')
+              && (!('last_from' in d()) || d().last_from == null
+                  || d().last_from == request.auth.uid
+                  || !changed().hasAny(['last_from']))
+              && (!('read' in d()) || d().read is map))
+          // Accepting a chat request: add yourself.
+          || (resource.data.status == 'pending'
+              && resource.data.invite_email == myEmail()
+              && request.auth.token.email_verified == true
+              && changed().hasOnly(['member_ids', 'names', 'status', 'read'])
+              && d().status == 'active'
+              && d().member_ids.toSet()
+                  == resource.data.member_ids.toSet().union([request.auth.uid].toSet())
+              && d().member_ids.size() == 2));
+      allow delete: if signedIn() && resource.data.type == 'direct' && (
+          request.auth.uid in resource.data.member_ids
+          || (resource.data.status == 'pending' && resource.data.invite_email == myEmail()));
+
+      match /messages/{messageId} {
+        function chat() { return get(/databases/$(database)/documents/chats/$(chatId)).data; }
+        function validMessage(m) {
+          return m.size() <= 12
+              && m.id == messageId
+              && m.from == request.auth.uid
+              && optStr(m, 'from_name', 200)
+              && str(m, 'text', 4000)
+              && num(m, 'at')
+              && optList(m, 'links', 10)
+              && optStr(m, 'task_id', 100) && optStr(m, 'task_team', 100)
+              && optStr(m, 'task_title', 500);
+        }
+        allow read: if signedIn() && inChat(chat());
+        allow create: if signedIn() && inChat(chat()) && validMessage(request.resource.data);
+        allow delete: if signedIn() && resource.data.from == request.auth.uid;
+      }
+    }
+
     // invites/{teamId}_{email}: readable by the invited email and the team's
     // owner/managers. Accepting = joining the team + deleting the invite.
     match /invites/{inviteId} {

@@ -95,6 +95,14 @@ quick capture.
 Note: "Done ≠ Approved" (faisla 6) abhi poora nahi: member ab bhi seedha Done kar sakta hai.
 Sakht karna ho to baad mein rule lagana.
 
+## Messages / chat (Oct 2026, main par push)
+- Side menu aur phone nav mein "Messages"/"Chats" (unread badge). Phone par Profile ab Home ke avatar se.
+- Direct: team-mate se seedha chat; bahar ke banday ko email se chat request (Accept/Decline).
+- Group: har team ki apni chat. Task share, links, "Seen", message delete.
+- Team invite: purani teams ke log list se select (invite + accept wahi purana).
+- Members tab mein "Message" option. Rules: chats/{id} + messages (27 rule tests).
+- Baad mein: push notification server ke baghair sirf app khuli ho to alert (Spark plan).
+
 ## Setup (sab chal raha hai)
 
 - **App:** Flutter 3.47.7 (CI mein fix), Firebase project `taskflow-ce905` (Spark/free plan, card nahi).
