@@ -17,7 +17,7 @@ class _NavEntry {
 const _navEntries = [
   _NavEntry(Icons.dashboard_outlined, Icons.dashboard_rounded, 'Dashboard', 0),
   _NavEntry(Icons.check_box_outlined, Icons.check_box_rounded, 'My Tasks', 1),
-  _NavEntry(Icons.inbox_outlined, Icons.inbox_rounded, 'Inbox', 5),
+  _NavEntry(Icons.edit_note_outlined, Icons.edit_note_rounded, 'Capture', 5),
   _NavEntry(Icons.event_note_outlined, Icons.event_note_rounded, 'Daily Planner', 8),
   _NavEntry(Icons.calendar_today_outlined, Icons.calendar_today_rounded, 'Calendar', 2),
   _NavEntry(Icons.timer_outlined, Icons.timer_rounded, 'Time Tracking', 10),

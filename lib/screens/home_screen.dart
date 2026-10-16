@@ -484,7 +484,11 @@ final _phoneShortcuts = [
   ..._shortcuts,
   _Shortcut(Icons.bar_chart_rounded, AppColors.success, 'Reports', 'Reports and PDF',
       (c) => Navigator.push(c, MaterialPageRoute(builder: (_) => const ReportsScreen(page: true)))),
-  _Shortcut(Icons.description_outlined, const Color(0xFFEA7A0C), 'Templates', 'Ready-made tasks',
+  _Shortcut(
+      Icons.description_outlined,
+      const Color(0xFFEA7A0C),
+      'Templates',
+      'Ready-made tasks',
       (c) =>
           Navigator.push(c, MaterialPageRoute(builder: (_) => const TemplatesScreen(page: true)))),
 ];
@@ -1111,14 +1115,14 @@ class _PhoneHome extends StatelessWidget {
               ListenableBuilder(
                 listenable: InboxStore.instance,
                 builder: (context, _) => IconButton(
-                  tooltip: 'Inbox',
+                  tooltip: 'Capture',
                   visualDensity: VisualDensity.compact,
                   onPressed: () => Navigator.push(
                       context, MaterialPageRoute(builder: (_) => const InboxScreen(page: true))),
                   icon: Badge(
                     isLabelVisible: InboxStore.instance.count > 0,
                     label: Text('${InboxStore.instance.count}'),
-                    child: const Icon(Icons.inbox_outlined, size: 27),
+                    child: const Icon(Icons.edit_note_rounded, size: 27),
                   ),
                 ),
               ),

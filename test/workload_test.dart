@@ -145,7 +145,7 @@ void main() {
     final labels = [
       'Dashboard',
       'My Tasks',
-      'Inbox',
+      'Capture',
       'Daily Planner',
       'Calendar',
       'Teams',

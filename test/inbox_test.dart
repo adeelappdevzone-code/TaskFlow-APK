@@ -197,8 +197,8 @@ void main() {
 
   testWidgets('inbox on a laptop', (tester) async {
     await show(tester, const Size(1600, 1100), const InboxScreen());
-    expect(find.text('Quick Capture'), findsWidgets);
-    expect(find.text('5 inbox items'), findsOneWidget);
+    expect(find.text('Quick add'), findsWidgets);
+    expect(find.text('5 to organize'), findsOneWidget);
     expect(find.text('Need due date'), findsOneWidget);
     expect(find.text('Organize suggestions'), findsOneWidget);
     expect(find.text('Capture sources'), findsOneWidget);
@@ -209,7 +209,7 @@ void main() {
     // Filter by a stat tile.
     await tester.tap(find.text('From voice'));
     await tester.pumpAndSettle();
-    expect(find.text('1 inbox item'), findsOneWidget);
+    expect(find.text('1 to organize'), findsOneWidget);
 
     // Capture a new one.
     await tester.tap(find.text('From voice'));
@@ -217,14 +217,14 @@ void main() {
     await tester.enterText(find.byType(TextField).first, 'Send invoice friday !high');
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
-    expect(find.text('6 inbox items'), findsOneWidget);
+    expect(find.text('6 to organize'), findsOneWidget);
     expect(find.text('Send invoice'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('inbox on a phone', (tester) async {
     await show(tester, const Size(400, 860), const InboxScreen(page: true));
-    expect(find.text('5 inbox items'), findsOneWidget);
+    expect(find.text('5 to organize'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

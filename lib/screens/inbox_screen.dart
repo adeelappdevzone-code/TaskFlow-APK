@@ -15,7 +15,7 @@ import '../widgets/task_extras.dart';
 import 'task_open.dart';
 import 'task_ui.dart';
 
-/// Inbox: capture tasks fast (typed, voice, pasted email, forwarded by a
+/// Capture (the inbox): write tasks down fast (typed, voice, pasted email, forwarded by a
 /// teammate) and organize them later: date, priority, team, person, label,
 /// then "Move to tasks".
 class InboxScreen extends StatefulWidget {
@@ -106,7 +106,7 @@ class _InboxScreenState extends State<InboxScreen> {
           return Scaffold(
             backgroundColor: AppColors.background,
             appBar: widget.page
-                ? AppBar(backgroundColor: AppColors.background, title: const Text('Inbox'))
+                ? AppBar(backgroundColor: AppColors.background, title: const Text('Capture'))
                 : null,
             body: ListView(
               padding: EdgeInsets.fromLTRB(wide ? 28 : 16, wide ? 22 : 8, wide ? 28 : 16, 32),
@@ -122,7 +122,7 @@ class _InboxScreenState extends State<InboxScreen> {
     final visible = _visible(items);
     final count = (bool Function(InboxItem) f) => items.where(f).length;
     final tiles = [
-      _StatTile(Icons.inbox_rounded, AppColors.primary, '${items.length}', 'Inbox items',
+      _StatTile(Icons.inbox_rounded, AppColors.primary, '${items.length}', 'To organize',
           _filter == _Filter.all && _only == null, () => _setFilter(_Filter.all)),
       _StatTile(Icons.warning_amber_rounded, AppColors.danger, '${count((i) => i.dueAt == null)}',
           'Need due date', _filter == _Filter.noDate, () => _setFilter(_Filter.noDate)),
@@ -162,7 +162,8 @@ class _InboxScreenState extends State<InboxScreen> {
               SizedBox(width: 14),
               Expanded(
                 child: PageHeader(
-                    title: 'Inbox', subtitle: 'Capture tasks fast and organize them later.'),
+                    title: 'Capture',
+                    subtitle: 'Write down any task the moment you think of it. Sort it out later.'),
               ),
             ],
           ),
@@ -202,7 +203,7 @@ class _InboxScreenState extends State<InboxScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 30),
                   child: EmptyState(
                     icon: Icons.inbox_outlined,
-                    title: items.isEmpty ? 'Inbox zero' : 'Nothing here',
+                    title: items.isEmpty ? 'All sorted' : 'Nothing here',
                     subtitle: items.isEmpty
                         ? 'Type anything above and press Enter. Organize it later.'
                         : 'No items match this filter.',
@@ -256,9 +257,7 @@ class _InboxScreenState extends State<InboxScreen> {
           const SizedBox(width: 4),
           Expanded(
             child: Text(
-              selected.isNotEmpty
-                  ? '${selected.length} selected'
-                  : '${visible.length} inbox ${visible.length == 1 ? 'item' : 'items'}',
+              selected.isNotEmpty ? '${selected.length} selected' : '${visible.length} to organize',
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
             ),
           ),
@@ -284,7 +283,7 @@ class _InboxScreenState extends State<InboxScreen> {
               onPressed: () async {
                 final ok = await confirmDialog(context,
                     title: 'Delete ${selected.length} items?',
-                    message: 'They will be removed from your inbox.',
+                    message: 'They will be removed from Capture.',
                     confirmLabel: 'Delete',
                     danger: true);
                 if (!ok) return;
@@ -342,7 +341,7 @@ class _InboxScreenState extends State<InboxScreen> {
   static String _filterLabel(_Filter f) => switch (f) {
         _Filter.all => 'All items',
         _Filter.noDate => 'Need due date',
-        _Filter.quick => 'Quick Capture',
+        _Filter.quick => 'Quick add',
         _Filter.email => 'From email',
         _Filter.voice => 'From voice',
         _Filter.forwarded => 'Forwarded',
@@ -572,7 +571,7 @@ Future<void> _edit(BuildContext context, InboxItem item) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Edit inbox item'),
+      title: const Text('Edit item'),
       content: SizedBox(
         width: 460,
         child: Column(
@@ -643,7 +642,7 @@ Future<void> _forward(BuildContext context, InboxItem item) async {
   );
   if (pick == null || !context.mounted) return;
   InboxStore.instance.forward(item, pick.$1, pick.$2);
-  showSnack(context, 'Sent to ${pick.$1.nameOf(pick.$2)}\'s inbox');
+  showSnack(context, 'Sent to ${pick.$1.nameOf(pick.$2)}\'s Capture');
 }
 
 // ------------------------------------------------------------- quick capture
@@ -768,7 +767,7 @@ class _QuickCaptureState extends State<_QuickCapture> {
     if (title.isEmpty) return;
     InboxStore.instance.capture(title,
         source: InboxSource.email, notes: notes.length > 5000 ? notes.substring(0, 5000) : notes);
-    if (mounted) showSnack(context, 'Email added to your inbox');
+    if (mounted) showSnack(context, 'Email added to Capture');
   }
 
   Future<void> _attach() async {
@@ -895,7 +894,7 @@ class _QuickCaptureState extends State<_QuickCapture> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Quick Capture',
+                    const Text('Quick add',
                         style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700)),
                     field,
                   ],
@@ -944,7 +943,7 @@ class _InboxRow extends StatelessWidget {
           Icons.arrow_forward_rounded,
           i.fromName == null ? 'Forwarded' : 'From ${i.fromName}'
         ),
-      _ => (Icons.description_outlined, 'Quick Capture'),
+      _ => (Icons.description_outlined, 'Quick add'),
     };
     final due = i.dueAt;
     final dueColor = due == null
@@ -1303,7 +1302,7 @@ class _SidePanel extends StatelessWidget {
                   'Organize suggestions',
                   suggestions.isEmpty
                       ? 'Nothing to suggest right now.'
-                      : 'Ways to organize your inbox.'),
+                      : 'Ways to sort out what you captured.'),
               for (final s in suggestions.take(4))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),

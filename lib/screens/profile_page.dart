@@ -795,11 +795,11 @@ class _InboxCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _cardHead('Inbox',
+          _cardHead('Notifications',
               subtitle: '${store.unreadCount} unread',
               trailing: FilledButton.tonal(
                   onPressed: () => _push(context, const NotificationsScreen()),
-                  child: const Text('Open inbox'))),
+                  child: const Text('Open notifications'))),
           if (list.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),

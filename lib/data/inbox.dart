@@ -21,7 +21,7 @@ class InboxSource {
         email => 'Email',
         voice => 'Voice',
         forwarded => 'Forwarded',
-        _ => 'Quick Capture',
+        _ => 'Quick add',
       };
 }
 
