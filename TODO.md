@@ -66,7 +66,12 @@ quick capture.
   flexible; suggestions: kam priority wale kal, overdue aaj, har flexible task ko time (focus
   block); Before/After timeline; Apply plan. Meetings (time wale tasks) kabhi nahi hilte. Team
   task sirf tab hilta hai jab mujhe edit ki ijazat ho. Client Portal skip (Phase 2).
-- [ ] Workload
+- [x] **Team Workload** (screen 15): week / next week / month, team filter, capacity per person
+  (owner sets "hours per week", team field `week_hours`, default 40), capacity overview bars,
+  chart (Workload / Tasks / Capacity), overloaded people + "Reassign" suggestion, unassigned tasks.
+- [x] **Side menu** dark navy, design order: Dashboard, My Tasks, Inbox, Daily Planner, Calendar,
+  Teams, Team Workload, Approvals, Notifications, (My Teams), Settings (neeche).
+  Automation / Clients = Phase 2; Reports / Templates menu mein jab banenge tab aayenge.
 - [ ] Timesheet + time entry edit
 - [ ] PDF report
 

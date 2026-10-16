@@ -49,6 +49,9 @@ class Team {
   final DateTime createdAt;
   DateTime updatedAt;
 
+  /// Work hours per person per week (Team Workload capacity).
+  int weekHours;
+
   Team({
     required this.id,
     required this.name,
@@ -59,6 +62,7 @@ class Team {
     required this.members,
     required this.createdAt,
     required this.updatedAt,
+    this.weekHours = 40,
   });
 
   TeamRole? roleOf(String uid) {
@@ -103,6 +107,7 @@ class Team {
         'members': {for (final e in members.entries) e.key: e.value.toMap()},
         'created_at': _ms(createdAt),
         'updated_at': _ms(updatedAt),
+        'week_hours': weekHours,
       };
 
   factory Team.fromMap(Map<String, dynamic> m) {
@@ -121,6 +126,9 @@ class Team {
       },
       createdAt: _dt(m['created_at']),
       updatedAt: _dt(m['updated_at'] ?? m['created_at']),
+      weekHours: m['week_hours'] is int && (m['week_hours'] as int) > 0
+          ? m['week_hours'] as int
+          : 40,
     );
   }
 }

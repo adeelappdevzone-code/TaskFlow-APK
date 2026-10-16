@@ -206,6 +206,9 @@ await t('leave: owner cannot leave', assertFails(updateDoc(doc(owner, `teams/${T
 await t('leave: adeel (manager) leaves', assertSucceeds(updateDoc(doc(adeel, `teams/${T}`), { member_ids: arrayRemove('adl'), manager_ids: arrayRemove('adl'), 'members.adl': deleteField(), updated_at: now })));
 await t('leave: adeel no longer reads team', assertFails(getDoc(doc(adeel, `teams/${T}`))));
 await t('invite: invitee can decline (delete)', assertSucceeds(deleteDoc(doc(ctx('nw', 'new@x.com'), `invites/${T}_new@x.com`))));
+await t('workload: owner sets hours per week', assertSucceeds(updateDoc(doc(owner, `teams/${T}`), { week_hours: 35, updated_at: now })));
+await t('workload: bad hours denied', assertFails(updateDoc(doc(owner, `teams/${T}`), { week_hours: 500 })));
+await t('workload: member cannot set hours', assertFails(updateDoc(doc(sara, `teams/${T}`), { week_hours: 10 })));
 await t('team: owner renames', assertSucceeds(updateDoc(doc(owner, `teams/${T}`), { name: 'SEO Team', updated_at: now })));
 await t('team: owner deletes task', assertSucceeds(deleteDoc(doc(owner, `teams/${T}/tasks/a1`))));
 await t('team: owner deletes team', assertSucceeds(deleteDoc(doc(owner, `teams/${T}`))));

@@ -183,7 +183,9 @@ service cloud.firestore {
           && !(d.owner_id in d.manager_ids)
           && d.members is map
           && d.members.keys().toSet() == d.member_ids.toSet()
-          && num(d, 'created_at') && optNum(d, 'updated_at');
+          && num(d, 'created_at') && optNum(d, 'updated_at')
+          && (!('week_hours' in d) || (d.week_hours is int && d.week_hours > 0
+              && d.week_hours <= 100));
     }
     function validMemberInfo(info) {
       return info is map && info.keys().hasOnly(['name', 'email'])

@@ -204,6 +204,12 @@ class _TeamsPageState extends State<_TeamsPage> {
               Expanded(child: SizedBox(height: 46, child: _searchField())),
               const SizedBox(width: 8),
               _sortButton(compact: true),
+              IconButton(
+                tooltip: 'Team Workload',
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const WorkloadScreen(page: true))),
+                icon: const Icon(Icons.stacked_bar_chart_rounded),
+              ),
             ],
           );
 

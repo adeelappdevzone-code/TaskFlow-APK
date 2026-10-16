@@ -462,6 +462,13 @@ class TeamStore extends ChangeNotifier {
     return t;
   }
 
+  /// Owner: work hours per person per week (Team Workload).
+  void setWeekHours(Team team, int hours) {
+    team.weekHours = hours;
+    notifyListeners();
+    _write(_teamDoc(team.id).update({'week_hours': hours, 'updated_at': nowMs()}));
+  }
+
   void renameTeam(Team team, String name, int color) {
     team
       ..name = name.trim()

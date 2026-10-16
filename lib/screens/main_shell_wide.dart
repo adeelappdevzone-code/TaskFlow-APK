@@ -12,17 +12,31 @@ class _NavEntry {
   const _NavEntry(this.icon, this.activeIcon, this.label, this.tab);
 }
 
+// Same order as the design: work first, then team pages; Settings at the
+// bottom.
 const _navEntries = [
-  _NavEntry(Icons.home_outlined, Icons.home_rounded, 'Home', 0),
+  _NavEntry(Icons.dashboard_outlined, Icons.dashboard_rounded, 'Dashboard', 0),
   _NavEntry(Icons.check_box_outlined, Icons.check_box_rounded, 'My Tasks', 1),
+  _NavEntry(Icons.inbox_outlined, Icons.inbox_rounded, 'Inbox', 5),
+  _NavEntry(Icons.event_note_outlined, Icons.event_note_rounded, 'Daily Planner', 8),
   _NavEntry(Icons.calendar_today_outlined, Icons.calendar_today_rounded, 'Calendar', 2),
   _NavEntry(Icons.groups_outlined, Icons.groups_rounded, 'Teams', 4),
-  _NavEntry(Icons.inbox_outlined, Icons.inbox_rounded, 'Inbox', 5),
-  _NavEntry(Icons.event_note_outlined, Icons.event_note_rounded, 'Planner', 8),
+  _NavEntry(Icons.stacked_bar_chart_rounded, Icons.stacked_bar_chart_rounded, 'Team Workload', 9),
   _NavEntry(Icons.fact_check_outlined, Icons.fact_check_rounded, 'Approvals', 7),
   _NavEntry(Icons.notifications_none_rounded, Icons.notifications_rounded, 'Notifications', 6),
-  _NavEntry(Icons.person_outline_rounded, Icons.person_rounded, 'Profile', 3),
 ];
+
+const _settingsEntry = _NavEntry(Icons.settings_outlined, Icons.settings_rounded, 'Settings', 3);
+
+/// Side menu colors (dark navy).
+class _Side {
+  static const bg = Color(0xFF0E1A36);
+  static const bg2 = Color(0xFF13254B);
+  static const text = Color(0xFFC7D2E5);
+  static const muted = Color(0xFF7D8BA6);
+  static const active = Color(0xFF1F3A70);
+  static const divider = Color(0xFF22345C);
+}
 
 extension on _MainShellState {
   Widget _buildWide(BuildContext context) {
@@ -52,7 +66,6 @@ extension on _MainShellState {
               },
             ),
           ),
-          const VerticalDivider(width: 1, color: AppColors.border),
           Expanded(
             child: Column(
               children: [
@@ -86,6 +99,7 @@ extension on _MainShellState {
                         const NotificationsScreen(page: false),
                         const ApprovalsScreen(),
                         const PlannerScreen(),
+                        const WorkloadScreen(),
                       ],
                     ),
                   ),
@@ -125,7 +139,13 @@ class _SideMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: compact ? 84 : 248,
-      color: Colors.white,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [_Side.bg2, _Side.bg],
+        ),
+      ),
       padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 18, vertical: 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -149,7 +169,8 @@ class _SideMenu extends StatelessWidget {
                   child: Text('TaskFlow',
                       maxLines: 1,
                       overflow: TextOverflow.clip,
-                      style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+                      style: TextStyle(
+                          fontSize: 21, fontWeight: FontWeight.w800, color: Colors.white)),
                 ),
               ],
             ],
@@ -205,12 +226,16 @@ class _SideMenu extends StatelessWidget {
                         onTap: () => onSelect(e.tab),
                       ),
                     if (teams.isNotEmpty) ...[
-                      const Divider(height: 28, color: AppColors.border),
+                      const Divider(height: 28, color: _Side.divider),
                       if (!compact)
                         const Padding(
                           padding: EdgeInsets.fromLTRB(16, 0, 0, 8),
-                          child: Text('My Teams',
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+                          child: Text('MY TEAMS',
+                              style: TextStyle(
+                                  color: _Side.muted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.8)),
                         ),
                       for (final t in teams)
                         _SideItem(
@@ -226,6 +251,14 @@ class _SideMenu extends StatelessWidget {
                 );
               },
             ),
+          ),
+          const Divider(height: 20, color: _Side.divider),
+          _SideItem(
+            entry: _settingsEntry,
+            compact: compact,
+            active: current == 3,
+            badge: 0,
+            onTap: () => onSelect(3),
           ),
         ],
       ),
@@ -257,18 +290,18 @@ class _SideItem extends StatelessWidget {
       isLabelVisible: badge > 0,
       label: Text('$badge'),
       child: Icon(active ? entry.activeIcon : entry.icon,
-          color: active ? AppColors.primary : (iconColor ?? AppColors.text), size: 23),
+          color: active ? Colors.white : (iconColor ?? _Side.text), size: 22),
     );
     final item = Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Material(
-        color: active ? AppColors.primaryLight : Colors.transparent,
+        color: active ? _Side.active : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 16, vertical: 12),
+            padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 14, vertical: 10),
             child: compact
                 ? Center(child: icon)
                 : Row(
@@ -280,9 +313,9 @@ class _SideItem extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 15.5,
+                              fontSize: 15,
                               fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                              color: active ? AppColors.primary : AppColors.text,
+                              color: active ? Colors.white : _Side.text,
                             )),
                       ),
                     ],
