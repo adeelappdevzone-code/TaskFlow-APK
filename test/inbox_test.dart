@@ -306,7 +306,7 @@ void main() {
         MaterialApp(theme: buildAppTheme(), home: const TaskPage(taskId: 'r1', teamId: 'T')));
     await tester.pumpAndSettle();
     expect(find.text('Awaiting approval'), findsOneWidget);
-    expect(find.text('Approve'), findsOneWidget);
+    expect(find.text('Review'), findsOneWidget);
     expect(find.text('Request changes'), findsOneWidget);
 
     // Ali (plain member) on his own task in To Do.

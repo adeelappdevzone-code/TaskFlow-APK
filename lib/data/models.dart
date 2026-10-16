@@ -336,6 +336,9 @@ class HistoryKind {
   static const restored = 'restored';
   static const approved = 'approved';
   static const changes = 'changes';
+
+  /// Sent for approval (moved to Review & Feedback, maybe with a note).
+  static const submitted = 'submitted';
 }
 
 /// One line in a task's history: who did what and when. [to] is the new
@@ -346,13 +349,17 @@ class TaskEvent {
   final DateTime at;
   final String? to;
 
-  const TaskEvent({required this.kind, required this.by, required this.at, this.to});
+  /// Approvals: the cover message or the feedback.
+  final String? note;
+
+  const TaskEvent({required this.kind, required this.by, required this.at, this.to, this.note});
 
   Map<String, dynamic> toMap() => {
         'kind': kind,
         'by': by,
         'at': at.millisecondsSinceEpoch,
         if (to != null) 'to': to,
+        if (note != null && note!.isNotEmpty) 'note': note,
       };
 
   static TaskEvent? tryFrom(dynamic m) {
@@ -362,6 +369,7 @@ class TaskEvent {
       by: m['by'] as String?,
       at: DateTime.fromMillisecondsSinceEpoch(m['at'] as int),
       to: m['to'] as String?,
+      note: m['note'] is String ? m['note'] as String : null,
     );
   }
 }
@@ -527,8 +535,16 @@ class TaskItem {
 
   /// Adds a history line. Several edits by the same person within 30 minutes
   /// count as one; the list is kept to [kMaxHistory] lines.
-  TaskEvent addHistory(String kind, String? by, {String? to, DateTime? at}) {
-    final e = TaskEvent(kind: kind, by: by, at: at ?? DateTime.now(), to: to);
+  TaskEvent addHistory(String kind, String? by, {String? to, DateTime? at, String? note}) {
+    final clean = note?.trim();
+    final e = TaskEvent(
+        kind: kind,
+        by: by,
+        at: at ?? DateTime.now(),
+        to: to,
+        note: clean == null || clean.isEmpty
+            ? null
+            : (clean.length > 1500 ? clean.substring(0, 1500) : clean));
     final last = history.isEmpty ? null : history.last;
     if (kind == HistoryKind.edited &&
         last != null &&

@@ -254,14 +254,15 @@ service cloud.firestore {
           return !('assignee_id' in d) || d.assignee_id == null || d.assignee_id in tm.member_ids;
         }
         // A member may only move their own task on the board (stage), mark it
-        // done / not done, tick its checklist and use the work timer (the
-        // history and time log are added to along the way).
+        // done / not done, tick its checklist, use the work timer and attach
+        // links to the work (the history and time log are added to along the
+        // way).
         function assigneeUpdate(tm) {
           return request.auth.uid in tm.member_ids
               && resource.data.assignee_id == request.auth.uid
               && request.resource.data.diff(resource.data).affectedKeys()
                   .hasOnly(['status', 'completed_at', 'completed_by', 'checklist', 'stage',
-                      'history', 'time_log', 'timer_by', 'timer_at', 'updated_at'])
+                      'history', 'time_log', 'timer_by', 'timer_at', 'links', 'updated_at'])
               && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['timer_by'])
                   || request.resource.data.timer_by == null
                   || request.resource.data.timer_by == request.auth.uid)

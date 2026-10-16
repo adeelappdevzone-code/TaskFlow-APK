@@ -12,6 +12,7 @@ import '../widgets/approval.dart';
 import '../widgets/common.dart';
 import '../widgets/dashboard.dart';
 import '../widgets/task_extras.dart';
+import 'approvals_screen.dart';
 import 'main_shell.dart';
 import 'task_open.dart';
 import 'task_ui.dart';
@@ -291,6 +292,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ]),
           ),
         const SizedBox(height: 16),
+        if (_tab == _Tab.approvals) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              onPressed: () => widget.page || !wide
+                  ? Navigator.push(
+                      context, MaterialPageRoute(builder: (_) => const ApprovalsScreen(page: true)))
+                  : MainShell.switchTab(context, 7),
+              icon: const Icon(Icons.fact_check_outlined, size: 18),
+              label: const Text('Open Approval Center'),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         if (approvals.isNotEmpty) ...[
           _ApprovalQueue(items: approvals),
           const SizedBox(height: 16),
@@ -701,7 +716,7 @@ class _ApprovalQueue extends StatelessWidget {
                     ),
                     Wrap(spacing: 4, runSpacing: 4, children: [
                       TextButton(
-                        onPressed: () => requestChangesDialog(context, team, t),
+                        onPressed: () => openRequestChanges(context, team, t),
                         child: const Text('Request changes'),
                       ),
                       _ApproveButton(onPressed: () => approveTask(context, team, t)),

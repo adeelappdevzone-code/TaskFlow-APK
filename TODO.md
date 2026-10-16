@@ -54,6 +54,11 @@ quick capture.
 - [x] **Internal approvals (V1)**: Review column = "awaiting approval". Manager: Approve (done +
   history "approved") / Request changes (wapis In Progress + comment). Member: "Send for approval".
   Notifications dono taraf. Task page par ApprovalBar.
+- [x] **Approval Center** (screen 13, side menu "Approvals"): pending / changes / approved list,
+  stats, summary donut, recent activity. Review page (deliverable links, message, version,
+  Approve work / Request changes), feedback page with numbered changes, approval history per
+  task + "Copy report". Member: "Send for approval" with message + links (rules: assignee may
+  now change `links`). Client login / Client Portal / file upload skipped (Phase 2, no Storage).
 - [ ] Saved views, team templates, recurrence improvements
 - [ ] Estimates + Daily Planner / Rescue, Workload
 - [ ] Timesheet + time entry edit

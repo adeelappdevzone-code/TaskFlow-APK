@@ -129,6 +129,9 @@ await t('comment: cannot delete others', assertFails(deleteDoc(doc(sara, `teams/
 await t('comment: author deletes own', assertSucceeds(deleteDoc(doc(sara, `teams/${T}/comments/c2`))));
 await t('comment: owner deletes any', assertSucceeds(deleteDoc(doc(owner, `teams/${T}/comments/c1`))));
 await t('board: adeel moves own task to review', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { stage: 'review', updated_at: now })));
+await t('approval: assignee sends with note and links', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { stage: 'review', links: [{ title: 'Figma', url: 'https://figma.com/x' }], history: arrayUnion({ kind: 'submitted', by: 'adl', at: now, to: 'review', note: 'Ready' }), updated_at: now })));
+await t('approval: cannot attach links to others task', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { links: [] })));
+await t('approval: too many links denied', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { links: Array(21).fill({ title: '', url: 'https://a.com' }) })));
 await t('board: bad stage denied', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { stage: 'weird' })));
 await t('board: cannot move others task', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { stage: 'doing' })));
 // links, history, work timer, @mentions
@@ -145,7 +148,7 @@ await t('timer: cannot time others task', assertFails(updateDoc(doc(adeel, `team
 await t('timer: owner starts timer on adeels task', assertSucceeds(updateDoc(doc(owner, `teams/${T}/tasks/a1`), { timer_by: 'own', timer_at: now, updated_at: now })));
 await t('timer: adeel ticks checklist while owner timer runs', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { checklist: [], updated_at: now })));
 await t('timer: adeel finishing stops the timer', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_by: 'adl', completed_at: now, timer_by: null, timer_at: null, time_log: arrayUnion({ by: 'own', start: now - 60000, end: now }), history: arrayUnion(ev('done', 'adl')), updated_at: now })));
-await t('links: member cannot change links', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { links: [] })));
+await t('links: assignee can attach links to own task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { links: [] })));
 await t('links: owner adds links', assertSucceeds(updateDoc(doc(owner, `teams/${T}/tasks/a1`), { links: [{ title: '', url: 'https://drive.google.com/x' }], updated_at: now })));
 await t('mention: comment with mentions', assertSucceeds(setDoc(doc(sara, `teams/${T}/comments/m1`), comment('m1', 'sar', 'a1', { text: '@adl see this', mentions: ['adl'] }))));
 await t('mention: mentions must be a list', assertFails(setDoc(doc(sara, `teams/${T}/comments/m2`), comment('m2', 'sar', 'a1', { mentions: 'adl' }))));

@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart' show ChangeNotifier, debugPrint, visibl
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_store.dart';
+import 'approvals.dart';
 import 'models.dart';
 import 'reminders.dart';
 import 'team_models.dart';
@@ -261,8 +262,7 @@ class TeamStore extends ChangeNotifier {
         final eAt = e.at.millisecondsSinceEpoch;
         if (eAt <= _seenUntil || e.by == me) continue;
         final who = team.nameOf(e.by);
-        if (e.kind == HistoryKind.stage &&
-            e.to == TaskStage.review &&
+        if (isSubmission(e) &&
             team.isAdmin(me) &&
             t.status == TaskStatus.pending &&
             t.stage == TaskStage.review) {
@@ -668,7 +668,7 @@ class TeamStore extends ChangeNotifier {
   /// Assignee or owner/manager. Only status fields are written, which is all
   /// a member is allowed to change. Finishing a repeating task also creates
   /// its next copy (in the same write).
-  void setCompleted(Team team, TaskItem task, bool done, {String? eventKind}) {
+  void setCompleted(Team team, TaskItem task, bool done, {String? eventKind, String? note}) {
     final me = _uid;
     if (me == null) return;
     final now = DateTime.now();
@@ -677,8 +677,8 @@ class TeamStore extends ChangeNotifier {
       ..completedAt = done ? now : null
       ..completedBy = done ? me : null
       ..updatedAt = now;
-    final event =
-        task.addHistory(eventKind ?? (done ? HistoryKind.done : HistoryKind.reopened), me, at: now);
+    final event = task.addHistory(eventKind ?? (done ? HistoryKind.done : HistoryKind.reopened), me,
+        at: now, note: note);
     final batch = _fs.batch();
     batch.update(_tasksCol(team.id).doc(task.id), {
       'status': task.status,
@@ -704,13 +704,15 @@ class TeamStore extends ChangeNotifier {
   }
 
   /// Moves a task to a board column: a [TaskStage] or "done".
-  void moveTo(Team team, TaskItem task, String column, {String? eventKind}) {
+  void moveTo(Team team, TaskItem task, String column,
+      {String? eventKind, String? note, List<TaskLink>? links}) {
     if (column == boardDone) {
       if (!task.isCompleted) setCompleted(team, task, true);
       return;
     }
     final reopen = task.isCompleted;
-    if (task.stage == column && !reopen) return;
+    if (task.stage == column && !reopen && eventKind == null) return;
+    if (links != null) task.links = links;
     task
       ..stage = column
       ..updatedAt = DateTime.now();
@@ -720,10 +722,11 @@ class TeamStore extends ChangeNotifier {
         ..completedAt = null
         ..completedBy = null;
     }
-    final event = task.addHistory(eventKind ?? HistoryKind.stage, _uid, to: column);
+    final event = task.addHistory(eventKind ?? HistoryKind.stage, _uid, to: column, note: note);
     notifyListeners();
     _write(_tasksCol(team.id).doc(task.id).update({
       'stage': column,
+      if (links != null) 'links': links.map((l) => l.toMap()).toList(),
       if (reopen) 'status': TaskStatus.pending,
       if (reopen) 'completed_at': null,
       if (reopen) 'completed_by': null,
@@ -742,13 +745,20 @@ class TeamStore extends ChangeNotifier {
               if (t.status == TaskStatus.pending && t.stage == TaskStage.review) (team, t),
       ];
 
-  /// Owner/manager: the task is done and approved.
-  void approve(Team team, TaskItem task) =>
-      setCompleted(team, task, true, eventKind: HistoryKind.approved);
+  /// Assignee (or manager): send for review, with a cover message and the
+  /// links to the work.
+  void submitForApproval(Team team, TaskItem task, {String note = '', List<TaskLink>? links}) =>
+      moveTo(team, task, TaskStage.review,
+          eventKind: HistoryKind.submitted, note: note, links: links);
 
-  /// Owner/manager: back to In Progress, with [note] as a comment.
+  /// Owner/manager: the task is done and approved.
+  void approve(Team team, TaskItem task, {String note = ''}) =>
+      setCompleted(team, task, true, eventKind: HistoryKind.approved, note: note);
+
+  /// Owner/manager: back to In Progress, with [note] as the feedback (also
+  /// posted as a comment).
   void requestChanges(Team team, TaskItem task, String note) {
-    moveTo(team, task, TaskStage.doing, eventKind: HistoryKind.changes);
+    moveTo(team, task, TaskStage.doing, eventKind: HistoryKind.changes, note: note);
     if (note.trim().isNotEmpty) addComment(team, task, note);
   }
 

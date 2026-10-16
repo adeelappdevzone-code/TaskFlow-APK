@@ -5,39 +5,12 @@ import '../data/models.dart';
 import '../data/task_repository.dart';
 import '../data/team_models.dart';
 import '../data/team_store.dart';
+import '../data/approvals.dart';
+import '../screens/approvals_screen.dart';
 import 'common.dart';
 
 /// Waiting in Review & Feedback, not finished.
 bool awaitingApproval(TaskItem t) => t.status == TaskStatus.pending && t.stage == TaskStage.review;
-
-/// Owner/manager: send the task back to In Progress with a note.
-Future<void> requestChangesDialog(BuildContext context, Team team, TaskItem task) async {
-  final note = TextEditingController();
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Request changes'),
-      content: SizedBox(
-        width: 440,
-        child: TextField(
-          controller: note,
-          autofocus: true,
-          minLines: 3,
-          maxLines: 6,
-          decoration:
-              const InputDecoration(hintText: 'What should be changed? (added as a comment)'),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Send back')),
-      ],
-    ),
-  );
-  if (ok != true) return;
-  TeamStore.instance.requestChanges(team, task, note.text);
-  if (context.mounted) showSnack(context, 'Sent back to ${team.nameOf(task.assigneeId)}');
-}
 
 void approveTask(BuildContext context, Team team, TaskItem task) {
   TeamStore.instance.approve(team, task);
@@ -54,55 +27,82 @@ class ApprovalBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final team = ref.team;
     final t = ref.task;
-    if (team == null || t.status != TaskStatus.pending) return const SizedBox.shrink();
+    if (team == null || t.isCancelled) return const SizedBox.shrink();
     final store = TeamStore.instance;
     final admin = store.isAdmin(team);
     final mine = t.assigneeId != null && t.assigneeId == store.uid;
+    final state = approvalStateOf(t);
+    final history = TextButton(
+      onPressed: () => openApprovalHistory(context, team, t),
+      child: const Text('History'),
+    );
 
-    if (awaitingApproval(t)) {
-      return _box(
-        color: AppColors.warning,
-        bg: AppColors.warningLight,
-        icon: Icons.hourglass_top_rounded,
-        title: 'Awaiting approval',
-        text: admin
-            ? '${t.assigneeId == null ? 'This task' : team.nameOf(t.assigneeId)} sent it for review.'
-            : 'A manager will approve it or ask for changes.',
-        actions: admin
-            ? [
-                OutlinedButton(
-                  onPressed: () => requestChangesDialog(context, team, t),
-                  child: const Text('Request changes'),
-                ),
-                FilledButton.icon(
-                  onPressed: () => approveTask(context, team, t),
-                  style: FilledButton.styleFrom(backgroundColor: AppColors.success),
-                  icon: const Icon(Icons.check_rounded, size: 18),
-                  label: const Text('Approve'),
-                ),
-              ]
-            : const [],
-      );
+    switch (state) {
+      case ApprovalState.pending:
+        return _box(
+          color: AppColors.warning,
+          bg: AppColors.warningLight,
+          icon: Icons.hourglass_top_rounded,
+          title: 'Awaiting approval',
+          text: admin
+              ? '${t.assigneeId == null ? 'This task' : team.nameOf(t.assigneeId)} sent it for review.'
+              : 'A manager will approve it or ask for changes.',
+          actions: [
+            history,
+            if (admin) ...[
+              OutlinedButton(
+                onPressed: () => openRequestChanges(context, team, t),
+                child: const Text('Request changes'),
+              ),
+              FilledButton(
+                onPressed: () => openReview(context, team, t),
+                child: const Text('Review'),
+              ),
+            ],
+          ],
+        );
+      case ApprovalState.approved:
+        return _box(
+          color: AppColors.success,
+          bg: AppColors.successLight,
+          icon: Icons.verified_rounded,
+          title: 'Approved',
+          text: 'This work was reviewed and approved.',
+          actions: [history],
+        );
+      case ApprovalState.changes:
+        if (!mine && !admin) return const SizedBox.shrink();
+        return _box(
+          color: AppColors.danger,
+          bg: AppColors.dangerLight,
+          icon: Icons.replay_rounded,
+          title: 'Changes requested',
+          text: mine ? 'Make the changes, then send a new version.' : 'Waiting for a new version.',
+          actions: [
+            history,
+            if (mine)
+              FilledButton(
+                onPressed: () => sendForApprovalDialog(context, team, t),
+                child: const Text('Send new version'),
+              ),
+          ],
+        );
+      case null:
+        if (!mine || admin || t.status != TaskStatus.pending) return const SizedBox.shrink();
+        return _box(
+          color: AppColors.primary,
+          bg: AppColors.primaryLight,
+          icon: Icons.verified_outlined,
+          title: 'Finished your part?',
+          text: 'Send it to your manager for review and approval.',
+          actions: [
+            FilledButton(
+              onPressed: () => sendForApprovalDialog(context, team, t),
+              child: const Text('Send for approval'),
+            ),
+          ],
+        );
     }
-    if (mine && !admin) {
-      return _box(
-        color: AppColors.primary,
-        bg: AppColors.primaryLight,
-        icon: Icons.verified_outlined,
-        title: 'Finished your part?',
-        text: 'Send it to your manager for review and approval.',
-        actions: [
-          FilledButton(
-            onPressed: () {
-              store.moveTo(team, t, TaskStage.review);
-              showSnack(context, 'Sent for approval');
-            },
-            child: const Text('Send for approval'),
-          ),
-        ],
-      );
-    }
-    return const SizedBox.shrink();
   }
 
   Widget _box({

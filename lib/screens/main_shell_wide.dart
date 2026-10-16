@@ -18,6 +18,7 @@ const _navEntries = [
   _NavEntry(Icons.calendar_today_outlined, Icons.calendar_today_rounded, 'Calendar', 2),
   _NavEntry(Icons.groups_outlined, Icons.groups_rounded, 'Teams', 4),
   _NavEntry(Icons.inbox_outlined, Icons.inbox_rounded, 'Inbox', 5),
+  _NavEntry(Icons.fact_check_outlined, Icons.fact_check_rounded, 'Approvals', 7),
   _NavEntry(Icons.notifications_none_rounded, Icons.notifications_rounded, 'Notifications', 6),
   _NavEntry(Icons.person_outline_rounded, Icons.person_rounded, 'Profile', 3),
 ];
@@ -39,6 +40,7 @@ extension on _MainShellState {
               invites: TeamStore.instance.invites.length,
               inbox: InboxStore.instance.count,
               unread: AppStore.instance.unreadCount,
+              approvals: TeamStore.instance.awaitingMyApproval.length,
               onNewTask: _addTask,
               onSelect: (tab) {
                 // Teams again while inside a team: back to the team list.
@@ -81,6 +83,7 @@ extension on _MainShellState {
                         ),
                         const InboxScreen(),
                         const NotificationsScreen(page: false),
+                        const ApprovalsScreen(),
                       ],
                     ),
                   ),
@@ -100,6 +103,7 @@ class _SideMenu extends StatelessWidget {
   final int invites;
   final int inbox;
   final int unread;
+  final int approvals;
   final VoidCallback onNewTask;
   final ValueChanged<int> onSelect;
   final ValueChanged<Team> onOpenTeam;
@@ -110,6 +114,7 @@ class _SideMenu extends StatelessWidget {
     required this.invites,
     required this.inbox,
     required this.unread,
+    required this.approvals,
     required this.onNewTask,
     required this.onSelect,
   });
@@ -188,7 +193,13 @@ class _SideMenu extends StatelessWidget {
                         entry: e,
                         compact: compact,
                         active: current == e.tab && !(e.tab == 4 && inTeam),
-                        badge: switch (e.tab) { 4 => invites, 5 => inbox, 6 => unread, _ => 0 },
+                        badge: switch (e.tab) {
+                          4 => invites,
+                          5 => inbox,
+                          6 => unread,
+                          7 => approvals,
+                          _ => 0
+                        },
                         onTap: () => onSelect(e.tab),
                       ),
                     if (teams.isNotEmpty) ...[
