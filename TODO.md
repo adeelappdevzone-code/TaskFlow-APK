@@ -60,7 +60,13 @@ quick capture.
   task + "Copy report". Member: "Send for approval" with message + links (rules: assignee may
   now change `links`). Client login / Client Portal / file upload skipped (Phase 2, no Storage).
 - [ ] Saved views, team templates, recurrence improvements
-- [ ] Estimates + Daily Planner / Rescue, Workload
+- [x] **Estimates** (task form "Estimate", `estimate_min`; planner mein "Set time") +
+  **Daily Planner / Rescue** (screen 14, side menu "Planner"; phone: Home ka planner icon):
+  work hours (Work hours button, `work_start`/`work_end`), available vs planned, overdue,
+  flexible; suggestions: kam priority wale kal, overdue aaj, har flexible task ko time (focus
+  block); Before/After timeline; Apply plan. Meetings (time wale tasks) kabhi nahi hilte. Team
+  task sirf tab hilta hai jab mujhe edit ki ijazat ho. Client Portal skip (Phase 2).
+- [ ] Workload
 - [ ] Timesheet + time entry edit
 - [ ] PDF report
 

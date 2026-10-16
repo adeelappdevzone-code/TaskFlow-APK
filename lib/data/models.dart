@@ -457,6 +457,9 @@ class TaskItem {
   String? timerBy;
   DateTime? timerAt;
 
+  /// How long the work should take, in minutes (null: not estimated).
+  int? estimateMinutes;
+
   TaskItem({
     required this.id,
     required this.title,
@@ -485,6 +488,7 @@ class TaskItem {
     List<TimeEntry>? timeLog,
     this.timerBy,
     this.timerAt,
+    this.estimateMinutes,
   })  : checklist = checklist ?? [],
         links = links ?? [],
         history = history ?? [],
@@ -617,6 +621,7 @@ class TaskItem {
         'time_log': timeLog.map((e) => e.toMap()).toList(),
         'timer_by': timerBy,
         'timer_at': _ms(timerAt),
+        'estimate_min': estimateMinutes,
         'is_synced': 0,
       };
 
@@ -647,6 +652,9 @@ class TaskItem {
         timeLog: _listOf(m['time_log'], TimeEntry.tryFrom),
         timerBy: m['timer_by'] as String?,
         timerAt: _dt(m['timer_at']),
+        estimateMinutes: m['estimate_min'] is int && (m['estimate_min'] as int) > 0
+            ? m['estimate_min'] as int
+            : null,
       );
 
   /// The next copy of a repeating task: same details, new date, unchecked
@@ -672,6 +680,7 @@ class TaskItem {
       repeat: repeat,
       repeatFrom: this.id,
       links: [...links],
+      estimateMinutes: estimateMinutes,
       history: [TaskEvent(kind: HistoryKind.created, by: createdBy, at: now)],
       checklist: [
         for (final c in checklist)

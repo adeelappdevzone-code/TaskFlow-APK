@@ -46,6 +46,16 @@ String initials(String name) {
 }
 
 /// "2h 05m", "25m", "0m" (rounded down to minutes).
+/// Estimate choices in minutes (0 = none).
+const kEstimateChoices = [0, 15, 30, 45, 60, 90, 120, 180, 240, 360, 480];
+
+/// "45m", "1h", "1h 30m".
+String formatMinutes(int m) {
+  final h = m ~/ 60, r = m % 60;
+  if (h == 0) return '${r}m';
+  return r == 0 ? '${h}h' : '${h}h ${r}m';
+}
+
 String formatDuration(Duration d) {
   final m = d.inMinutes;
   if (m < 60) return '${m}m';

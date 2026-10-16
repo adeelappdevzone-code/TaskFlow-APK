@@ -72,6 +72,10 @@ class AppStore extends ChangeNotifier {
   bool notifApprovals = true;
   bool notifComments = true;
 
+  /// Work day for the planner, minutes after midnight.
+  int workStart = 9 * 60;
+  int workEnd = 17 * 60 + 30;
+
   Timer? _reminderTimer;
   Timer? _phoneReminderSync;
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -178,6 +182,8 @@ class AppStore extends ChangeNotifier {
     notifAssign = true;
     notifApprovals = true;
     notifComments = true;
+    workStart = 9 * 60;
+    workEnd = 17 * 60 + 30;
     lastBackupAt = null;
   }
 
@@ -201,6 +207,8 @@ class AppStore extends ChangeNotifier {
       notifAssign = (d['notif_assign'] as bool?) ?? true;
       notifApprovals = (d['notif_approvals'] as bool?) ?? true;
       notifComments = (d['notif_comments'] as bool?) ?? true;
+      workStart = (d['work_start'] as int?) ?? 9 * 60;
+      workEnd = (d['work_end'] as int?) ?? 17 * 60 + 30;
       final backup = d['last_backup_at'];
       lastBackupAt = backup is int ? DateTime.fromMillisecondsSinceEpoch(backup) : null;
       schedulePhoneReminders();
@@ -553,6 +561,12 @@ class AppStore extends ChangeNotifier {
         'comments' => notifComments,
         _ => true,
       };
+
+  void setWorkHours(int start, int end) {
+    workStart = start;
+    workEnd = end;
+    _savePrefs({'work_start': start, 'work_end': end});
+  }
 
   void setNotif(String which, bool on) {
     switch (which) {

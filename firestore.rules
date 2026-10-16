@@ -59,7 +59,9 @@ service cloud.firestore {
           && optList(d, 'links', 20)
           && optList(d, 'history', 150)
           && optList(d, 'time_log', 1000)
-          && optStr(d, 'timer_by', 100) && optNum(d, 'timer_at');
+          && optStr(d, 'timer_by', 100) && optNum(d, 'timer_at')
+          && (!('estimate_min' in d) || d.estimate_min == null
+              || (d.estimate_min is int && d.estimate_min > 0 && d.estimate_min <= 1440));
     }
     function optList(d, f, maxLen) {
       return !(f in d) || d[f] == null || (d[f] is list && d[f].size() <= maxLen);
@@ -107,7 +109,8 @@ service cloud.firestore {
           && (!('notif_assign' in d) || d.notif_assign is bool)
           && (!('notif_approvals' in d) || d.notif_approvals is bool)
           && (!('notif_comments' in d) || d.notif_comments is bool)
-          && optNum(d, 'last_backup_at');
+          && optNum(d, 'last_backup_at')
+          && optNum(d, 'work_start') && optNum(d, 'work_end');
     }
 
     function valid(collection, d, docId) {

@@ -1,5 +1,6 @@
 import '../data/inbox.dart';
 import 'inbox_screen.dart';
+import 'planner_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -1079,6 +1080,12 @@ class _PhoneHome extends StatelessWidget {
                         style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
                   ],
                 ),
+              ),
+              IconButton(
+                tooltip: 'Planner',
+                onPressed: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const PlannerScreen(page: true))),
+                icon: const Icon(Icons.event_note_outlined, size: 26),
               ),
               ListenableBuilder(
                 listenable: InboxStore.instance,

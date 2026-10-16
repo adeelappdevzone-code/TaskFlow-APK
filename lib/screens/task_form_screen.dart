@@ -47,6 +47,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   List<TaskLink> _links = [];
   String? _originalAssigneeId;
   String _repeat = Repeat.none;
+  int? _estimate;
   bool _saving = false;
 
   bool get _isNew => widget.task == null;
@@ -74,6 +75,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       _assigneeId = t.assigneeId;
       _originalAssigneeId = t.assigneeId;
       _repeat = t.repeat;
+      _estimate = t.estimateMinutes;
       _links = [...t.links];
       _priority = t.priority;
       _date = dateOnly(t.startAt);
@@ -208,6 +210,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       ..startAt = startAt
       ..endAt = endAt
       ..repeat = _repeat
+      ..estimateMinutes = _estimate
       ..links = [..._links];
 
     final items = _checklist
@@ -374,6 +377,21 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
         const SizedBox(height: 18),
       ],
     );
+  }
+
+  Future<void> _pickEstimate() async {
+    final result = await _showOptions<String>(
+      title: 'How long will it take?',
+      options: [
+        for (final m in kEstimateChoices)
+          _Option('$m', m == 0 ? 'No estimate' : formatMinutes(m),
+              icon: m == 0 ? Icons.block_rounded : Icons.hourglass_bottom_rounded),
+      ],
+      selected: '${_estimate ?? 0}',
+    );
+    if (result == null) return;
+    final m = int.parse(result);
+    setState(() => _estimate = m == 0 ? null : m);
   }
 
   Future<void> _pickRepeat() async {
@@ -690,6 +708,16 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                   text: _repeat == Repeat.none ? 'Does not repeat' : Repeat.label(_repeat),
                   muted: _repeat == Repeat.none,
                   onTap: _pickRepeat,
+                ),
+                const SizedBox(height: 10),
+                _SelectField(
+                  icon: Icons.hourglass_bottom_rounded,
+                  iconColor: _estimate == null ? null : AppColors.primary,
+                  text: _estimate == null
+                      ? 'Estimate: how long will it take? (optional)'
+                      : 'Estimate: ${formatMinutes(_estimate!)}',
+                  muted: _estimate == null,
+                  onTap: _pickEstimate,
                 ),
                 if (team == null) ...[
                   const SizedBox(height: 18),

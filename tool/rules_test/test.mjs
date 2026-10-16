@@ -139,6 +139,10 @@ const ev = (kind, by, extra = {}) => ({ kind, by, at: now, ...extra });
 await t('extras: personal task with links/history/time', assertSucceeds(setDoc(d(me,'users/u1/tasks/t1'), { ...task,
   links: [{ title: 'Brief', url: 'https://docs.google.com/x' }], history: [ev('created', 'u1')],
   time_log: [{ by: 'u1', start: now - 3600000, end: now }], timer_by: 'u1', timer_at: now })));
+await t('estimate: personal task with estimate', assertSucceeds(setDoc(d(me,'users/u1/tasks/t1'), { ...task, estimate_min: 90 })));
+await t('estimate: zero denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, estimate_min: 0 })));
+await t('estimate: text denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, estimate_min: '1h' })));
+await t('profile: work hours', assertSucceeds(setDoc(d(me,'users/u1'), { work_start: 540, work_end: 1050 }, { merge: true })));
 await t('extras: too many links denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, links: Array(21).fill({ title: '', url: 'https://a.com' }) })));
 await t('extras: links must be a list', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, links: 'https://a.com' })));
 await t('timer: adeel starts timer on own task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { timer_by: 'adl', timer_at: now, stage: 'doing', history: arrayUnion(ev('stage', 'adl', { to: 'doing' })), updated_at: now })));
