@@ -164,6 +164,28 @@ await t('repeat: adeel finishes + next copy (batch)', assertSucceeds((() => {
 await t('template: save own template', assertSucceeds(setDoc(doc(me, 'users/u1/templates/tp1'), { id: 'tp1', name: 'SEO audit', title: 'SEO audit', description: '', priority: 1, checklist: ['Keywords', 'Meta'], duration_min: 60, created_at: now })));
 await t('template: other user denied', assertFails(getDoc(doc(other, 'users/u1/templates/tp1'))));
 await t('template: bad template denied', assertFails(setDoc(doc(me, 'users/u1/templates/tp2'), { id: 'tp2', name: 5, created_at: now })));
+// ------------------------------------------------------------------ inbox
+const inboxItem = (id, extra = {}) => ({ id, title: 'Call Ali', notes: '', source: 'quick', created_at: now,
+  due_at: null, all_day: false, priority: null, team_id: null, assignee_id: null, category_id: null, links: [],
+  organized_at: null, organized_to: null, task_id: null, task_team: null, ...extra });
+await t('inbox: own item', assertSucceeds(setDoc(doc(adeel, 'users/adl/inbox/i1'), inboxItem('i1'))));
+await t('inbox: organized merge', assertSucceeds(setDoc(doc(adeel, 'users/adl/inbox/i1'), inboxItem('i1', { organized_at: now, organized_to: 'My Tasks', task_id: 'x', team_id: T }))));
+await t('inbox: bad source denied', assertFails(setDoc(doc(adeel, 'users/adl/inbox/i2'), inboxItem('i2', { source: 'spam' }))));
+await t('inbox: empty title denied', assertFails(setDoc(doc(adeel, 'users/adl/inbox/i2'), inboxItem('i2', { title: '' }))));
+const fwd = (id, extra = {}) => inboxItem(id, { source: 'forwarded', from_id: 'adl', from_name: 'adl', team_id: T, ...extra });
+await t('inbox: teammate forwards', assertSucceeds(setDoc(doc(adeel, 'users/sar/inbox/f1'), fwd('f1'))));
+await t('inbox: forwarder cannot read it', assertFails(getDoc(doc(adeel, 'users/sar/inbox/f1'))));
+await t('inbox: forwarder cannot overwrite', assertFails(setDoc(doc(adeel, 'users/sar/inbox/f1'), fwd('f1', { title: 'x' }))));
+await t('inbox: forwarder cannot delete', assertFails(deleteDoc(doc(adeel, 'users/sar/inbox/f1'))));
+await t('inbox: forward as someone else denied', assertFails(setDoc(doc(adeel, 'users/sar/inbox/f2'), fwd('f2', { from_id: 'own' }))));
+await t('inbox: forward without shared team denied', assertFails(setDoc(doc(outsider, 'users/sar/inbox/f3'), fwd('f3', { from_id: 'out' }))));
+await t('inbox: forward to non-member denied', assertFails(setDoc(doc(adeel, 'users/out/inbox/f4'), fwd('f4'))));
+await t('inbox: non-forwarded source into other inbox denied', assertFails(setDoc(doc(adeel, 'users/sar/inbox/f5'), fwd('f5', { source: 'quick' }))));
+await t('inbox: owner reads forwarded', assertSucceeds(getDoc(doc(sara, 'users/sar/inbox/f1'))));
+await t('notif: new fields', assertSucceeds(setDoc(doc(sara, 'users/sar/notifications/n1'), { ...notif, kind: 'mention', team_id: T, actor_name: 'Adeel', snooze_until: now })));
+await t('profile: notification switches', assertSucceeds(setDoc(doc(sara, 'users/sar'), { notif_assign: false, notif_approvals: true, notif_comments: false }, { merge: true })));
+await t('profile: bad switch denied', assertFails(setDoc(doc(sara, 'users/sar'), { notif_assign: 'no' }, { merge: true })));
+
 await t('role: owner makes adeel manager', assertSucceeds(updateDoc(doc(owner, `teams/${T}`), { manager_ids: ['adl'], updated_at: now })));
 await t('role: manager creates task', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/m1`), ttask('m1', 'sar', 'adl'))));
 await t('role: manager edits any task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { title: 'Edited', updated_at: now })));

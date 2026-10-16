@@ -11,6 +11,7 @@ import '../data/task_repository.dart';
 import '../data/team_models.dart';
 import '../data/team_store.dart';
 import '../data/time_tracker.dart';
+import '../widgets/approval.dart';
 import '../widgets/common.dart';
 import '../widgets/dashboard.dart';
 import '../widgets/responsive.dart';
@@ -26,8 +27,10 @@ void openTaskDetail(BuildContext context, TaskItem task) =>
     _open(context, PanelTarget(task.id), () => TaskPage(taskId: task.id));
 
 /// Opens a team task the same way.
-void openTeamTask(BuildContext context, Team team, TaskItem task) => _open(context,
-    PanelTarget(task.id, teamId: team.id), () => TaskPage(taskId: task.id, teamId: team.id));
+void openTeamTask(BuildContext context, Team team, TaskItem task, {bool comments = false}) => _open(
+    context,
+    PanelTarget(task.id, teamId: team.id, comments: comments),
+    () => TaskPage(taskId: task.id, teamId: team.id, comments: comments));
 
 void _open(BuildContext context, PanelTarget target, Widget Function() page) {
   final host = DetailPanelHost.of(context);
@@ -50,14 +53,18 @@ class TaskPage extends StatefulWidget {
   /// Set when shown over a page on a laptop: "Back to tasks" closes it.
   final VoidCallback? onClose;
 
-  const TaskPage({super.key, required this.taskId, this.teamId, this.onClose});
+  /// Start on the Comments tab.
+  final bool comments;
+
+  const TaskPage(
+      {super.key, required this.taskId, this.teamId, this.onClose, this.comments = false});
 
   @override
   State<TaskPage> createState() => _TaskPageState();
 }
 
 class _TaskPageState extends State<TaskPage> {
-  _Tab _tab = _Tab.details;
+  late _Tab _tab = widget.comments && widget.teamId != null ? _Tab.comments : _Tab.details;
 
   void _back() {
     final close = widget.onClose;
@@ -147,6 +154,7 @@ class _TaskPageState extends State<TaskPage> {
       children: [
         _Header(ref: ref, wide: true),
         const SizedBox(height: 14),
+        ApprovalBar(ref: ref),
         _tabs(ref),
         const SizedBox(height: 14),
         DashCard(padding: const EdgeInsets.all(22), child: _tabBody(ref)),
@@ -203,6 +211,7 @@ class _TaskPageState extends State<TaskPage> {
         children: [
           _Header(ref: ref, wide: false),
           const SizedBox(height: 12),
+          ApprovalBar(ref: ref),
           _tabs(ref),
           const SizedBox(height: 12),
           DashCard(padding: const EdgeInsets.all(16), child: _tabBody(ref)),
@@ -1098,8 +1107,9 @@ class _Activity extends StatelessWidget {
 
   static Color _color(String kind) => switch (kind) {
         HistoryKind.created => AppColors.success,
-        HistoryKind.done => AppColors.success,
+        HistoryKind.done || HistoryKind.approved => AppColors.success,
         HistoryKind.cancelled => AppColors.danger,
+        HistoryKind.changes => AppColors.warning,
         HistoryKind.assigned || HistoryKind.unassigned => AppColors.purple,
         _ => AppColors.primary,
       };

@@ -41,6 +41,27 @@ Phase 1 (free plan): Inbox, Notification Center deep links, saved views, team te
 estimates + Daily Planner/Rescue, Workload, timesheet + time entry edit, internal approvals, PDF report,
 quick capture.
 
+## Phase 1 progress (sirf branch par — main par push NAHI jab tak poora Phase 1 na ho)
+
+- [x] **Inbox** (screen 11): Quick Capture (Enter se add; "kal 5pm !high #Marketing" jaisi
+  dates/time/priority/#team/#label khud samajhta hai), Voice (keyboard ka mic), Import from Email
+  (email paste), link attach, teammate ko Forward. Organize chips: due date, assign, priority,
+  team, label → "Move to tasks" (personal ya team). Suggestions, capture sources, recently
+  organized (7 din). Data: `users/{uid}/inbox` (`lib/data/inbox.dart`).
+- [x] **Notification Center** (screen 12): tabs All/Unread/Mentions/Assignments/Reminders/Approvals,
+  Today/Yesterday groups, Reply (comments tab khulta hai), View Task, Snooze/Dismiss, Approve,
+  read/unread, team filter, settings switches (assign/due/approvals/comments), upcoming reminders.
+- [x] **Internal approvals (V1)**: Review column = "awaiting approval". Manager: Approve (done +
+  history "approved") / Request changes (wapis In Progress + comment). Member: "Send for approval".
+  Notifications dono taraf. Task page par ApprovalBar.
+- [ ] Saved views, team templates, recurrence improvements
+- [ ] Estimates + Daily Planner / Rescue, Workload
+- [ ] Timesheet + time entry edit
+- [ ] PDF report
+
+Note: "Done ≠ Approved" (faisla 6) abhi poora nahi: member ab bhi seedha Done kar sakta hai.
+Sakht karna ho to baad mein rule lagana.
+
 ## Setup (sab chal raha hai)
 
 - **App:** Flutter 3.47.7 (CI mein fix), Firebase project `taskflow-ce905` (Spark/free plan, card nahi).

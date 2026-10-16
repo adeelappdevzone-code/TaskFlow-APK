@@ -18,8 +18,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/utils.dart';
+import 'inbox.dart';
 import 'models.dart';
 import 'reminders.dart';
+import 'task_repository.dart';
 import 'team_store.dart';
 
 const _uuid = Uuid();
@@ -65,6 +67,11 @@ class AppStore extends ChangeNotifier {
   bool teamAlerts = true; // phone notifications for team events
   DateTime? lastBackupAt;
 
+  // Notification Center switches (what gets a notification at all).
+  bool notifAssign = true;
+  bool notifApprovals = true;
+  bool notifComments = true;
+
   Timer? _reminderTimer;
   Timer? _phoneReminderSync;
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -72,8 +79,7 @@ class AppStore extends ChangeNotifier {
   FirebaseFirestore get _fs => FirebaseFirestore.instance;
   fb.FirebaseAuth get _auth => fb.FirebaseAuth.instance;
 
-  DocumentReference<_Json> get _userDoc =>
-      _fs.collection('users').doc(currentUser!.id);
+  DocumentReference<_Json> get _userDoc => _fs.collection('users').doc(currentUser!.id);
 
   CollectionReference<_Json> _col(String name) => _userDoc.collection(name);
 
@@ -148,6 +154,7 @@ class AppStore extends ChangeNotifier {
     _startReminderTimer();
     PhoneReminders.instance.askPermission();
     TeamStore.instance.start(uid: u.uid, email: email, name: currentUser!.name);
+    InboxStore.instance.start(u.uid);
     notifyListeners();
   }
 
@@ -156,6 +163,7 @@ class AppStore extends ChangeNotifier {
     _phoneReminderSync?.cancel();
     PhoneReminders.instance.clear();
     TeamStore.instance.stop();
+    InboxStore.instance.stop();
     _cancelSubs();
     currentUser = null;
     categories = [];
@@ -167,6 +175,9 @@ class AppStore extends ChangeNotifier {
     jobTitle = '';
     reminderMinutes = 15;
     teamAlerts = true;
+    notifAssign = true;
+    notifApprovals = true;
+    notifComments = true;
     lastBackupAt = null;
   }
 
@@ -187,6 +198,9 @@ class AppStore extends ChangeNotifier {
       jobTitle = (d['title'] as String?) ?? '';
       reminderMinutes = (d['reminder_minutes'] as int?) ?? 15;
       teamAlerts = (d['team_alerts'] as bool?) ?? true;
+      notifAssign = (d['notif_assign'] as bool?) ?? true;
+      notifApprovals = (d['notif_approvals'] as bool?) ?? true;
+      notifComments = (d['notif_comments'] as bool?) ?? true;
       final backup = d['last_backup_at'];
       lastBackupAt = backup is int ? DateTime.fromMillisecondsSinceEpoch(backup) : null;
       schedulePhoneReminders();
@@ -225,9 +239,8 @@ class AppStore extends ChangeNotifier {
     }, onError: _onStreamError));
 
     _subs.add(_col('notifications').snapshots().listen((s) {
-      notifications =
-          _parse(s.docs.map((d) => d.data()), AppNotification.fromMap)
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      notifications = _parse(s.docs.map((d) => d.data()), AppNotification.fromMap)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       notifyListeners();
     }, onError: _onStreamError));
   }
@@ -346,8 +359,8 @@ class AppStore extends ChangeNotifier {
     required bool withSampleData,
   }) async {
     try {
-      final cred = await _auth.createUserWithEmailAndPassword(
-          email: email.trim(), password: password);
+      final cred =
+          await _auth.createUserWithEmailAndPassword(email: email.trim(), password: password);
       final u = cred.user;
       if (u == null) return 'Could not create the account. Please try again.';
       final cleanName = name.trim();
@@ -373,8 +386,7 @@ class AppStore extends ChangeNotifier {
 
   Future<String?> login(String email, String password) async {
     try {
-      final cred = await _auth.signInWithEmailAndPassword(
-          email: email.trim(), password: password);
+      final cred = await _auth.signInWithEmailAndPassword(email: email.trim(), password: password);
       final u = cred.user;
       if (u == null) return 'Login failed. Please try again.';
       _startSession(u);
@@ -415,8 +427,8 @@ class AppStore extends ChangeNotifier {
       if (idToken == null) {
         return 'Google did not return a login token. Please try again.';
       }
-      final result = await _auth
-          .signInWithCredential(fb.GoogleAuthProvider.credential(idToken: idToken));
+      final result =
+          await _auth.signInWithCredential(fb.GoogleAuthProvider.credential(idToken: idToken));
       final u = result.user;
       if (u == null) return 'Google login failed. Please try again.';
       final isNew = result.additionalUserInfo?.isNewUser ?? false;
@@ -533,6 +545,31 @@ class AppStore extends ChangeNotifier {
     _savePrefs({'team_alerts': on});
   }
 
+  /// Notification Center switches: 'assign' | 'due' | 'approvals' | 'comments'.
+  bool notifOn(String which) => switch (which) {
+        'assign' => notifAssign,
+        'due' => reminderMinutes > 0,
+        'approvals' => notifApprovals,
+        'comments' => notifComments,
+        _ => true,
+      };
+
+  void setNotif(String which, bool on) {
+    switch (which) {
+      case 'assign':
+        notifAssign = on;
+        _savePrefs({'notif_assign': on});
+      case 'due':
+        setReminderMinutes(on ? 15 : 0);
+      case 'approvals':
+        notifApprovals = on;
+        _savePrefs({'notif_approvals': on});
+      case 'comments':
+        notifComments = on;
+        _savePrefs({'notif_comments': on});
+    }
+  }
+
   void markBackupCopied() {
     lastBackupAt = DateTime.now();
     _savePrefs({'last_backup_at': nowMs()});
@@ -642,11 +679,9 @@ class AppStore extends ChangeNotifier {
     return null;
   }
 
-  List<TaskItem> tasksOnDay(DateTime day) =>
-      tasks.where((t) => isSameDay(t.startAt, day)).toList();
+  List<TaskItem> tasksOnDay(DateTime day) => tasks.where((t) => isSameDay(t.startAt, day)).toList();
 
-  List<TaskItem> get todayTasks =>
-      tasksOnDay(DateTime.now()).where((t) => !t.isCancelled).toList();
+  List<TaskItem> get todayTasks => tasksOnDay(DateTime.now()).where((t) => !t.isCancelled).toList();
 
   List<TaskItem> get activeTasks => tasks.where((t) => !t.isCancelled).toList();
 
@@ -664,7 +699,7 @@ class AppStore extends ChangeNotifier {
     return list.where((t) => t.isCompleted).length / list.length;
   }
 
-  int get unreadCount => notifications.where((n) => !n.isRead).length;
+  int get unreadCount => visibleNotifications().where((n) => !n.isRead).length;
 
   // ------------------------------------------------------------------ tasks
 
@@ -699,8 +734,7 @@ class AppStore extends ChangeNotifier {
     if (done) _endTimer(task, now);
     _saveTaskDoc(task);
     if (done) {
-      _notify('task', 'completed', 'Task completed',
-          '"${task.title}" has been completed',
+      _notify('task', 'completed', 'Task completed', '"${task.title}" has been completed',
           taskId: task.id);
       _createNextRepeat(task);
     }
@@ -858,8 +892,7 @@ class AppStore extends ChangeNotifier {
 
   Future<Project> addProject(String name, int color) async {
     final now = DateTime.now();
-    final p = Project(
-        id: newId(), name: name.trim(), color: color, createdAt: now, updatedAt: now);
+    final p = Project(id: newId(), name: name.trim(), color: color, createdAt: now, updatedAt: now);
     if (currentUser != null) {
       projects = [...projects, p];
       _write(_col('projects').doc(p.id).set(p.toMap()));
@@ -896,8 +929,8 @@ class AppStore extends ChangeNotifier {
 
   Future<Category> addCategory(String name, int color) async {
     final now = DateTime.now();
-    final c = Category(
-        id: newId(), name: name.trim(), color: color, createdAt: now, updatedAt: now);
+    final c =
+        Category(id: newId(), name: name.trim(), color: color, createdAt: now, updatedAt: now);
     if (currentUser != null) {
       categories = [...categories, c];
       _write(_col('categories').doc(c.id).set(c.toMap()));
@@ -956,33 +989,85 @@ class AppStore extends ChangeNotifier {
 
   // ---------------------------------------------------------- notifications
 
-  /// Adds an entry to the Notifications screen.
-  void addNotification(String type, String kind, String title, String body) =>
-      _notify(type, kind, title, body);
+  /// Adds an entry to the Notification Center, unless its kind is switched
+  /// off ([notifOn]). Returns whether it was added.
+  bool addNotification(String type, String kind, String title, String body,
+      {String? taskId, String? teamId, String? actorName}) {
+    final allowed = switch (kind) {
+      NotifKind.assigned => notifAssign,
+      NotifKind.approval || NotifKind.approved || NotifKind.changes => notifApprovals,
+      NotifKind.mention || NotifKind.comment => notifComments,
+      NotifKind.reminder => reminderMinutes > 0,
+      _ => true,
+    };
+    if (!allowed) return false;
+    _notify(type, kind, title, body, taskId: taskId, teamId: teamId, actorName: actorName);
+    return true;
+  }
 
   void _notify(String type, String kind, String title, String body,
-      {String? taskId}) {
+      {String? taskId, String? teamId, String? actorName}) {
     if (currentUser == null) return;
     final n = AppNotification(
       id: newId(),
       type: type,
       kind: kind,
-      title: title,
-      body: body,
+      title: title.length > 300 ? '${title.substring(0, 297)}...' : title,
+      body: body.length > 2000 ? body.substring(0, 2000) : body,
       taskId: taskId,
+      teamId: teamId,
+      actorName: actorName,
       createdAt: DateTime.now(),
     );
+    notifications.insert(0, n);
     _write(_col('notifications').doc(n.id).set(n.toMap()));
+  }
+
+  /// Notifications to show now (snoozed reminders wait), newest first.
+  List<AppNotification> visibleNotifications([DateTime? at]) {
+    final now = at ?? DateTime.now();
+    return notifications.where((n) => !n.snoozedAt(now)).toList()
+      ..sort((a, b) => b.shownAt.compareTo(a.shownAt));
+  }
+
+  void setRead(AppNotification n, bool read) {
+    if (currentUser == null) return;
+    n.readAt = read ? DateTime.now() : null;
+    notifyListeners();
+    _write(_col('notifications')
+        .doc(n.id)
+        .set({'read_at': read ? nowMs() : null}, SetOptions(merge: true)));
+  }
+
+  void deleteNotification(AppNotification n) {
+    if (currentUser == null) return;
+    notifications.removeWhere((x) => x.id == n.id);
+    notifyListeners();
+    _write(_col('notifications').doc(n.id).delete());
+  }
+
+  /// Hides a reminder for [d]; it then comes back as unread.
+  void snooze(AppNotification n, Duration d) {
+    if (currentUser == null) return;
+    n
+      ..snoozeUntil = DateTime.now().add(d)
+      ..readAt = null;
+    notifyListeners();
+    _write(_col('notifications').doc(n.id).set(
+        {'snooze_until': n.snoozeUntil!.millisecondsSinceEpoch, 'read_at': null},
+        SetOptions(merge: true)));
   }
 
   Future<void> markAllRead() async {
     if (currentUser == null || unreadCount == 0) return;
     final now = nowMs();
     final ops = <void Function(WriteBatch)>[];
-    for (final n in notifications.where((n) => !n.isRead)) {
-      ops.add((b) => b.set(_col('notifications').doc(n.id),
-          <String, dynamic>{'read_at': now}, SetOptions(merge: true)));
+    for (final n in visibleNotifications().where((n) => !n.isRead)) {
+      n.readAt = DateTime.fromMillisecondsSinceEpoch(now);
+      ops.add((b) => b.set(_col('notifications').doc(n.id), <String, dynamic>{'read_at': now},
+          SetOptions(merge: true)));
     }
+    notifyListeners();
     _runBatched(ops);
   }
 
@@ -999,8 +1084,7 @@ class AppStore extends ChangeNotifier {
   /// starting within [reminderMinutes] and add a reminder (once per task).
   void _startReminderTimer() {
     _reminderTimer?.cancel();
-    _reminderTimer =
-        Timer.periodic(const Duration(minutes: 1), (_) => _checkReminders());
+    _reminderTimer = Timer.periodic(const Duration(minutes: 1), (_) => _checkReminders());
   }
 
   void _checkReminders() {
@@ -1008,16 +1092,20 @@ class AppStore extends ChangeNotifier {
     if (reminderMinutes <= 0) return;
     final now = DateTime.now();
     final soon = now.add(Duration(minutes: reminderMinutes));
-    for (final t in tasks) {
-      if (t.status != TaskStatus.pending) continue;
+    for (final r in TaskRepository.myTasks()) {
+      final t = r.task;
+      if (t.status != TaskStatus.pending || t.isAllDay) continue;
       if (t.startAt.isBefore(now) || t.startAt.isAfter(soon)) continue;
-      final already =
-          notifications.any((n) => n.kind == 'reminder' && n.taskId == t.id);
+      final already = notifications.any((n) => n.kind == NotifKind.reminder && n.taskId == t.id);
       if (already) continue;
       final mins = t.startAt.difference(now).inMinutes;
-      _notify('task', 'reminder', 'Reminder',
-          '"${t.title}" starts in ${mins <= 1 ? '1 minute' : '$mins minutes'}',
-          taskId: t.id);
+      _notify(
+          'task',
+          NotifKind.reminder,
+          'Reminder: ${t.title} starts in ${mins <= 1 ? '1 minute' : '$mins minutes'}',
+          r.sourceLabel,
+          taskId: t.id,
+          teamId: r.team?.id);
     }
   }
 
@@ -1117,6 +1205,8 @@ class AppStore extends ChangeNotifier {
       ops.add((b) => b.delete(_col('templates').doc(t.id)));
     }
     _runBatched(ops);
+    final inbox = InboxStore.instance;
+    inbox.delete([...inbox.items, ...inbox.recentlyOrganized].map((i) => i.id));
   }
 
   // ------------------------------------------------------------ seed data
@@ -1129,11 +1219,8 @@ class AppStore extends ChangeNotifier {
       ops.add((b) => b.set(_col(collection).doc(id), map));
     }
 
-    void cat(String id, String name, int color) => put(
-        'categories',
-        id,
-        Category(id: id, name: name, color: color, createdAt: now, updatedAt: now)
-            .toMap());
+    void cat(String id, String name, int color) => put('categories', id,
+        Category(id: id, name: name, color: color, createdAt: now, updatedAt: now).toMap());
 
     final work = newId(), design = newId(), general = newId(), research = newId();
     cat(work, 'Work', 0xFF1F6FEB);
@@ -1153,14 +1240,10 @@ class AppStore extends ChangeNotifier {
 
     if (withSample) {
       final today = dateOnly(now);
-      DateTime at(int dayOffset, int h) =>
-          today.add(Duration(days: dayOffset, hours: h));
+      DateTime at(int dayOffset, int h) => today.add(Duration(days: dayOffset, hours: h));
 
-      void proj(String id, String name, int color) => put(
-          'projects',
-          id,
-          Project(id: id, name: name, color: color, createdAt: now, updatedAt: now)
-              .toMap());
+      void proj(String id, String name, int color) => put('projects', id,
+          Project(id: id, name: name, color: color, createdAt: now, updatedAt: now).toMap());
 
       final pApp = newId(), pDesign = newId(), pMkt = newId();
       proj(pApp, 'App Development', 0xFF16A34A);

@@ -698,6 +698,8 @@ List<_TeamEvent> _teamEvents(Team team, List<TaskItem> tasks, List<TeamInvite> i
       final (verb, icon, color) = switch (e.kind) {
         HistoryKind.created => ('created a task', Icons.add_rounded, AppColors.success),
         HistoryKind.done => ('completed a task', Icons.check_rounded, AppColors.success),
+        HistoryKind.approved => ('approved a task', Icons.verified_outlined, AppColors.success),
+        HistoryKind.changes => ('asked for changes on', Icons.replay_rounded, AppColors.warning),
         HistoryKind.reopened => ('reopened a task', Icons.undo_rounded, AppColors.warning),
         HistoryKind.cancelled => ('cancelled a task', Icons.close_rounded, AppColors.danger),
         HistoryKind.restored => ('restored a task', Icons.undo_rounded, AppColors.primary),

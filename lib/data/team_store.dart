@@ -164,8 +164,9 @@ class TeamStore extends ChangeNotifier {
         if (before == null || !t.isAdmin(me)) continue;
         for (final uid in t.memberIds) {
           if (!before.contains(uid) && uid != me) {
-            _notify('${t.nameOf(uid)} joined ${t.name}',
-                '${t.nameOf(uid)} accepted your invitation to the team.');
+            _notify('team', '${t.nameOf(uid)} joined ${t.name}',
+                '${t.nameOf(uid)} accepted your invitation to the team.',
+                teamId: t.id, actor: t.nameOf(uid));
           }
         }
       }
@@ -249,8 +250,36 @@ class TeamStore extends ChangeNotifier {
       final at = t.assignedAt?.millisecondsSinceEpoch ?? 0;
       if (t.assigneeId == me && t.assignedBy != me && at > _seenUntil) {
         final by = team?.nameOf(t.assignedBy) ?? 'Your manager';
-        _notify('New task: ${t.title}', '$by assigned you a task in ${team?.name ?? 'your team'}.');
+        _notify(NotifKind.assigned, '${t.title} was assigned to you',
+            "You've been assigned a new task by $by.",
+            taskId: t.id, teamId: teamId, actor: by);
         if (at > newest) newest = at;
+      }
+      if (team == null) continue;
+      // Approvals: sent for my approval, or my task approved / sent back.
+      for (final e in t.history) {
+        final eAt = e.at.millisecondsSinceEpoch;
+        if (eAt <= _seenUntil || e.by == me) continue;
+        final who = team.nameOf(e.by);
+        if (e.kind == HistoryKind.stage &&
+            e.to == TaskStage.review &&
+            team.isAdmin(me) &&
+            t.status == TaskStatus.pending &&
+            t.stage == TaskStage.review) {
+          _notify(NotifKind.approval, '${t.title} is awaiting your approval',
+              '$who sent it for review and approval.',
+              taskId: t.id, teamId: teamId, actor: who);
+        } else if (e.kind == HistoryKind.approved && t.assigneeId == me) {
+          _notify(NotifKind.approved, '$who approved ${t.title}', 'Nice work, it is done.',
+              taskId: t.id, teamId: teamId, actor: who);
+        } else if (e.kind == HistoryKind.changes && t.assigneeId == me) {
+          _notify(NotifKind.changes, '$who requested changes on ${t.title}',
+              'The task is back in progress. See the comments.',
+              taskId: t.id, teamId: teamId, actor: who);
+        } else {
+          continue;
+        }
+        if (eAt > newest) newest = eAt;
       }
     }
     _markSeen(newest);
@@ -280,11 +309,13 @@ class TeamStore extends ChangeNotifier {
       if (c.mentions.isNotEmpty) {
         // "@Name" comments only go to the people tagged.
         if (!c.mentions.contains(me)) continue;
-        _notify('$who mentioned you on "${task.title}"', c.text);
+        _notify(NotifKind.mention, '$who mentioned you in ${task.title}', c.text,
+            taskId: task.id, teamId: teamId, actor: who);
       } else {
         final mine = task.assigneeId == me || task.assignedBy == me || task.createdBy == me;
         if (!mine) continue;
-        _notify('$who on "${task.title}"', c.text);
+        _notify(NotifKind.comment, '$who commented on ${task.title}', c.text,
+            taskId: task.id, teamId: teamId, actor: who);
       }
       if (at > newest) newest = at;
     }
@@ -297,8 +328,9 @@ class TeamStore extends ChangeNotifier {
     for (final i in invites) {
       final at = i.createdAt.millisecondsSinceEpoch;
       if (at > _seenUntil) {
-        _notify('Team invitation',
-            '${i.invitedByName.isEmpty ? 'Someone' : i.invitedByName} invited you to join "${i.teamName}". Open Teams to accept.');
+        _notify(NotifKind.invite, 'Team invitation',
+            '${i.invitedByName.isEmpty ? 'Someone' : i.invitedByName} invited you to join "${i.teamName}". Open Teams to accept.',
+            actor: i.invitedByName.isEmpty ? null : i.invitedByName);
         if (at > newest) newest = at;
       }
     }
@@ -326,10 +358,13 @@ class TeamStore extends ChangeNotifier {
     SharedPreferences.getInstance().then((p) => p.setInt(key, until));
   }
 
-  /// In-app notification + a phone notification right away.
-  void _notify(String title, String body) {
-    AppStore.instance.addNotification('task', 'team', title, body);
-    if (AppStore.instance.teamAlerts) PhoneReminders.instance.showNow(title, body);
+  /// In-app notification + a phone notification right away (unless that
+  /// kind is switched off).
+  void _notify(String kind, String title, String body,
+      {String? taskId, String? teamId, String? actor}) {
+    final added = AppStore.instance.addNotification('task', kind, title, body,
+        taskId: taskId, teamId: teamId, actorName: actor);
+    if (added && AppStore.instance.teamAlerts) PhoneReminders.instance.showNow(title, body);
   }
 
   void _onError(Object e) => debugPrint('Team stream error: $e');
@@ -374,8 +409,7 @@ class TeamStore extends ChangeNotifier {
   /// Owner/managers edit any task; a member the ones they made for
   /// themselves.
   bool canEdit(Team team, TaskItem task) =>
-      _uid != null &&
-      (team.isAdmin(_uid!) || (task.createdBy == _uid && task.assigneeId == _uid));
+      _uid != null && (team.isAdmin(_uid!) || (task.createdBy == _uid && task.assigneeId == _uid));
 
   /// The assignee can mark done; owner/managers can too.
   bool canComplete(Team team, TaskItem task) =>
@@ -634,7 +668,7 @@ class TeamStore extends ChangeNotifier {
   /// Assignee or owner/manager. Only status fields are written, which is all
   /// a member is allowed to change. Finishing a repeating task also creates
   /// its next copy (in the same write).
-  void setCompleted(Team team, TaskItem task, bool done) {
+  void setCompleted(Team team, TaskItem task, bool done, {String? eventKind}) {
     final me = _uid;
     if (me == null) return;
     final now = DateTime.now();
@@ -643,7 +677,8 @@ class TeamStore extends ChangeNotifier {
       ..completedAt = done ? now : null
       ..completedBy = done ? me : null
       ..updatedAt = now;
-    final event = task.addHistory(done ? HistoryKind.done : HistoryKind.reopened, me, at: now);
+    final event =
+        task.addHistory(eventKind ?? (done ? HistoryKind.done : HistoryKind.reopened), me, at: now);
     final batch = _fs.batch();
     batch.update(_tasksCol(team.id).doc(task.id), {
       'status': task.status,
@@ -669,7 +704,7 @@ class TeamStore extends ChangeNotifier {
   }
 
   /// Moves a task to a board column: a [TaskStage] or "done".
-  void moveTo(Team team, TaskItem task, String column) {
+  void moveTo(Team team, TaskItem task, String column, {String? eventKind}) {
     if (column == boardDone) {
       if (!task.isCompleted) setCompleted(team, task, true);
       return;
@@ -685,7 +720,7 @@ class TeamStore extends ChangeNotifier {
         ..completedAt = null
         ..completedBy = null;
     }
-    final event = task.addHistory(HistoryKind.stage, _uid, to: column);
+    final event = task.addHistory(eventKind ?? HistoryKind.stage, _uid, to: column);
     notifyListeners();
     _write(_tasksCol(team.id).doc(task.id).update({
       'stage': column,
@@ -695,6 +730,26 @@ class TeamStore extends ChangeNotifier {
       'history': _historyField(task, event),
       'updated_at': nowMs(),
     }));
+  }
+
+  // -------------------------------------------------------------- approval
+
+  /// Waiting in Review & Feedback in a team I run, oldest first.
+  List<(Team, TaskItem)> get awaitingMyApproval => [
+        for (final team in teams)
+          if (isAdmin(team))
+            for (final t in tasksOf(team.id))
+              if (t.status == TaskStatus.pending && t.stage == TaskStage.review) (team, t),
+      ];
+
+  /// Owner/manager: the task is done and approved.
+  void approve(Team team, TaskItem task) =>
+      setCompleted(team, task, true, eventKind: HistoryKind.approved);
+
+  /// Owner/manager: back to In Progress, with [note] as a comment.
+  void requestChanges(Team team, TaskItem task, String note) {
+    moveTo(team, task, TaskStage.doing, eventKind: HistoryKind.changes);
+    if (note.trim().isNotEmpty) addComment(team, task, note);
   }
 
   // ------------------------------------------------------------ time

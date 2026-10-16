@@ -245,6 +245,8 @@ String historyText(TaskEvent e, String Function(String? id) nameOf) {
     HistoryKind.reopened => '$who reopened it',
     HistoryKind.cancelled => '$who cancelled it',
     HistoryKind.restored => '$who restored it',
+    HistoryKind.approved => '$who approved it',
+    HistoryKind.changes => '$who asked for changes',
     _ => '$who changed the task',
   };
 }
@@ -255,6 +257,8 @@ IconData historyIcon(String kind) => switch (kind) {
       HistoryKind.assigned || HistoryKind.unassigned => Icons.person_outline_rounded,
       HistoryKind.stage => Icons.view_kanban_outlined,
       HistoryKind.done => Icons.check_circle_outline_rounded,
+      HistoryKind.approved => Icons.verified_outlined,
+      HistoryKind.changes => Icons.replay_rounded,
       HistoryKind.reopened || HistoryKind.restored => Icons.undo_rounded,
       HistoryKind.cancelled => Icons.cancel_outlined,
       _ => Icons.history_rounded,

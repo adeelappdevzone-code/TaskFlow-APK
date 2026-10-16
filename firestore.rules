@@ -77,7 +77,26 @@ service cloud.firestore {
       return base(d, docId)
           && d.type in ['task', 'system']
           && str(d, 'kind', 50) && str(d, 'title', 300) && str(d, 'body', 2000)
-          && optStr(d, 'task_id', 100) && optNum(d, 'read_at');
+          && optStr(d, 'task_id', 100) && optNum(d, 'read_at')
+          && optStr(d, 'team_id', 100) && optStr(d, 'actor_name', 200)
+          && optNum(d, 'snooze_until');
+    }
+    // Inbox: quick captures waiting to be organized.
+    function validInbox(d, docId) {
+      return d.size() <= 25
+          && str(d, 'id', 100) && d.id == docId
+          && str(d, 'title', 500) && d.title.size() > 0
+          && optStr(d, 'notes', 5000)
+          && d.source in ['quick', 'email', 'voice', 'forwarded']
+          && num(d, 'created_at') && optNum(d, 'due_at')
+          && (!('all_day' in d) || d.all_day is bool)
+          && optNum(d, 'priority')
+          && optStr(d, 'team_id', 100) && optStr(d, 'assignee_id', 100)
+          && optStr(d, 'category_id', 100)
+          && optList(d, 'links', 20)
+          && optStr(d, 'from_id', 100) && optStr(d, 'from_name', 200)
+          && optNum(d, 'organized_at') && optStr(d, 'organized_to', 300)
+          && optStr(d, 'task_id', 100) && optStr(d, 'task_team', 100);
     }
     function validProfile(d) {
       return d.size() <= 20 && optStr(d, 'name', 200) && optStr(d, 'email', 320)
@@ -85,6 +104,9 @@ service cloud.firestore {
           && optStr(d, 'title', 100)
           && optNum(d, 'reminder_minutes')
           && (!('team_alerts' in d) || d.team_alerts is bool)
+          && (!('notif_assign' in d) || d.notif_assign is bool)
+          && (!('notif_approvals' in d) || d.notif_approvals is bool)
+          && (!('notif_comments' in d) || d.notif_comments is bool)
           && optNum(d, 'last_backup_at');
     }
 
@@ -94,6 +116,7 @@ service cloud.firestore {
               && validCategoryOrProject(d, docId))
           || (collection == 'members' && validMember(d, docId))
           || (collection == 'notifications' && validNotification(d, docId))
+          || (collection == 'inbox' && validInbox(d, docId))
           || (collection == 'templates' && validTemplate(d, docId));
     }
 
@@ -105,6 +128,19 @@ service cloud.firestore {
         allow read, delete: if isOwner(userId);
         allow create, update: if isOwner(userId)
             && valid(collection, request.resource.data, docId);
+      }
+
+      // A teammate may forward an item into my inbox: as themselves, through
+      // a team we are both in. They cannot read, change or delete it.
+      match /inbox/{docId} {
+        allow create: if request.auth != null && request.auth.uid != userId
+            && validInbox(request.resource.data, docId)
+            && request.resource.data.source == 'forwarded'
+            && request.resource.data.from_id == request.auth.uid
+            && request.resource.data.team_id is string
+            && request.auth.uid in get(/databases/$(database)/documents/teams/$(request.resource.data.team_id)).data.member_ids
+            && userId in get(/databases/$(database)/documents/teams/$(request.resource.data.team_id)).data.member_ids
+            && !('organized_at' in request.resource.data && request.resource.data.organized_at != null);
       }
     }
 

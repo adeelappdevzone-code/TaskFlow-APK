@@ -28,14 +28,20 @@ class CenteredContent extends StatelessWidget {
 class PanelTarget {
   final String taskId;
   final String? teamId;
-  const PanelTarget(this.taskId, {this.teamId});
+
+  /// Open on the comments (a "Reply" from a notification).
+  final bool comments;
+  const PanelTarget(this.taskId, {this.teamId, this.comments = false});
 
   @override
   bool operator ==(Object other) =>
-      other is PanelTarget && other.taskId == taskId && other.teamId == teamId;
+      other is PanelTarget &&
+      other.taskId == taskId &&
+      other.teamId == teamId &&
+      other.comments == comments;
 
   @override
-  int get hashCode => Object.hash(taskId, teamId);
+  int get hashCode => Object.hash(taskId, teamId, comments);
 }
 
 /// On a wide screen, shows a task over the page (inside the app frame)

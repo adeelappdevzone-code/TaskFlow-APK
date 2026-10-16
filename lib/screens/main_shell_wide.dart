@@ -17,6 +17,8 @@ const _navEntries = [
   _NavEntry(Icons.check_box_outlined, Icons.check_box_rounded, 'My Tasks', 1),
   _NavEntry(Icons.calendar_today_outlined, Icons.calendar_today_rounded, 'Calendar', 2),
   _NavEntry(Icons.groups_outlined, Icons.groups_rounded, 'Teams', 4),
+  _NavEntry(Icons.inbox_outlined, Icons.inbox_rounded, 'Inbox', 5),
+  _NavEntry(Icons.notifications_none_rounded, Icons.notifications_rounded, 'Notifications', 6),
   _NavEntry(Icons.person_outline_rounded, Icons.person_rounded, 'Profile', 3),
 ];
 
@@ -28,12 +30,15 @@ extension on _MainShellState {
       body: Row(
         children: [
           ListenableBuilder(
-            listenable: TeamStore.instance,
+            listenable:
+                Listenable.merge([TeamStore.instance, InboxStore.instance, AppStore.instance]),
             builder: (context, _) => _SideMenu(
               onOpenTeam: _showTeam,
               compact: compact,
               current: _index,
               invites: TeamStore.instance.invites.length,
+              inbox: InboxStore.instance.count,
+              unread: AppStore.instance.unreadCount,
               onNewTask: _addTask,
               onSelect: (tab) {
                 // Teams again while inside a team: back to the team list.
@@ -52,6 +57,7 @@ extension on _MainShellState {
                   onOpenTeam: _showTeam,
                   onProfile: () => setTab(3),
                   onTeams: () => setTab(4),
+                  onNotifications: () => setTab(6),
                   onOpenTask: (ref) =>
                       _panelKey.currentState?.show(PanelTarget(ref.task.id, teamId: ref.team?.id)),
                 ),
@@ -73,6 +79,8 @@ extension on _MainShellState {
                                 backgroundColor: AppColors.background, body: TeamsScreen()),
                           ),
                         ),
+                        const InboxScreen(),
+                        const NotificationsScreen(page: false),
                       ],
                     ),
                   ),
@@ -90,6 +98,8 @@ class _SideMenu extends StatelessWidget {
   final bool compact;
   final int current;
   final int invites;
+  final int inbox;
+  final int unread;
   final VoidCallback onNewTask;
   final ValueChanged<int> onSelect;
   final ValueChanged<Team> onOpenTeam;
@@ -98,6 +108,8 @@ class _SideMenu extends StatelessWidget {
     required this.compact,
     required this.current,
     required this.invites,
+    required this.inbox,
+    required this.unread,
     required this.onNewTask,
     required this.onSelect,
   });
@@ -176,7 +188,7 @@ class _SideMenu extends StatelessWidget {
                         entry: e,
                         compact: compact,
                         active: current == e.tab && !(e.tab == 4 && inTeam),
-                        badge: e.tab == 4 ? invites : 0,
+                        badge: switch (e.tab) { 4 => invites, 5 => inbox, 6 => unread, _ => 0 },
                         onTap: () => onSelect(e.tab),
                       ),
                     if (teams.isNotEmpty) ...[
@@ -275,11 +287,13 @@ class _TopBar extends StatelessWidget {
   final ValueChanged<Team> onOpenTeam;
   final VoidCallback onProfile;
   final VoidCallback onTeams;
+  final VoidCallback onNotifications;
   final ValueChanged<TaskRef> onOpenTask;
   const _TopBar(
       {required this.onOpenTeam,
       required this.onProfile,
       required this.onTeams,
+      required this.onNotifications,
       required this.onOpenTask});
 
   @override
@@ -310,8 +324,7 @@ class _TopBar extends StatelessWidget {
                 children: [
                   IconButton(
                     tooltip: 'Notifications',
-                    onPressed: () => Navigator.push(
-                        context, MaterialPageRoute(builder: (_) => const NotificationsScreen())),
+                    onPressed: onNotifications,
                     icon: Badge(
                       smallSize: 9,
                       isLabelVisible: store.unreadCount > 0,

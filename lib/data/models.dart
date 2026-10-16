@@ -334,6 +334,8 @@ class HistoryKind {
   static const reopened = 'reopened';
   static const cancelled = 'cancelled';
   static const restored = 'restored';
+  static const approved = 'approved';
+  static const changes = 'changes';
 }
 
 /// One line in a task's history: who did what and when. [to] is the new
@@ -671,19 +673,50 @@ class TaskItem {
   }
 }
 
+/// Notification kinds and the Notification Center tab each belongs to.
+class NotifKind {
+  static const mention = 'mention';
+  static const comment = 'comment';
+  static const assigned = 'assigned';
+  static const reminder = 'reminder';
+  static const approval = 'approval'; // waiting for my approval
+  static const approved = 'approved';
+  static const changes = 'changes'; // changes requested on my task
+  static const invite = 'invite';
+  static const report = 'report';
+
+  /// Tabs: mentions | assignments | reminders | approvals.
+  static String? tabOf(String kind) => switch (kind) {
+        mention || comment => 'mentions',
+        assigned => 'assignments',
+        reminder => 'reminders',
+        approval || approved || changes => 'approvals',
+        _ => null,
+      };
+}
+
 class AppNotification {
   final String id;
 
-  /// 'task' or 'system' (matches the tabs on the Notifications screen).
+  /// 'task' or 'system'.
   final String type;
 
-  /// completed | assigned | reminder | cancelled | project | info
+  /// [NotifKind], or older ones: completed | cancelled | project | team | info
   final String kind;
   final String title;
   final String body;
   final String? taskId;
+
+  /// Team tasks: the task's team. Shown as "task • team".
+  final String? teamId;
+
+  /// Who did it (for the picture), e.g. the commenter.
+  final String? actorName;
   final DateTime createdAt;
   DateTime? readAt;
+
+  /// Reminders: hidden until then, then shown again as unread.
+  DateTime? snoozeUntil;
 
   AppNotification({
     required this.id,
@@ -692,11 +725,19 @@ class AppNotification {
     required this.title,
     required this.body,
     this.taskId,
+    this.teamId,
+    this.actorName,
     required this.createdAt,
     this.readAt,
+    this.snoozeUntil,
   });
 
   bool get isRead => readAt != null;
+
+  bool snoozedAt(DateTime now) => snoozeUntil != null && snoozeUntil!.isAfter(now);
+
+  /// When it shows in the list (a snoozed reminder comes back at the top).
+  DateTime get shownAt => snoozeUntil ?? createdAt;
 
   Map<String, dynamic> toMap() => {
         'id': id,
@@ -705,8 +746,11 @@ class AppNotification {
         'title': title,
         'body': body,
         'task_id': taskId,
+        if (teamId != null) 'team_id': teamId,
+        if (actorName != null) 'actor_name': actorName,
         'created_at': _ms(createdAt),
         'read_at': _ms(readAt),
+        if (snoozeUntil != null) 'snooze_until': _ms(snoozeUntil),
       };
 
   factory AppNotification.fromMap(Map<String, dynamic> m) => AppNotification(
@@ -716,8 +760,11 @@ class AppNotification {
         title: m['title'] as String,
         body: m['body'] as String,
         taskId: m['task_id'] as String?,
+        teamId: m['team_id'] as String?,
+        actorName: m['actor_name'] as String?,
         createdAt: _dt(m['created_at'])!,
         readAt: _dt(m['read_at']),
+        snoozeUntil: _dt(m['snooze_until']),
       );
 }
 

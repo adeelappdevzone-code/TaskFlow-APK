@@ -1,3 +1,5 @@
+import '../data/inbox.dart';
+import 'inbox_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -1076,6 +1078,19 @@ class _PhoneHome extends StatelessWidget {
                     Text(data.greetingLine,
                         style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
                   ],
+                ),
+              ),
+              ListenableBuilder(
+                listenable: InboxStore.instance,
+                builder: (context, _) => IconButton(
+                  tooltip: 'Inbox',
+                  onPressed: () => Navigator.push(
+                      context, MaterialPageRoute(builder: (_) => const InboxScreen(page: true))),
+                  icon: Badge(
+                    isLabelVisible: InboxStore.instance.count > 0,
+                    label: Text('${InboxStore.instance.count}'),
+                    child: const Icon(Icons.inbox_outlined, size: 27),
+                  ),
                 ),
               ),
               _BellButton(count: AppStore.instance.unreadCount),

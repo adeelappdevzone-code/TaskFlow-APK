@@ -10,6 +10,8 @@ import '../widgets/common.dart';
 import '../widgets/responsive.dart';
 import 'calendar_screen.dart';
 import 'home_screen.dart';
+import 'inbox_screen.dart';
+import '../data/inbox.dart';
 import 'profile_screen.dart';
 import 'notifications_screen.dart';
 import 'projects_screen.dart';
@@ -88,6 +90,8 @@ class _MainShellState extends State<MainShell> {
             CalendarScreen(),
             ProfileScreen(),
             TeamsScreen(),
+            SafeArea(child: InboxScreen()),
+            SafeArea(child: NotificationsScreen(page: false)),
           ],
         ),
         floatingActionButton: SizedBox(
