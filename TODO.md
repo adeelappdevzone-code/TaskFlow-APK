@@ -19,6 +19,26 @@ Testing team ne purani app reject ki thi (tasks bikhre hue, har page par wahi st
 - Baqi: team Members/Overview ka **phone** design purana hai; multi-assignee (owner se poochna);
   dark mode; email notifications (Blaze chahiye).
 
+## TaskFlow 2.0 — 10 faislay (owner ne sab par HAAN kaha, Oct 2026)
+
+Abhi code nahi. Owner screen by screen UI dega, jo screen ke saath samajh aaye woh banate jana.
+
+1. **Target:** agencies/teams par focus. Personal use waisa hi chalta rahe.
+2. **Assign:** ek main zimmedar (assignee) + 2-3 optional "collaborators" (dekh, comment, madad).
+3. **Approval V1:** team ke andar. Member kaam bheje → Manager "Approve" / "Changes chahiye". Client approval baad mein.
+4. **Client login (baad mein):** email magic link, password nahi (Firebase email-link auth, free). Client sirf apna project dekhe/approve kare.
+5. **Unassigned team task:** sirf team board/queue mein. Kisi ke Inbox/notification mein nahi.
+6. **Done ≠ Approved:** assignee Done kare, phir Manager alag se Approve kare (wapis bhej sake).
+7. **Estimate:** optional "kitna time lagega" field. Planner/Rescue/Workload ke liye. Estimate na ho to "unestimated" warning, zero na samjho.
+8. **Calendar (baad mein):** pehle Google, sirf busy/free blocks import, event details nahi.
+9. **Roles:** Owner / Manager / Member hi rahein. Automations sirf Owner/Manager banayein.
+10. **Report share:** sirf Owner/Manager, hamesha preview ke baad, internal comments bahar na jayein.
+
+Abhi bhi pending: Blaze card ka faisla (Phase 2 — email, background notifications — isi par).
+Phase 1 (free plan): Inbox, Notification Center deep links, saved views, team templates, recurrence,
+estimates + Daily Planner/Rescue, Workload, timesheet + time entry edit, internal approvals, PDF report,
+quick capture.
+
 ## Setup (sab chal raha hai)
 
 - **App:** Flutter 3.47.7 (CI mein fix), Firebase project `taskflow-ce905` (Spark/free plan, card nahi).
