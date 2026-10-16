@@ -982,7 +982,7 @@ class _AgendaTile extends StatelessWidget {
                     children: [
                       TickBox(
                           value: t.isCompleted,
-                          onChanged: ref.canComplete ? (v) => ref.setCompleted(v) : null),
+                          onChanged: ref.canComplete ? (v) => tickTask(context, ref, v) : null),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Column(

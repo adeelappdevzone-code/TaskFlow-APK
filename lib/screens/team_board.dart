@@ -33,12 +33,16 @@ class TeamBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final visible = tasks.where((t) => !t.isCancelled).toList()
+    // Members do not see a Done column: their finished work is in My Tasks
+    // (Completed); owner/managers approve and finish tasks here.
+    final admin = TeamStore.instance.isAdmin(team);
+    final shownColumns = admin ? _columns : _columns.where((c) => c.$1 != TaskStage.boardDone);
+    final visible = tasks.where((t) => !t.isCancelled && (admin || !t.isCompleted)).toList()
       ..sort((a, b) => a.startAt.compareTo(b.startAt));
     return LayoutBuilder(builder: (context, box) {
       final fits = box.maxWidth >= 900;
       final columns = [
-        for (final (id, title, fg, bg) in _columns)
+        for (final (id, title, fg, bg) in shownColumns)
           _Column(
             team: team,
             id: id,
@@ -101,10 +105,9 @@ class _Column extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final store = TeamStore.instance;
     return DragTarget<TaskItem>(
       onWillAcceptWithDetails: (d) => TeamBoard.columnOf(d.data) != id,
-      onAcceptWithDetails: (d) => store.moveTo(team, d.data, id),
+      onAcceptWithDetails: (d) => TaskRef(d.data, team).moveTo(id),
       builder: (context, candidate, _) => AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(

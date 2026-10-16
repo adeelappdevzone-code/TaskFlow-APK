@@ -603,7 +603,7 @@ class _PhoneTaskCard extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(6, 10, 0, 10),
         child: Row(
           children: [
-            TickBox(value: done, onChanged: ref.canComplete ? (v) => ref.setCompleted(v) : null),
+            TickBox(value: done, onChanged: ref.canComplete ? (v) => tickTask(context, ref, v) : null),
             const SizedBox(width: 6),
             IconBox(icon: taskIconFor(ref), color: Color(ref.sourceColor), size: 36),
             const SizedBox(width: 10),

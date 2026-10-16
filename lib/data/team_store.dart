@@ -432,9 +432,15 @@ class TeamStore extends ChangeNotifier {
   bool canEdit(Team team, TaskItem task) =>
       _uid != null && (team.isAdmin(_uid!) || (task.createdBy == _uid && task.assigneeId == _uid));
 
-  /// The assignee can mark done; owner/managers can too.
+  /// The assignee works on it (board, timer, checklist, links);
+  /// owner/managers can too.
   bool canComplete(Team team, TaskItem task) =>
       _uid != null && (team.isAdmin(_uid!) || task.assigneeId == _uid);
+
+  /// May mark it done: owner/managers, or a member on a task they made for
+  /// themselves. Others send it for review instead.
+  bool canFinish(Team team, TaskItem task) =>
+      _uid != null && (team.isAdmin(_uid!) || (task.createdBy == _uid && task.assigneeId == _uid));
 
   /// Pending (not cancelled) team tasks assigned to me, in all teams.
   List<TaskItem> get myTeamTasks => [
@@ -730,7 +736,7 @@ class TeamStore extends ChangeNotifier {
   /// its next copy (in the same write).
   void setCompleted(Team team, TaskItem task, bool done, {String? eventKind, String? note}) {
     final me = _uid;
-    if (me == null) return;
+    if (me == null || !canFinish(team, task)) return;
     final now = DateTime.now();
     task
       ..status = done ? TaskStatus.completed : TaskStatus.pending
@@ -923,8 +929,9 @@ class TeamStore extends ChangeNotifier {
   }
 
   /// Owner/manager (or the member for their own task).
+  /// The assignee may attach links to their work too.
   void setLinks(Team team, TaskItem task, List<TaskLink> links) {
-    if (!canEdit(team, task)) return;
+    if (!canComplete(team, task)) return;
     task
       ..links = links
       ..updatedAt = DateTime.now();

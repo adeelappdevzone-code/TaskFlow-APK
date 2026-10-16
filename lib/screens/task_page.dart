@@ -16,6 +16,7 @@ import '../widgets/common.dart';
 import '../widgets/dashboard.dart';
 import '../widgets/responsive.dart';
 import '../widgets/task_extras.dart';
+import 'approvals_screen.dart';
 import 'create_task_dialog.dart';
 import 'task_comments.dart';
 import 'task_form_screen.dart';
@@ -217,23 +218,31 @@ class _TaskPageState extends State<TaskPage> {
           DashCard(padding: const EdgeInsets.all(16), child: _tabBody(ref)),
         ],
       ),
-      bottomNavigationBar: ref.task.isCancelled || !ref.canComplete
+      bottomNavigationBar: ref.task.isCancelled ||
+              !ref.canComplete ||
+              (ref.sendsForReview && (ref.task.isCompleted || ref.task.stage == TaskStage.review))
           ? null
           : SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                child: ref.task.isCompleted
+                child: ref.sendsForReview
                     ? PrimaryButton(
-                        label: 'Mark as not done',
-                        icon: Icons.undo_rounded,
-                        color: AppColors.textMuted,
-                        onPressed: () => ref.setCompleted(false),
+                        label: 'Send for review',
+                        icon: Icons.send_rounded,
+                        onPressed: () => sendForApprovalDialog(context, ref.team!, ref.task),
                       )
-                    : PrimaryButton(
-                        label: 'Mark as Done',
-                        icon: Icons.check_rounded,
-                        onPressed: () => _markDone(ref),
-                      ),
+                    : ref.task.isCompleted
+                        ? PrimaryButton(
+                            label: 'Mark as not done',
+                            icon: Icons.undo_rounded,
+                            color: AppColors.textMuted,
+                            onPressed: () => ref.setCompleted(false),
+                          )
+                        : PrimaryButton(
+                            label: 'Mark as Done',
+                            icon: Icons.check_rounded,
+                            onPressed: () => _markDone(ref),
+                          ),
               ),
             ),
     );
@@ -328,6 +337,8 @@ class _TaskPageState extends State<TaskPage> {
             _edit(ref);
           case 'done':
             t.isCompleted ? ref.setCompleted(false) : await _markDone(ref);
+          case 'review':
+            await sendForApprovalDialog(context, team!, t);
           case 'start':
             TimeTracker.start(t, team: team);
           case 'stop':
@@ -366,9 +377,14 @@ class _TaskPageState extends State<TaskPage> {
       },
       itemBuilder: (_) => [
         if (ref.canEdit) const PopupMenuItem(value: 'edit', child: Text('Edit')),
-        if (ref.canComplete && !t.isCancelled)
+        if (ref.canFinish && !t.isCancelled)
           PopupMenuItem(
-              value: 'done', child: Text(t.isCompleted ? 'Mark as not done' : 'Mark as done')),
+              value: 'done', child: Text(t.isCompleted ? 'Mark as not done' : 'Mark as done'))
+        else if (ref.sendsForReview &&
+            !t.isCancelled &&
+            !t.isCompleted &&
+            t.stage != TaskStage.review)
+          const PopupMenuItem(value: 'review', child: Text('Send for review')),
         if (canStop) const PopupMenuItem(value: 'stop', child: Text('Stop timer')),
         if (canStart) const PopupMenuItem(value: 'start', child: Text('Start timer')),
         const PopupMenuItem(value: 'gcal', child: Text('Add to Google Calendar')),
@@ -441,7 +457,22 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
-          if (wide && ref.canComplete && !t.isCancelled) ...[
+          if (wide &&
+              ref.sendsForReview &&
+              !t.isCancelled &&
+              !t.isCompleted &&
+              t.stage != TaskStage.review) ...[
+            const SizedBox(width: 12),
+            FilledButton.icon(
+              onPressed: () => sendForApprovalDialog(context, ref.team!, t),
+              style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+              icon: const Icon(Icons.send_rounded, size: 18),
+              label: const Text('Send for review'),
+            ),
+          ],
+          if (wide && ref.canFinish && !t.isCancelled) ...[
             const SizedBox(width: 12),
             t.isCompleted
                 ? OutlinedButton.icon(
@@ -495,7 +526,7 @@ class _Details extends StatelessWidget {
             position: PopupMenuPosition.under,
             onSelected: ref.moveTo,
             itemBuilder: (_) => [
-              for (final s in [...TaskStage.all, TaskStage.boardDone])
+              for (final s in [...TaskStage.all, if (ref.canFinish) TaskStage.boardDone])
                 PopupMenuItem(
                     value: s, child: Text(s == TaskStage.boardDone ? 'Done' : TaskStage.label(s))),
             ],
@@ -602,7 +633,7 @@ class _Details extends StatelessWidget {
             child: Row(
               children: [
                 const Expanded(child: Text('Links', style: label)),
-                if (ref.canEdit)
+                if (ref.canComplete)
                   TextButton.icon(
                     onPressed: () async {
                       final l = await linkDialog(context);
@@ -744,8 +775,8 @@ class _LinkList extends StatelessWidget {
                   itemBuilder: (_) => [
                     const PopupMenuItem(value: 'open', child: Text('Open')),
                     const PopupMenuItem(value: 'copy', child: Text('Copy link')),
-                    if (ref.canEdit) const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    if (ref.canEdit)
+                    if (ref.canComplete) const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    if (ref.canComplete)
                       const PopupMenuItem(
                           value: 'remove',
                           child: Text('Remove', style: TextStyle(color: AppColors.danger))),
@@ -772,7 +803,7 @@ class _Links extends StatelessWidget {
           children: [
             const Expanded(
                 child: Text('Links', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
-            if (ref.canEdit)
+            if (ref.canComplete)
               FilledButton.tonalIcon(
                 onPressed: () async {
                   final l = await linkDialog(context);

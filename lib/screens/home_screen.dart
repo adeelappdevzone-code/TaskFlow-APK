@@ -718,7 +718,7 @@ class _TaskRow extends StatelessWidget {
           children: [
             TickBox(
               value: done,
-              onChanged: ref.canComplete ? (v) => ref.setCompleted(v) : null,
+              onChanged: ref.canComplete ? (v) => tickTask(context, ref, v) : null,
             ),
             const SizedBox(width: 10),
             IconBox(icon: taskIconFor(ref), color: Color(ref.sourceColor), size: 36),
@@ -1032,7 +1032,7 @@ class _UpcomingCard extends StatelessWidget {
                 children: [
                   TickBox(
                       value: r.task.isCompleted,
-                      onChanged: r.canComplete ? (v) => r.setCompleted(v) : null),
+                      onChanged: r.canComplete ? (v) => tickTask(context, r, v) : null),
                   const SizedBox(width: 8),
                   IconBox(icon: taskIconFor(r), color: Color(r.sourceColor), size: 34),
                   const SizedBox(width: 10),

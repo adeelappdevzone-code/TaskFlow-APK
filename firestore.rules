@@ -267,10 +267,10 @@ service cloud.firestore {
         function assigneeOk(d, tm) {
           return !('assignee_id' in d) || d.assignee_id == null || d.assignee_id in tm.member_ids;
         }
-        // A member may only move their own task on the board (stage), mark it
-        // done / not done, tick its checklist, use the work timer and attach
-        // links to the work (the history and time log are added to along the
-        // way).
+        // A member may only move their own task on the board (stage), tick
+        // its checklist, use the work timer and attach links to the work (the
+        // history and time log are added to along the way). Marking it done
+        // is for owner/managers, or the member on a task they made themselves.
         function assigneeUpdate(tm) {
           return request.auth.uid in tm.member_ids
               && resource.data.assignee_id == request.auth.uid
@@ -284,6 +284,10 @@ service cloud.firestore {
                   || request.resource.data.completed_by == null
                   || request.resource.data.completed_by == request.auth.uid)
               && request.resource.data.status in ['pending', 'completed']
+              // Done / not done only on a task they made for themselves; a
+              // task from a manager goes to Review and the manager finishes it.
+              && (request.resource.data.status == resource.data.status
+                  || resource.data.created_by == request.auth.uid)
               && validTask(request.resource.data, taskId);
         }
 

@@ -98,13 +98,15 @@ await t('task: member edits own task', assertSucceeds(updateDoc(doc(adeel, `team
 await t('task: member cannot give own task away', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a2`), { assignee_id: 'sar' })));
 await t('task: other member cannot edit it', assertFails(updateDoc(doc(sara, `teams/${T}/tasks/a2`), { title: 'x' })));
 await t('task: other member cannot delete it', assertFails(deleteDoc(doc(sara, `teams/${T}/tasks/a2`))));
+await t('task: member finishes own task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a2`), { status: 'completed', completed_by: 'adl', completed_at: now, updated_at: now })));
+await t('task: member reopens own task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a2`), { status: 'pending', completed_by: null, completed_at: null, updated_at: now })));
 await t('task: member deletes own task', assertSucceeds(deleteDoc(doc(adeel, `teams/${T}/tasks/a2`))));
 await t('task: member cannot delete assigned task', assertFails(deleteDoc(doc(adeel, `teams/${T}/tasks/a1`))));
 await t('task: member reads team tasks', assertSucceeds(getDocs(collection(adeel, `teams/${T}/tasks`))));
 await t('task: outsider cannot read', assertFails(getDocs(collection(outsider, `teams/${T}/tasks`))));
-await t('task: adeel marks own task done', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_at: now, updated_at: now })));
+await t("task: adeel cannot finish a manager's task (review instead)", assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_at: now, updated_at: now })));
 await t('task: completed_by must be yourself', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_by: 'own', updated_at: now })));
-await t('task: completed_by self ok', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_by: 'adl', updated_at: now })));
+await t("task: manager's task stays open even with completed_by self", assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_by: 'adl', updated_at: now })));
 await t('task: adeel ticks checklist', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { checklist: [], updated_at: now })));
 await t('task: adeel cannot edit title', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { title: 'changed' })));
 await t('task: adeel cannot reassign', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { assignee_id: 'sar' })));
@@ -151,7 +153,7 @@ await t('timer: cannot start as someone else', assertFails(updateDoc(doc(adeel, 
 await t('timer: cannot time others task', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/s1`), { timer_by: 'adl', timer_at: now })));
 await t('timer: owner starts timer on adeels task', assertSucceeds(updateDoc(doc(owner, `teams/${T}/tasks/a1`), { timer_by: 'own', timer_at: now, updated_at: now })));
 await t('timer: adeel ticks checklist while owner timer runs', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { checklist: [], updated_at: now })));
-await t('timer: adeel finishing stops the timer', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { status: 'completed', completed_by: 'adl', completed_at: now, timer_by: null, timer_at: null, time_log: arrayUnion({ by: 'own', start: now - 60000, end: now }), history: arrayUnion(ev('done', 'adl')), updated_at: now })));
+await t('timer: adeel stops the timer', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { timer_by: null, timer_at: null, time_log: arrayUnion({ by: 'own', start: now - 60000, end: now }), history: arrayUnion(ev('stage', 'adl', { to: 'review' })), updated_at: now })));
 await t('links: assignee can attach links to own task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { links: [] })));
 await t('links: owner adds links', assertSucceeds(updateDoc(doc(owner, `teams/${T}/tasks/a1`), { links: [{ title: '', url: 'https://drive.google.com/x' }], updated_at: now })));
 await t('mention: comment with mentions', assertSucceeds(setDoc(doc(sara, `teams/${T}/comments/m1`), comment('m1', 'sar', 'a1', { text: '@adl see this', mentions: ['adl'] }))));
@@ -169,10 +171,18 @@ await t('repeat: other member cannot copy', assertFails(setDoc(doc(sara, `teams/
 await t('repeat: copy with changed title denied', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/w2`), nextCopy('adl', { title: 'Other' }))));
 await t('repeat: copy assigned to someone else denied', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/w2`), nextCopy('adl', { assignee_id: 'sar' }))));
 await t('repeat: copy of non-repeating task denied', assertFails(setDoc(doc(adeel, `teams/${T}/tasks/w3`), { ...nextCopy('adl'), id: 'w3', repeat_from: 'a1' })));
-await t('repeat: adeel finishes + next copy (batch)', assertSucceeds((() => {
+await t("repeat: adeel cannot finish the manager's weekly task", assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/w1`), { status: 'completed', completed_at: now, updated_at: now })));
+await t('repeat: owner approves + next copy (batch)', assertSucceeds((() => {
+  const b = writeBatch(owner);
+  b.update(doc(owner, `teams/${T}/tasks/w1`), { status: 'completed', completed_at: now, completed_by: 'own', updated_at: now });
+  b.set(doc(owner, `teams/${T}/tasks/w2`), nextCopy('own'));
+  return b.commit();
+})()));
+await t('repeat: adeel makes own weekly task', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/r1`), { ...ttask('r1', 'adl', 'adl'), repeat: 'weekly' })));
+await t('repeat: adeel finishes own weekly task + next copy (batch)', assertSucceeds((() => {
   const b = writeBatch(adeel);
-  b.update(doc(adeel, `teams/${T}/tasks/w1`), { status: 'completed', completed_at: now, updated_at: now });
-  b.set(doc(adeel, `teams/${T}/tasks/w2`), nextCopy('adl'));
+  b.update(doc(adeel, `teams/${T}/tasks/r1`), { status: 'completed', completed_at: now, completed_by: 'adl', updated_at: now });
+  b.set(doc(adeel, `teams/${T}/tasks/r2`), { ...ttask('r2', 'adl', 'adl'), repeat: 'weekly', repeat_from: 'r1', start_at: now + 7 * 864e5 });
   return b.commit();
 })()));
 await t('template: save own template', assertSucceeds(setDoc(doc(me, 'users/u1/templates/tp1'), { id: 'tp1', name: 'SEO audit', title: 'SEO audit', description: '', priority: 1, checklist: ['Keywords', 'Meta'], duration_min: 60, created_at: now })));

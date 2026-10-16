@@ -12,6 +12,7 @@ import '../data/team_store.dart';
 import '../widgets/common.dart';
 import '../widgets/dashboard.dart';
 import '../widgets/task_extras.dart';
+import 'task_comments.dart';
 import 'task_ui.dart';
 
 // Approval Center (inside teams): the list of work sent for approval, the
@@ -807,6 +808,18 @@ class ReviewScreen extends _TaskPage {
                   style: TextStyle(color: AppColors.textMuted)),
             ),
           for (final l in task.links) _LinkTile(link: l),
+          if (store.canComplete(team, task) && task.links.length < 20)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () async {
+                  final l = await linkDialog(context);
+                  if (l != null) store.setLinks(team, task, [...task.links, l]);
+                },
+                icon: const Icon(Icons.add_link_rounded, size: 18),
+                label: const Text('Add link'),
+              ),
+            ),
           if (task.description.isNotEmpty) ...[
             const Divider(height: 28, color: AppColors.border),
             const Text('Task description', style: TextStyle(fontWeight: FontWeight.w700)),
@@ -953,7 +966,17 @@ class ReviewScreen extends _TaskPage {
           label: const Text('Approval history'),
         ),
       ],
-      main: deliverables,
+      main: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          deliverables,
+          const SizedBox(height: 16),
+          DashCard(
+            padding: const EdgeInsets.all(18),
+            child: TaskComments(key: ValueKey('rc-${task.id}'), team: team, task: task),
+          ),
+        ],
+      ),
       side: details,
       bottom: bottom,
     );

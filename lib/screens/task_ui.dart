@@ -1,3 +1,4 @@
+import 'approvals_screen.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -71,6 +72,8 @@ class TaskActionsMenu extends StatelessWidget {
                 context, MaterialPageRoute(builder: (_) => TaskFormScreen(task: t, team: team)));
           case 'done':
             ref.setCompleted(!t.isCompleted);
+          case 'review':
+            sendForApprovalDialog(context, team!, t);
           case 'start':
             TimeTracker.start(t, team: team);
           case 'stop':
@@ -93,9 +96,11 @@ class TaskActionsMenu extends StatelessWidget {
       itemBuilder: (_) => [
         const PopupMenuItem(value: 'open', child: Text('Open')),
         if (canEdit) const PopupMenuItem(value: 'edit', child: Text('Edit')),
-        if (ref.canComplete)
+        if (ref.canFinish)
           PopupMenuItem(
-              value: 'done', child: Text(t.isCompleted ? 'Mark as not done' : 'Mark as done')),
+              value: 'done', child: Text(t.isCompleted ? 'Mark as not done' : 'Mark as done'))
+        else if (ref.sendsForReview && !t.isCompleted && t.stage != TaskStage.review)
+          const PopupMenuItem(value: 'review', child: Text('Send for review')),
         if (canStop)
           const PopupMenuItem(value: 'stop', child: Text('Stop timer'))
         else if (canTime && !t.timerRunning)
@@ -331,4 +336,22 @@ String assigneeNameOf(TaskRef r) {
   final team = r.team;
   if (team == null) return AppStore.instance.currentUser?.name ?? 'Me';
   return r.task.assigneeId == null ? 'Unassigned' : team.nameOf(r.task.assigneeId);
+}
+
+/// A tick on a task: done / not done, or for a team task a manager gave me,
+/// "send for review" (only owner/managers finish those).
+void tickTask(BuildContext context, TaskRef ref, bool done) {
+  if (ref.canFinish) {
+    ref.setCompleted(done);
+    return;
+  }
+  if (!done) {
+    showSnack(context, 'Only an owner or manager can reopen this task.');
+    return;
+  }
+  if (ref.task.isCompleted || ref.task.stage == TaskStage.review) {
+    showSnack(context, 'Already sent for review.');
+    return;
+  }
+  sendForApprovalDialog(context, ref.team!, ref.task);
 }

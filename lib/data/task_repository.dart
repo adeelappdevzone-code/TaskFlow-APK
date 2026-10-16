@@ -36,6 +36,17 @@ class TaskRef {
     return t == null || TeamStore.instance.canComplete(t, task);
   }
 
+  /// May mark it done (personal tasks; team: owner/manager or a task I made
+  /// for myself).
+  bool get canFinish {
+    final t = team;
+    return t == null || TeamStore.instance.canFinish(t, task);
+  }
+
+  /// A team task given to me by a manager: I send it for review instead of
+  /// marking it done.
+  bool get sendsForReview => team != null && canComplete && !canFinish;
+
   /// Owner/manager, or my own task (personal, or one I made for myself).
   bool get canEdit {
     final t = team;
@@ -47,6 +58,10 @@ class TaskRef {
     final t = team;
     if (t == null) {
       AppStore.instance.moveTo(task, column);
+    } else if (sendsForReview && (column == TaskStage.boardDone || column == TaskStage.review)) {
+      // "Done" for a member means: send it to the manager.
+      if (task.isCompleted || (task.stage == TaskStage.review)) return;
+      TeamStore.instance.submitForApproval(t, task);
     } else {
       TeamStore.instance.moveTo(t, task, column);
     }

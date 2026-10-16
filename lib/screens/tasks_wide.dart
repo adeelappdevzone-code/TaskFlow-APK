@@ -364,7 +364,7 @@ class _TableRow extends StatelessWidget {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: TickBox(
-                    value: done, onChanged: ref.canComplete ? (v) => ref.setCompleted(v) : null),
+                    value: done, onChanged: ref.canComplete ? (v) => tickTask(context, ref, v) : null),
               ),
             ),
             Expanded(
@@ -491,7 +491,7 @@ class _FocusCard extends StatelessWidget {
                   children: [
                     InkWell(
                       customBorder: const CircleBorder(),
-                      onTap: r.canComplete ? () => r.setCompleted(true) : null,
+                      onTap: r.canComplete ? () => tickTask(context, r, true) : null,
                       child: Container(
                         width: 24,
                         height: 24,

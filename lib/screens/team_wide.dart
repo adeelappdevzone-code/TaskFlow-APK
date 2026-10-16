@@ -365,7 +365,7 @@ class _ListRow extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: TickBox(
                     value: t.isCompleted,
-                    onChanged: ref.canComplete ? (v) => ref.setCompleted(v) : null),
+                    onChanged: ref.canComplete ? (v) => tickTask(context, ref, v) : null),
               ),
             ),
             Expanded(

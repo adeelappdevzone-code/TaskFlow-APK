@@ -289,7 +289,7 @@ class _TeamScreenState extends State<TeamScreen> {
                   teamTask: true,
                   onTap: () => openTeamTask(context, team, t),
                   onToggle: store.canComplete(team, t)
-                      ? () => store.setCompleted(team, t, !t.isCompleted)
+                      ? () => tickTask(context, TaskRef(t, team), !t.isCompleted)
                       : null,
                   trailing: AssigneeBadge(team: team, task: t),
                 ),
@@ -302,7 +302,7 @@ class _TeamScreenState extends State<TeamScreen> {
             teamTask: true,
             onTap: () => openTeamTask(context, team, t),
             onToggle: store.canComplete(team, t)
-                ? () => store.setCompleted(team, t, !t.isCompleted)
+                ? () => tickTask(context, TaskRef(t, team), !t.isCompleted)
                 : null,
             trailing: AssigneeBadge(team: team, task: t),
           ),
