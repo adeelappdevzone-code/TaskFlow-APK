@@ -404,8 +404,10 @@ service cloud.firestore {
             && num(d(), 'created_at')
             && (!('names' in d()) || d().names is map);
       }
+      // A teammate asks to chat: starts pending, the other person approves.
       function teammates() {
-        return d().type == 'direct' && d().status == 'active'
+        return d().type == 'direct' && d().status == 'pending'
+            && !('blocked_by' in d()) && !('invite_email' in d())
             && d().member_ids.size() == 2 && request.auth.uid in d().member_ids
             && chatId == d().member_ids[0] + '_' + d().member_ids[1]
             && d().via_team is string
@@ -436,14 +438,34 @@ service cloud.firestore {
           || resource.data.invite_email == myEmail());
       allow create: if signedIn() && validChat() && (teammates() || chatRequest() || teamChat());
       allow update: if signedIn() && (
-          // New message / read: the list fields only.
+          // New message / read: the list fields only (only "read" once blocked).
           (inChat(resource.data)
               && changed().hasOnly(['last_text', 'last_at', 'last_from', 'read'])
+              && (resource.data.get('status', 'active') != 'blocked' || changed().hasOnly(['read']))
               && optStr(d(), 'last_text', 300) && optNum(d(), 'last_at')
               && (!('last_from' in d()) || d().last_from == null
                   || d().last_from == request.auth.uid
                   || !changed().hasAny(['last_from']))
               && (!('read' in d()) || d().read is map))
+          // A teammate's request to me: approve or block it.
+          || (resource.data.type == 'direct' && resource.data.status == 'pending'
+              && !('invite_email' in resource.data)
+              && request.auth.uid in resource.data.member_ids
+              && resource.data.created_by != request.auth.uid
+              && changed().hasOnly(['status', 'read', 'blocked_by'])
+              && ((d().status == 'active' && !('blocked_by' in d()))
+                  || (d().status == 'blocked' && d().blocked_by == request.auth.uid)))
+          // Block the other person in a direct chat.
+          || (resource.data.type == 'direct' && resource.data.get('status', 'active') == 'active'
+              && !('invite_email' in resource.data)
+              && request.auth.uid in resource.data.member_ids
+              && changed().hasOnly(['status', 'blocked_by'])
+              && d().status == 'blocked' && d().blocked_by == request.auth.uid)
+          // Only the one who blocked can unblock.
+          || (resource.data.status == 'blocked'
+              && resource.data.blocked_by == request.auth.uid
+              && changed().hasOnly(['status', 'blocked_by'])
+              && d().status == 'active' && d().blocked_by == null)
           // Accepting a chat request: add yourself.
           || (resource.data.status == 'pending'
               && resource.data.invite_email == myEmail()
@@ -453,8 +475,11 @@ service cloud.firestore {
               && d().member_ids.toSet()
                   == resource.data.member_ids.toSet().union([request.auth.uid].toSet())
               && d().member_ids.size() == 2));
+      // Not by the blocked person (that would undo the block).
       allow delete: if signedIn() && resource.data.type == 'direct' && (
-          request.auth.uid in resource.data.member_ids
+          (request.auth.uid in resource.data.member_ids
+              && (resource.data.get('status', 'active') != 'blocked'
+                  || resource.data.blocked_by == request.auth.uid))
           || (resource.data.status == 'pending' && resource.data.invite_email == myEmail()));
 
       match /messages/{messageId} {
@@ -471,7 +496,11 @@ service cloud.firestore {
               && optStr(m, 'task_title', 500);
         }
         allow read: if signedIn() && inChat(chat());
-        allow create: if signedIn() && inChat(chat()) && validMessage(request.resource.data);
+        // Accepted chats and team chats; a pending one only by the person
+        // asking; nothing once blocked.
+        allow create: if signedIn() && inChat(chat()) && validMessage(request.resource.data)
+            && (chat().get('status', 'active') == 'active'
+                || (chat().status == 'pending' && chat().created_by == request.auth.uid));
         allow delete: if signedIn() && resource.data.from == request.auth.uid;
       }
     }

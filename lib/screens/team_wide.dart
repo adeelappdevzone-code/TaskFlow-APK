@@ -635,14 +635,16 @@ class _WideMembersState extends State<_WideMembers> {
                   status: statusChip('Active', AppColors.success),
                   action: Builder(builder: (context) {
                     final actions = _memberMenu(team, me, uid);
-                    return actions.isEmpty
-                        ? const SizedBox.shrink()
-                        : PopupMenuButton<String>(
-                            tooltip: 'Actions',
-                            icon: const Icon(Icons.more_vert_rounded),
-                            onSelected: (a) => _memberAction(context, team, a, uid),
-                            itemBuilder: (_) => actions,
-                          );
+                    return Row(mainAxisSize: MainAxisSize.min, children: [
+                      _messageButton(context, team, me, uid),
+                      if (actions.isNotEmpty)
+                        PopupMenuButton<String>(
+                          tooltip: 'Actions',
+                          icon: const Icon(Icons.more_vert_rounded),
+                          onSelected: (a) => _memberAction(context, team, a, uid),
+                          itemBuilder: (_) => actions,
+                        ),
+                    ]);
                   }),
                 ),
                 const Divider(height: 1, indent: 12, endIndent: 12),

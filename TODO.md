@@ -100,20 +100,20 @@ Sakht karna ho to baad mein rule lagana.
 - Direct: team-mate se seedha chat; bahar ke banday ko email se chat request (Accept/Decline).
 - Group: har team ki apni chat. Task share, links, "Seen", message delete.
 - Team invite: purani teams ke log list se select (invite + accept wahi purana).
-- Members tab mein "Message" option. Rules: chats/{id} + messages (27 rule tests).
+- Members tab mein har member ke saath 💬 icon. Team-mate ko pehla message = request (status pending): woh **Approve** ya **Block** kare. Bhejne wala approval tak sirf 1 message. Block sirf direct chat mein (blocked_by; sirf blocker unblock kare). Group chat mein block nahi.
 - Baad mein: push notification server ke baghair sirf app khuli ho to alert (Spark plan).
 
-## Phone menu (Oct 2026, branch par, main par abhi nahi)
+## Phone menu (Oct 2026, main par push)
 - Neeche nav: Home | My Tasks | (+) | Chats | Menu. Menu (ya left edge swipe) = laptop wala side menu drawer mein.
 - Drawer se khulne wale pages par upar title + ☰. Home header se Time/Planner/Capture icons hata diye (bell + avatar baqi).
 
-## Working hours (Oct 2026, branch par, main par abhi nahi)
+## Working hours (Oct 2026, main par push)
 - Settings → Preferences → Quick Settings → "Working hours": start/end + kaam ke din (users/{uid} work_start, work_end, work_days). Planner ka "Change"/"Work hours" bhi wahi dialog.
 - Planner ke upar: "Your work day: 9:00 AM – 5:30 PM • Mon–Fri • 3h left today". Chhutti ke din available 0.
 - Rescue: low/medium tasks agle **work day jahan jagah ho** par (chhutti aur bhare din skip, 60 work days tak).
 - Team Workload: member ki capacity uske apne hafte ke minutes (teams/{id}.members.{uid}.week_min, khud set karta hai); set na ho to team ke weekHours.
 
-## Overload across teams (Oct 2026, branch par, main par abhi nahi)
+## Overload across teams (Oct 2026, main par push)
 - Busy time: har banda apni app se agle 14 din ka "kitna busy" (personal + saari teams, sirf totals) apni teams mein share karta hai: teams/{id}.members.{uid}.busy {"yyyymmdd": min}, day_min, work_days (`lib/data/capacity.dart`, BusySync).
 - Assign warning: Create task dialog mein assignee + date + estimate par "Adeel already has 3h 30m… 1h over" + "Move to <next free day>". Estimate field dialog mein add.
 - Team Workload: "busy elsewhere" (purple) bar/legend; ratio = yahan + elsewhere.

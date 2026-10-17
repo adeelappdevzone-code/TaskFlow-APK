@@ -181,4 +181,110 @@ void main() {
     expect(find.text('Awais'), findsOneWidget);
     expect(find.text('Waseem'), findsNothing);
   });
+
+  group('teammate requests and blocking', () {
+    // Waseem (wa) wrote to me first: a pending chat he started.
+    Chat fromWaseem() => Chat(
+          id: directChatId('me', 'wa'),
+          type: ChatType.direct,
+          memberIds: const ['me', 'wa'],
+          names: const {'me': 'Adeel', 'wa': 'Waseem'},
+          status: 'pending',
+          lastText: 'Can we talk about the banner?',
+          lastAt: now,
+          lastFrom: 'wa',
+          createdBy: 'wa',
+        );
+
+    void seedReq() {
+      TeamStore.instance
+        ..teams = [seo, ui]
+        ..invites = []
+        ..setForTest(uid: 'me', tasks: {});
+      ChatStore.instance.setForTest(uid: 'me', direct: [
+        fromWaseem()
+      ], messages: {
+        fromWaseem().id: [
+          ChatMessage(
+              id: '1',
+              from: 'wa',
+              fromName: 'Waseem',
+              text: 'Can we talk about the banner?',
+              at: now)
+        ],
+      });
+    }
+
+    test('starting a chat with a teammate sends a request; one message until they accept', () {
+      TeamStore.instance
+        ..teams = [seo, ui]
+        ..setForTest(uid: 'me', tasks: {});
+      ChatStore.instance.setForTest(uid: 'me');
+      final s = ChatStore.instance;
+      final id = s.openDirect(const Contact('ma', 'Awais', 'ma@x.com', ['T2']));
+      var c = s.byId(id)!;
+      expect(c.isPending, isTrue);
+      expect(s.subtitleOf(c), 'Waiting for Awais to accept');
+      expect(s.canSend(c), isTrue);
+      s.send(c, 'Hi Awais');
+      c = s.byId(id)!;
+      expect(s.canSend(c), isFalse); // only the first message
+      s.send(c, 'Hello?');
+      expect(s.byId(id)!.lastText, 'Hi Awais');
+      expect(s.incomingRequests, isEmpty); // my own request is not "incoming"
+    });
+
+    test('incoming request: not in the list until approved; block stops it', () {
+      seedReq();
+      final s = ChatStore.instance;
+      expect(s.incomingRequests.map((c) => c.id), [fromWaseem().id]);
+      expect(s.directChats, isEmpty);
+      expect(s.unreadCount, 1);
+      expect(s.canSend(s.byId(fromWaseem().id)!), isFalse);
+      s.accept(s.byId(fromWaseem().id)!);
+      expect(s.incomingRequests, isEmpty);
+      expect(s.directChats.single.status, 'active');
+
+      s.block(s.byId(fromWaseem().id)!);
+      final b = s.byId(fromWaseem().id)!;
+      expect((b.isBlocked, b.blockedBy, s.canSend(b)), (true, 'me', false));
+      s.unblock(b);
+      expect(s.canSend(s.byId(fromWaseem().id)!), isTrue);
+    });
+
+    testWidgets('request shows the message with Approve / Block', (tester) async {
+      tester.view.physicalSize = const Size(1500, 950);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      seedReq();
+      MessagesScreen.select.value = null;
+      await tester.pumpWidget(MaterialApp(theme: buildAppTheme(), home: const MessagesScreen()));
+      await tester.pumpAndSettle();
+      expect(find.text('Requests (1)'), findsOneWidget);
+      await tester.tap(find.text('Waseem'));
+      await tester.pumpAndSettle();
+      expect(find.text('Waseem wants to send you messages. Approve to reply.'), findsOneWidget);
+      expect(find.text('Type a message...'), findsNothing);
+      await tester.tap(find.text('Block').last);
+      await tester.pumpAndSettle();
+      expect(find.text('You blocked Waseem.'), findsOneWidget);
+      await tester.tap(find.text('Unblock'));
+      await tester.pumpAndSettle();
+      expect(find.text('Type a message...'), findsOneWidget);
+    });
+
+    testWidgets('team members have a message button', (tester) async {
+      tester.view.physicalSize = const Size(520, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      seed();
+      await tester
+          .pumpWidget(MaterialApp(theme: buildAppTheme(), home: const TeamScreen(teamId: 'T1')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('Members ('));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Message Waseem'), findsOneWidget);
+      expect(find.byTooltip('Message Adeel'), findsNothing); // not myself
+    });
+  });
 }

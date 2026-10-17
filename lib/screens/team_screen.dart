@@ -441,6 +441,18 @@ Future<void> _memberAction(BuildContext context, Team team, String action, Strin
   }
 }
 
+/// 💬 next to a teammate: opens our direct chat (a request the first time).
+Widget _messageButton(BuildContext context, Team team, String me, String uid) => uid == me
+    ? const SizedBox.shrink()
+    : IconButton(
+        tooltip: 'Message ${team.nameOf(uid)}',
+        visualDensity: VisualDensity.compact,
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+        padding: EdgeInsets.zero,
+        onPressed: () => _memberAction(context, team, 'message', uid),
+        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 21, color: AppColors.primary),
+      );
+
 /// What the current user may do with [uid] in [team] (owner/manager menus).
 List<PopupMenuEntry<String>> _memberMenu(Team team, String me, String uid) {
   final role = team.roleOf(uid) ?? TeamRole.member;
@@ -448,7 +460,6 @@ List<PopupMenuEntry<String>> _memberMenu(Team team, String me, String uid) {
   final admin = team.isAdmin(me);
   final isMe = uid == me;
   return [
-    if (!isMe) const PopupMenuItem(value: 'message', child: Text('Message')),
     if (owner && !isMe && role == TeamRole.member)
       const PopupMenuItem(value: 'manager', child: Text('Make manager')),
     if (owner && !isMe && role == TeamRole.manager)
@@ -543,6 +554,7 @@ class _MembersTab extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           RoleChip(role: role),
+          _messageButton(context, team, me, uid),
           if (actions.isNotEmpty)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert_rounded),

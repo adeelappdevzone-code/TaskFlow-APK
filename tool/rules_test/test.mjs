@@ -236,9 +236,15 @@ await t('templates: personal workflow template', assertSucceeds(setDoc(doc(sara,
 await t('templates: owner deletes', assertSucceeds(deleteDoc(doc(owner, `teams/${T}/templates/tp1`))));
 // ------------------------------------------------------------------- chats
 const dm = 'adl_sar';
-const chat = (id, extra = {}) => ({ id, type: 'direct', member_ids: ['adl', 'sar'], names: { adl: 'Adeel', sar: 'Sara' }, via_team: T, status: 'active', created_by: 'adl', created_at: now, read: { adl: now }, ...extra });
+const chat = (id, extra = {}) => ({ id, type: 'direct', member_ids: ['adl', 'sar'], names: { adl: 'Adeel', sar: 'Sara' }, via_team: T, status: 'pending', created_by: 'adl', created_at: now, read: { adl: now }, ...extra });
 const msg = (id, from, extra = {}) => ({ id, from, from_name: from, text: 'Hi', at: now, ...extra });
-await t('chat: teammates start a direct chat', assertSucceeds(setDoc(doc(adeel, `chats/${dm}`), chat(dm))));
+await t('chat: teammate chat cannot skip approval', assertFails(setDoc(doc(adeel, `chats/${dm}`), chat(dm, { status: 'active' }))));
+await t('chat: teammates start a direct chat (request)', assertSucceeds(setDoc(doc(adeel, `chats/${dm}`), chat(dm))));
+await t('chat: asker sends the first message', assertSucceeds(setDoc(doc(adeel, `chats/${dm}/messages/m0`), msg('m0', 'adl'))));
+await t('chat: other one cannot reply before approving', assertFails(setDoc(doc(sara, `chats/${dm}/messages/s0`), msg('s0', 'sar'))));
+await t('chat: other one reads the request message', assertSucceeds(getDocs(collection(sara, `chats/${dm}/messages`))));
+await t('chat: asker cannot approve own request', assertFails(updateDoc(doc(adeel, `chats/${dm}`), { status: 'active' })));
+await t('chat: other one approves', assertSucceeds(updateDoc(doc(sara, `chats/${dm}`), { status: 'active', 'read.sar': now })));
 await t('chat: outsider cannot read it', assertFails(getDoc(doc(outsider, `chats/${dm}`))));
 await t('chat: cannot start chat with a non-teammate', assertFails(setDoc(doc(adeel, 'chats/adl_out'), chat('adl_out', { member_ids: ['adl', 'out'] }))));
 await t('chat: cannot make a chat for two others', assertFails(setDoc(doc(outsider, `chats/${dm}x`), chat(`${dm}x`, { created_by: 'out' }))));
@@ -251,6 +257,14 @@ await t('chat: member updates last message', assertSucceeds(updateDoc(doc(adeel,
 await t('chat: member marks read', assertSucceeds(updateDoc(doc(sara, `chats/${dm}`), { 'read.sar': now })));
 await t('chat: cannot add people', assertFails(updateDoc(doc(adeel, `chats/${dm}`), { member_ids: ['adl', 'sar', 'own'] })));
 await t('chat: my chat list query', assertSucceeds(getDocs(query(collection(sara, 'chats'), where('member_ids', 'array-contains', 'sar')))));
+await t('chat: sara blocks adeel', assertSucceeds(updateDoc(doc(sara, `chats/${dm}`), { status: 'blocked', blocked_by: 'sar' })));
+await t('chat: blocked one cannot send', assertFails(setDoc(doc(adeel, `chats/${dm}/messages/b1`), msg('b1', 'adl'))));
+await t('chat: blocked one cannot update the list fields', assertFails(updateDoc(doc(adeel, `chats/${dm}`), { last_text: 'Hey again', last_at: now + 5, last_from: 'adl' })));
+await t('chat: blocked one cannot unblock', assertFails(updateDoc(doc(adeel, `chats/${dm}`), { status: 'active', blocked_by: null })));
+await t('chat: blocked one cannot delete the chat', assertFails(deleteDoc(doc(adeel, `chats/${dm}`))));
+await t('chat: cannot block in someone else\'s name', assertFails(updateDoc(doc(adeel, `chats/${dm}`), { blocked_by: 'adl' })));
+await t('chat: sara unblocks', assertSucceeds(updateDoc(doc(sara, `chats/${dm}`), { status: 'active', blocked_by: null })));
+await t('chat: after unblock adeel can send', assertSucceeds(setDoc(doc(adeel, `chats/${dm}/messages/b2`), msg('b2', 'adl'))));
 await t('chat: message too long denied', assertFails(setDoc(doc(adeel, `chats/${dm}/messages/m4`), msg('m4', 'adl', { text: 'x'.repeat(4001) }))));
 // team chat
 const tc = `team_${T}`;

@@ -343,7 +343,7 @@ class _ChatList extends StatelessWidget {
             decoration: BoxDecoration(
                 color: const Color(0xFFF1F3F6), borderRadius: BorderRadius.circular(12)),
             child: Row(children: [
-              tab('Direct', false, unreadDirect + store.requests.length),
+              tab('Direct', false, unreadDirect + store.incomingRequests.length),
               tab('Group', true, unreadGroup),
             ]),
           ),
@@ -351,10 +351,20 @@ class _ChatList extends StatelessWidget {
           Expanded(
             child: ListView(
               children: [
-                if (!group)
-                  for (final r in store.requests)
+                if (!group && store.incomingRequests.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 2, 4, 6),
+                    child: Text('Requests (${store.incomingRequests.length})',
+                        style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textMuted)),
+                  ),
+                  for (final r in store.incomingRequests)
                     _RequestTile(chat: r, selected: selected == r.id, onOpen: () => onOpen(r.id)),
-                if (chats.isEmpty && (group || store.requests.isEmpty))
+                  const SizedBox(height: 6),
+                ],
+                if (chats.isEmpty && (group || store.incomingRequests.isEmpty))
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 30),
                     child: Text(
@@ -468,37 +478,48 @@ class _RequestTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final store = ChatStore.instance;
     final name = store.titleOf(chat);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: AppColors.warningLight.withAlpha(150),
+    final teammate = chat.isTeammateRequest;
+    return Material(
+      color: selected ? AppColors.primaryLight : AppColors.warningLight.withAlpha(150),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(children: [
-        Avatar(name: name, size: 40, color: AppColors.warning),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
-            const Text('Wants to chat with you',
-                style: TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+        onTap: onOpen,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.all(10),
+          child: Row(children: [
+            Avatar(name: name, size: 40, color: AppColors.warning),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(
+                    teammate && chat.lastText.isNotEmpty
+                        ? chat.lastText
+                        : 'Wants to send you messages',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+              ]),
+            ),
+            IconButton(
+              tooltip: teammate ? 'Block' : 'Decline',
+              onPressed: () => teammate ? store.block(chat) : store.decline(chat),
+              icon: Icon(teammate ? Icons.block_rounded : Icons.close_rounded,
+                  color: AppColors.danger),
+            ),
+            IconButton.filled(
+              tooltip: teammate ? 'Approve' : 'Accept',
+              onPressed: () {
+                store.accept(chat);
+                onOpen();
+              },
+              icon: const Icon(Icons.check_rounded),
+            ),
           ]),
         ),
-        IconButton(
-          tooltip: 'Decline',
-          onPressed: () => store.decline(chat),
-          icon: const Icon(Icons.close_rounded, color: AppColors.danger),
-        ),
-        IconButton.filled(
-          tooltip: 'Accept',
-          onPressed: () {
-            store.accept(chat);
-            onOpen();
-          },
-          icon: const Icon(Icons.check_rounded),
-        ),
-      ]),
+      ),
     );
   }
 }
@@ -627,7 +648,8 @@ class _ChatViewState extends State<ChatView> {
                   subtitle: 'It may have been deleted.'));
         }
         final me = store.uid ?? '';
-        final incoming = chat.isPending && chat.createdBy != me;
+        // An email request: they can't read it until they accept.
+        final incoming = chat.isPending && chat.createdBy != me && !chat.isTeammateRequest;
         if (chat.unreadFor(me)) {
           WidgetsBinding.instance.addPostFrameCallback((_) => store.markRead(chat));
         }
@@ -659,22 +681,37 @@ class _ChatViewState extends State<ChatView> {
                     style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
               ]),
             ),
-            if (!chat.isTeam)
+            if (!chat.isTeam && !(chat.isBlocked && chat.blockedBy != me))
               PopupMenuButton<String>(
                 tooltip: 'More',
                 onSelected: (a) async {
-                  if (a != 'delete') return;
-                  final ok = await confirmDialog(context,
-                      title: 'Delete this chat?',
-                      message: 'The conversation is removed for both of you.',
-                      confirmLabel: 'Delete',
-                      danger: true);
-                  if (ok) store.decline(chat);
+                  switch (a) {
+                    case 'block':
+                      final ok = await confirmDialog(context,
+                          title: 'Block $title?',
+                          message: 'They can\'t message you until you unblock them.',
+                          confirmLabel: 'Block',
+                          danger: true);
+                      if (ok) store.block(chat);
+                    case 'unblock':
+                      store.unblock(chat);
+                    case 'delete':
+                      final ok = await confirmDialog(context,
+                          title: 'Delete this chat?',
+                          message: 'The conversation is removed for both of you.',
+                          confirmLabel: 'Delete',
+                          danger: true);
+                      if (ok) store.decline(chat);
+                  }
                 },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Delete chat', style: TextStyle(color: AppColors.danger))),
+                itemBuilder: (_) => [
+                  if (chat.inviteEmail == null && chat.status == 'active')
+                    const PopupMenuItem(value: 'block', child: Text('Block')),
+                  if (chat.isBlocked) const PopupMenuItem(value: 'unblock', child: Text('Unblock')),
+                  if (!chat.isBlocked)
+                    const PopupMenuItem(
+                        value: 'delete',
+                        child: Text('Delete chat', style: TextStyle(color: AppColors.danger))),
                 ],
               ),
           ]),
@@ -712,7 +749,7 @@ class _ChatViewState extends State<ChatView> {
                     return Center(
                       child: Text(
                         chat.isPending
-                            ? 'Your request is waiting. You can already write a message.'
+                            ? 'Write your first message. $title gets it with your request.'
                             : 'No messages yet. Say hello!',
                         textAlign: TextAlign.center,
                         style: const TextStyle(color: AppColors.textMuted),
@@ -768,48 +805,94 @@ class _ChatViewState extends State<ChatView> {
               onDeleted: () => setState(() => _task = null),
             ),
         ];
+        Widget bar(IconData icon, String text, List<Widget> actions) => Container(
+              padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+              decoration: const BoxDecoration(
+                  color: AppColors.background,
+                  border: Border(top: BorderSide(color: AppColors.border))),
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(icon, size: 20, color: AppColors.textMuted),
+                    const SizedBox(width: 8),
+                    Flexible(child: Text(text, style: const TextStyle(color: AppColors.text))),
+                  ]),
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    for (final (i, a) in actions.indexed) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      a,
+                    ],
+                  ]),
+                ],
+              ),
+            );
+        final Widget? stop = chat.isTeammateRequest && chat.createdBy != me
+            ? bar(Icons.mark_chat_unread_outlined,
+                '$title wants to send you messages. Approve to reply.', [
+                OutlinedButton(
+                    onPressed: () => store.block(chat),
+                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+                    child: const Text('Block')),
+                FilledButton(onPressed: () => store.accept(chat), child: const Text('Approve')),
+              ])
+            : chat.isBlocked
+                ? (chat.blockedBy == me
+                    ? bar(Icons.block_rounded, 'You blocked $title.', [
+                        OutlinedButton(
+                            onPressed: () => store.unblock(chat), child: const Text('Unblock')),
+                      ])
+                    : bar(Icons.block_rounded, "You can't message $title.", const []))
+                : !store.canSend(chat)
+                    ? bar(Icons.hourglass_top_rounded, 'Waiting for $title to accept your request.',
+                        const [])
+                    : null;
         final composer = incoming
             ? const SizedBox.shrink()
-            : Container(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-                decoration:
-                    const BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  if (pending.isNotEmpty)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Wrap(spacing: 6, runSpacing: 6, children: pending),
+            : stop ??
+                Container(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+                  decoration:
+                      const BoxDecoration(border: Border(top: BorderSide(color: AppColors.border))),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    if (pending.isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Wrap(spacing: 6, runSpacing: 6, children: pending),
+                        ),
                       ),
-                    ),
-                  Row(children: [
-                    IconButton(
-                      tooltip: 'Attach a link or task',
-                      onPressed: () => _attach(chat),
-                      icon: const Icon(Icons.attach_file_rounded),
-                    ),
-                    Expanded(
-                      child: TextField(
-                        controller: _text,
-                        focusNode: _focus,
-                        minLines: 1,
-                        maxLines: 5,
-                        textInputAction: TextInputAction.send,
-                        onSubmitted: (_) => _send(chat),
-                        decoration:
-                            const InputDecoration(isDense: true, hintText: 'Type a message...'),
+                    Row(children: [
+                      IconButton(
+                        tooltip: 'Attach a link or task',
+                        onPressed: () => _attach(chat),
+                        icon: const Icon(Icons.attach_file_rounded),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton(
-                      onPressed: () => _send(chat),
-                      style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-                      child: const Text('Send'),
-                    ),
+                      Expanded(
+                        child: TextField(
+                          controller: _text,
+                          focusNode: _focus,
+                          minLines: 1,
+                          maxLines: 5,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _send(chat),
+                          decoration:
+                              const InputDecoration(isDense: true, hintText: 'Type a message...'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () => _send(chat),
+                        style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+                        child: const Text('Send'),
+                      ),
+                    ]),
                   ]),
-                ]),
-              );
+                );
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [header, Expanded(child: body), composer],

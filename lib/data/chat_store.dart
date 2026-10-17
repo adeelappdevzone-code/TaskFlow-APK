@@ -13,7 +13,9 @@ import 'team_store.dart';
 //
 // chats/{id}:
 //   direct (two people in a team together): id "<uidA>_<uidB>" (sorted),
-//     member_ids [a, b], via_team = a team both are in.
+//     member_ids [a, b], via_team = a team both are in. Starts "pending":
+//     the other person approves (status "active") or blocks (status
+//     "blocked", blocked_by = them; only they can unblock).
 //   request (someone outside my teams): id "req_<me>_<email>", member_ids
 //     [me], invite_email, status "pending"; they accept by adding themselves.
 //   team: id "team_<teamId>", team_id; every team member is in it.
@@ -41,6 +43,9 @@ class Chat {
   final Map<String, int> read;
   final String? createdBy;
 
+  /// Who blocked the other person (status "blocked").
+  final String? blockedBy;
+
   const Chat({
     required this.id,
     required this.type,
@@ -54,10 +59,31 @@ class Chat {
     this.lastFrom,
     this.read = const {},
     this.createdBy,
+    this.blockedBy,
   });
 
   bool get isTeam => type == ChatType.team;
   bool get isPending => status == 'pending';
+  bool get isBlocked => status == 'blocked';
+
+  /// A request from a teammate (both are members; they can read it).
+  bool get isTeammateRequest => isPending && inviteEmail == null;
+
+  Chat copyWith({String? status, String? blockedBy, bool clearBlock = false}) => Chat(
+        id: id,
+        type: type,
+        memberIds: memberIds,
+        names: names,
+        teamId: teamId,
+        inviteEmail: inviteEmail,
+        status: status ?? this.status,
+        lastText: lastText,
+        lastAt: lastAt,
+        lastFrom: lastFrom,
+        read: read,
+        createdBy: createdBy,
+        blockedBy: clearBlock ? null : (blockedBy ?? this.blockedBy),
+      );
 
   /// The other person in a direct chat.
   String? otherOf(String me) {
@@ -89,7 +115,11 @@ class Chat {
       },
       teamId: m['team_id'] as String?,
       inviteEmail: m['invite_email'] as String?,
-      status: m['status'] == 'pending' ? 'pending' : 'active',
+      status: switch (m['status']) {
+        'pending' => 'pending',
+        'blocked' => 'blocked',
+        _ => 'active',
+      },
       lastText: (m['last_text'] as String?) ?? '',
       lastAt: la == null ? null : DateTime.fromMillisecondsSinceEpoch(la),
       lastFrom: m['last_from'] as String?,
@@ -98,6 +128,7 @@ class Chat {
           if (e.key is String && e.value is int) e.key as String: e.value as int,
       },
       createdBy: m['created_by'] as String?,
+      blockedBy: m['blocked_by'] as String?,
     );
   }
 }
@@ -308,8 +339,9 @@ class ChatStore extends ChangeNotifier {
 
   /// Direct chats (mine and the ones waiting for the other person), newest
   /// first.
-  List<Chat> get directChats => _direct.values.where((c) => !c.isTeam).toList()
-    ..sort((a, b) => (b.lastAt ?? DateTime(2000)).compareTo(a.lastAt ?? DateTime(2000)));
+  List<Chat> get directChats =>
+      _direct.values.where((c) => !c.isTeam && !(c.isPending && c.createdBy != _uid)).toList()
+        ..sort((a, b) => (b.lastAt ?? DateTime(2000)).compareTo(a.lastAt ?? DateTime(2000)));
 
   /// A chat for every team I am in (an empty one until the first message).
   List<Chat> get teamChats {
@@ -334,14 +366,25 @@ class ChatStore extends ChangeNotifier {
   int get unreadCount {
     final me = _uid;
     if (me == null) return 0;
-    return [...directChats, ...teamChats].where((c) => c.unreadFor(me)).length + requests.length;
+    return [...directChats, ...teamChats].where((c) => c.unreadFor(me)).length +
+        incomingRequests.length;
+  }
+
+  /// People asking to message me: teammates (pending chats they started)
+  /// and email requests from outside my teams.
+  List<Chat> get incomingRequests {
+    final me = _uid;
+    return [
+      ..._direct.values.where((c) => !c.isTeam && c.isPending && c.createdBy != me),
+      ...requests.where((r) => !_direct.containsKey(r.id)),
+    ];
   }
 
   /// Name shown for a chat.
   String titleOf(Chat c) {
     final me = _uid ?? '';
     if (c.isTeam) return TeamStore.instance.teamById(c.teamId ?? '')?.name ?? 'Team';
-    if (c.isPending && c.createdBy == me) return c.inviteEmail ?? 'Invitation';
+    if (c.isPending && c.createdBy == me && c.inviteEmail != null) return c.inviteEmail!;
     final other = c.otherOf(me);
     if (other == null) return c.names[c.createdBy] ?? c.inviteEmail ?? 'Chat';
     return c.names[other] ?? _nameFromTeams(other) ?? 'Member';
@@ -362,8 +405,11 @@ class ChatStore extends ChangeNotifier {
       return t == null ? '' : '${t.memberIds.length} members';
     }
     if (c.isPending) {
-      return c.createdBy == me ? 'Waiting for them to accept' : 'Wants to chat with you';
+      return c.createdBy == me
+          ? 'Waiting for ${c.inviteEmail == null ? titleOf(c) : 'them'} to accept'
+          : 'Wants to send you messages';
     }
+    if (c.isBlocked) return c.blockedBy == me ? 'You blocked them' : 'Not accepting messages';
     final other = c.otherOf(me);
     final shared = TeamStore.instance.teams.where((t) => t.memberIds.contains(other)).toList();
     return shared.isEmpty ? '' : shared.map((t) => t.name).join(', ');
@@ -401,7 +447,7 @@ class ChatStore extends ChangeNotifier {
       'member_ids': ids,
       'names': {me: _name, c.uid: c.name},
       'via_team': c.teamIds.first,
-      'status': 'active',
+      'status': 'pending',
       'created_by': me,
       'created_at': now,
       'read': {me: now},
@@ -443,10 +489,29 @@ class ChatStore extends ChangeNotifier {
     return null;
   }
 
+  /// May I write in [c] now? Team chats and accepted chats: yes. My own
+  /// request: just the first message. Blocked, or their request: no.
+  bool canSend(Chat c) {
+    if (c.isTeam || c.status == 'active') return true;
+    if (c.isPending) return c.createdBy == _uid && c.lastAt == null;
+    return false;
+  }
+
   void accept(Chat c) {
     final me = _uid;
     if (me == null) return;
     requests = requests.where((r) => r.id != c.id).toList();
+    if (c.isTeammateRequest) {
+      _direct[c.id] = c.copyWith(status: 'active');
+      notifyListeners();
+      if (!_testing) {
+        _write(_chats.doc(c.id).update({
+          'status': 'active',
+          'read.$me': DateTime.now().millisecondsSinceEpoch,
+        }));
+      }
+      return;
+    }
     notifyListeners();
     if (_testing) return;
     _write(_chats.doc(c.id).update({
@@ -455,6 +520,23 @@ class ChatStore extends ChangeNotifier {
       'status': 'active',
       'read.$me': DateTime.now().millisecondsSinceEpoch,
     }));
+  }
+
+  /// Stop [c]'s other person from messaging me (a request or a chat).
+  void block(Chat c) {
+    final me = _uid;
+    if (me == null || c.isTeam || c.inviteEmail != null) return;
+    _direct[c.id] = c.copyWith(status: 'blocked', blockedBy: me);
+    notifyListeners();
+    if (!_testing) _write(_chats.doc(c.id).update({'status': 'blocked', 'blocked_by': me}));
+  }
+
+  /// Undo my block.
+  void unblock(Chat c) {
+    if (!c.isBlocked || c.blockedBy != _uid) return;
+    _direct[c.id] = c.copyWith(status: 'active', clearBlock: true);
+    notifyListeners();
+    if (!_testing) _write(_chats.doc(c.id).update({'status': 'active', 'blocked_by': null}));
   }
 
   /// Decline a request, or take back my own.
@@ -486,7 +568,7 @@ class ChatStore extends ChangeNotifier {
       {List<TaskLink> links = const [], TaskItem? task, String? taskTeamId}) {
     final me = _uid;
     final clean = text.trim();
-    if (me == null || (clean.isEmpty && links.isEmpty && task == null)) return;
+    if (me == null || (clean.isEmpty && links.isEmpty && task == null) || !canSend(c)) return;
     final now = DateTime.now();
     final ms = now.millisecondsSinceEpoch;
     final msg = ChatMessage(
@@ -517,7 +599,9 @@ class ChatStore extends ChangeNotifier {
           memberIds: c.memberIds,
           names: c.names,
           teamId: c.teamId,
+          inviteEmail: c.inviteEmail,
           status: c.status,
+          blockedBy: c.blockedBy,
           lastText: last['last_text'] as String,
           lastAt: now,
           lastFrom: me,
