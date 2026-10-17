@@ -8,6 +8,7 @@ import '../data/activity.dart';
 import '../data/app_store.dart';
 import '../data/models.dart';
 import '../data/team_store.dart';
+import 'work_hours.dart';
 import '../widgets/common.dart';
 import '../widgets/dashboard.dart';
 import '../widgets/responsive.dart';

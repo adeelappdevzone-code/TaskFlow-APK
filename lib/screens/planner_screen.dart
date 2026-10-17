@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'work_hours.dart';
 import 'package:intl/intl.dart';
 
 import '../core/theme.dart';
@@ -52,52 +53,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
           if (s.kind != RescueKind.timeBlock || plan.overloadMinutes > 0) s.kind
       };
 
-  Future<void> _customize() async {
-    final store = AppStore.instance;
-    var start = TimeOfDay(hour: store.workStart ~/ 60, minute: store.workStart % 60);
-    var end = TimeOfDay(hour: store.workEnd ~/ 60, minute: store.workEnd % 60);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: const Text('Your work day'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('The planner fits your tasks into these hours.',
-                  style: TextStyle(color: AppColors.textMuted)),
-              const SizedBox(height: 14),
-              for (final (label, isStart) in [('Start', true), ('End', false)])
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(isStart ? Icons.wb_sunny_outlined : Icons.nights_stay_outlined),
-                  title: Text(label),
-                  trailing: Text((isStart ? start : end).format(ctx),
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                  onTap: () async {
-                    final t =
-                        await showTimePicker(context: ctx, initialTime: isStart ? start : end);
-                    if (t != null) setState(() => isStart ? start = t : end = t);
-                  },
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Save')),
-          ],
-        ),
-      ),
-    );
-    if (ok != true) return;
-    final s = start.hour * 60 + start.minute, e = end.hour * 60 + end.minute;
-    if (e <= s) {
-      if (mounted) showSnack(context, 'The end must be after the start.');
-      return;
-    }
-    store.setWorkHours(s, e);
-  }
+  Future<void> _customize() => editWorkHours(context);
 
   void _apply(DayPlan plan, Set<RescueKind> chosen) {
     final changes = rescueChanges(plan, chosen);
@@ -125,7 +81,7 @@ class _PlannerScreenState extends State<PlannerScreen> {
         final now = DateTime.now();
         final day = dateOnly(now).add(Duration(days: _tomorrow ? 1 : 0));
         final plan = planDay(TaskRepository.myTasks(), day, now,
-            workStart: store.workStart, workEnd: store.workEnd);
+            workStart: store.workStart, workEnd: store.workEnd, workDays: store.workDays);
         final chosen = _chosenFor(plan);
         final after = plan.after(chosen);
         final showAfter = chosen.isNotEmpty && plan.suggestions.isNotEmpty;
@@ -173,6 +129,8 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 ),
                 const SizedBox(height: 12),
               ],
+              _WorkDayLine(plan: plan, tomorrow: _tomorrow, onChange: _customize),
+              const SizedBox(height: 12),
               _Banner(
                 plan: plan,
                 tomorrow: _tomorrow,
@@ -252,6 +210,46 @@ class _PlannerScreenState extends State<PlannerScreen> {
   }
 }
 
+/// "Your work day: 9:00 AM – 5:30 PM • Mon–Fri • 3h 30m left" + Change.
+class _WorkDayLine extends StatelessWidget {
+  final DayPlan plan;
+  final bool tomorrow;
+  final VoidCallback onChange;
+  const _WorkDayLine({required this.plan, required this.tomorrow, required this.onChange});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = AppStore.instance;
+    final left = !plan.isWorkDay
+        ? 'Day off'
+        : tomorrow
+            ? '${hoursText(plan.availableMinutes)} tomorrow'
+            : '${hoursText(plan.availableMinutes)} left today';
+    return DashCard(
+      padding: const EdgeInsets.fromLTRB(14, 8, 8, 8),
+      child: Row(children: [
+        const Icon(Icons.work_history_outlined, size: 20, color: AppColors.primary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text.rich(
+            TextSpan(children: [
+              const TextSpan(text: 'Your work day: ', style: TextStyle(color: AppColors.textMuted)),
+              TextSpan(
+                  text: workHoursText(context),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              TextSpan(
+                  text: '  •  ${workDaysText(store.workDays)}  •  $left',
+                  style: const TextStyle(color: AppColors.textMuted)),
+            ]),
+            style: const TextStyle(fontSize: 13.5),
+          ),
+        ),
+        TextButton(onPressed: onChange, child: const Text('Change')),
+      ]),
+    );
+  }
+}
+
 class _DaySwitch extends StatelessWidget {
   final bool tomorrow;
   final ValueChanged<bool> onChanged;
@@ -286,16 +284,21 @@ class _Banner extends StatelessWidget {
     final day = tomorrow ? 'tomorrow' : 'today';
     final bad = over > 0;
     final color = bad ? AppColors.danger : AppColors.success;
+    final dayOff = !plan.isWorkDay;
     final dayOver = !tomorrow && plan.availableMinutes == 0;
-    final title = dayOver
-        ? 'Your work day is over.'
-        : bad
-            ? "You're overloaded by ${_hm(over)} $day."
-            : "Your day fits. ${_hm(plan.availableMinutes - plan.plannedMinutes)} free $day.";
-    final text = dayOver
-        ? 'Switch to Tomorrow to plan ahead, or change your work hours.'
-        : 'Your planned work is ${_hm(plan.plannedMinutes)}, and you have '
-            '${_hm(plan.availableMinutes)} available.';
+    final title = dayOff
+        ? (tomorrow ? 'Tomorrow is not a work day.' : 'Today is not a work day.')
+        : dayOver
+            ? 'Your work day is over.'
+            : bad
+                ? "You're overloaded by ${_hm(over)} $day."
+                : "Your day fits. ${_hm(plan.availableMinutes - plan.plannedMinutes)} free $day.";
+    final text = dayOff
+        ? 'Rescue moves extra work to your next work day. Change your work days in Working hours.'
+        : dayOver
+            ? 'Switch to Tomorrow to plan ahead, or change your work hours.'
+            : 'Your planned work is ${_hm(plan.plannedMinutes)}, and you have '
+                '${_hm(plan.availableMinutes)} available.';
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -427,7 +430,7 @@ class _Tiles extends StatelessWidget {
       PlanMark.overdue => ('Overdue', AppColors.danger, AppColors.dangerLight),
       PlanMark.rescheduled => ('Rescheduled', const Color(0xFFB45309), AppColors.warningLight),
       PlanMark.focus => ('Protected', AppColors.success, AppColors.successLight),
-      PlanMark.moved => ('Tomorrow', AppColors.purple, AppColors.purpleLight),
+      PlanMark.moved => ('Later', AppColors.purple, AppColors.purpleLight),
       PlanMark.scheduled => ('Scheduled', AppColors.primary, AppColors.primaryLight),
     };
 
@@ -656,9 +659,9 @@ class _Suggestions extends StatelessWidget {
                 RescueKind.moveLow => (
                     Icons.arrow_forward_rounded,
                     AppColors.purple,
-                    'Move ${s.tasks.length} lower-priority ${s.tasks.length == 1 ? 'task' : 'tasks'} to tomorrow',
-                    'Move ${names(s.tasks)} to tomorrow.',
-                    ['Low / medium priority', 'Tomorrow'],
+                    'Move ${s.tasks.length} lower-priority ${s.tasks.length == 1 ? 'task' : 'tasks'} to a later day',
+                    'Move ${names(s.tasks)} to your next work day with free time.',
+                    ['Low / medium priority', 'Next free work day'],
                   ),
                 RescueKind.overdue => (
                     Icons.history_rounded,

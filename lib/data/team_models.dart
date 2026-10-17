@@ -24,13 +24,23 @@ extension TeamRoleX on TeamRole {
 class TeamMemberInfo {
   final String name;
   final String email;
-  const TeamMemberInfo({required this.name, required this.email});
 
-  Map<String, dynamic> toMap() => {'name': name, 'email': email};
+  /// Minutes the person works in a week (their own work hours × work days).
+  /// Null until they set their work hours: the team's [Team.weekHours] is used.
+  final int? weekMinutes;
+  const TeamMemberInfo({required this.name, required this.email, this.weekMinutes});
+
+  Map<String, dynamic> toMap() => {
+        'name': name,
+        'email': email,
+        if (weekMinutes != null) 'week_min': weekMinutes,
+      };
 
   factory TeamMemberInfo.fromMap(Map<String, dynamic> m) => TeamMemberInfo(
         name: (m['name'] as String?) ?? '',
         email: (m['email'] as String?) ?? '',
+        weekMinutes:
+            m['week_min'] is int && (m['week_min'] as int) > 0 ? m['week_min'] as int : null,
       );
 }
 
@@ -126,9 +136,8 @@ class Team {
       },
       createdAt: _dt(m['created_at']),
       updatedAt: _dt(m['updated_at'] ?? m['created_at']),
-      weekHours: m['week_hours'] is int && (m['week_hours'] as int) > 0
-          ? m['week_hours'] as int
-          : 40,
+      weekHours:
+          m['week_hours'] is int && (m['week_hours'] as int) > 0 ? m['week_hours'] as int : 40,
     );
   }
 }

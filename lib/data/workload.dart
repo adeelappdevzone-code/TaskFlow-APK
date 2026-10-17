@@ -132,7 +132,9 @@ WorkloadReport buildWorkload(List<Team> teams, List<TaskItem> Function(String te
       final m = byUid.putIfAbsent(
           uid, () => MemberLoad(uid, team.nameOf(uid), _roleName(team.roleOf(uid))));
       m.teamIds.add(team.id);
-      final cap = team.weekHours * 60 * days ~/ 5;
+      // Their own work week when they set it, else the team's hours.
+      final week = team.members[uid]?.weekMinutes ?? team.weekHours * 60;
+      final cap = week * days ~/ 5;
       if (cap > m.capacityMinutes) m.capacityMinutes = cap;
     }
     for (final t in tasksOf(team.id)) {

@@ -132,18 +132,32 @@ class TeamStore extends ChangeNotifier {
     _tasks.clear();
     _knownMembers.clear();
     _teamsLoaded = false;
+    _weekMin = null;
     notifyListeners();
   }
 
-  /// Keeps my name in my teams up to date (shown to the other members).
+  /// My weekly work minutes (from my work hours), shown in Team Workload.
+  int? _weekMin;
+
+  TeamMemberInfo _myInfo() => TeamMemberInfo(name: _name, email: _email, weekMinutes: _weekMin);
+
+  /// Sets my weekly work minutes in all my teams (null: use the team's).
+  void setMyWeekMinutes(int? minutes) {
+    _weekMin = minutes;
+    updateMyName(_name);
+  }
+
+  /// Keeps my name (and work week) in my teams up to date (shown to the
+  /// other members).
   void updateMyName(String name) {
     _name = name;
     final me = _uid;
-    if (me == null) return;
+    if (me == null || name.isEmpty) return;
     for (final t in teams) {
-      if (t.members[me]?.name != name) {
+      final info = t.members[me];
+      if (info?.name != name || info?.weekMinutes != _weekMin) {
         _write(_teamDoc(t.id).update({
-          'members.$me': TeamMemberInfo(name: name, email: _email).toMap(),
+          'members.$me': _myInfo().toMap(),
           'updated_at': nowMs(),
         }));
       }
@@ -242,7 +256,9 @@ class TeamStore extends ChangeNotifier {
     // Keep my name in the teams current.
     for (final t in list) {
       final info = t.members[me];
-      if (info != null && _name.isNotEmpty && info.name != _name) {
+      if (info != null &&
+          _name.isNotEmpty &&
+          (info.name != _name || info.weekMinutes != _weekMin)) {
         updateMyName(_name);
         break;
       }
@@ -479,7 +495,7 @@ class TeamStore extends ChangeNotifier {
       ownerId: me,
       memberIds: [me],
       managerIds: [],
-      members: {me: TeamMemberInfo(name: _name, email: _email)},
+      members: {me: _myInfo()},
       createdAt: now,
       updatedAt: now,
     );
@@ -659,7 +675,7 @@ class TeamStore extends ChangeNotifier {
       final batch = _fs.batch();
       batch.update(_teamDoc(invite.teamId), {
         'member_ids': FieldValue.arrayUnion([me]),
-        'members.$me': TeamMemberInfo(name: _name, email: _email).toMap(),
+        'members.$me': _myInfo().toMap(),
         'updated_at': nowMs(),
       });
       batch.delete(_invitesCol.doc(invite.id));

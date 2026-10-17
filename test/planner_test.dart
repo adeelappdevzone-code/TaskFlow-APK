@@ -89,6 +89,40 @@ void main() {
     expect(plan.before.any((e) => e.ref.task.id == 's'), isFalse);
   });
 
+  test('a day off has no work time', () {
+    final sat = DateTime(2026, 10, 17);
+    final plan = planDay(tasks(), sat, at(8), workDays: [1, 2, 3, 4, 5]);
+    expect(plan.isWorkDay, isFalse);
+    expect(plan.availableMinutes, 0);
+    expect(planDay(tasks(), sat, at(8), workDays: [1, 2, 3, 4, 5, 6]).isWorkDay, isTrue);
+  });
+
+  test('rescue moves work to the next work day that has room', () {
+    // Friday 16 Oct, Mon–Fri 9:00–15:30 (390 min). Monday 19 is already full.
+    final fri = DateTime(2026, 10, 16);
+    TaskItem on(String id, int d, Priority p, int est) => TaskItem(
+        id: id,
+        title: id,
+        priority: p,
+        startAt: DateTime(2026, 10, d),
+        endAt: DateTime(2026, 10, d, 23, 59),
+        createdAt: day,
+        updatedAt: day,
+        estimateMinutes: est);
+    final all = [
+      TaskRef(on('big', 16, Priority.high, 360)),
+      TaskRef(on('low1', 16, Priority.low, 120)),
+      TaskRef(on('mon', 19, Priority.high, 380)),
+    ];
+    final plan = planDay(all, fri, DateTime(2026, 10, 16, 8),
+        workStart: 9 * 60, workEnd: 15 * 60 + 30, workDays: [1, 2, 3, 4, 5]);
+    expect(plan.overloadMinutes, 90);
+    final changes = rescueChanges(plan, {RescueKind.moveLow});
+    final low = changes.entries.firstWhere((e) => e.key.task.id == 'low1').value;
+    // Not Saturday / Sunday (days off), not Monday (full): Tuesday.
+    expect(low.$1, DateTime(2026, 10, 20));
+  });
+
   test('estimate survives toMap / fromMap', () {
     final t = flexible('x', 'X', Priority.low, 45);
     expect(TaskItem.fromMap(t.toMap()).estimateMinutes, 45);
@@ -112,6 +146,7 @@ void main() {
       AppStore.instance
         ..workStart = 0
         ..workEnd = 23 * 60 + 59
+        ..workDays = [1, 2, 3, 4, 5, 6, 7]
         ..tasks = [
           for (var i = 0; i < 12; i++)
             TaskItem(
@@ -137,4 +172,42 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('work hours: shown on the planner and changed with work days', (tester) async {
+    tester.view.physicalSize = const Size(400, 860);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    TeamStore.instance
+      ..teams = []
+      ..setForTest(uid: 'own');
+    AppStore.instance
+      ..workStart = 9 * 60
+      ..workEnd = 17 * 60 + 30
+      ..workDays = AppStore.defaultWorkDays
+      ..workHoursSet = false
+      ..tasks = [];
+    await tester
+        .pumpWidget(MaterialApp(theme: buildAppTheme(), home: const PlannerScreen(page: true)));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('9:00 AM – 5:30 PM', findRichText: true), findsOneWidget);
+    expect(find.textContaining('Mon–Fri', findRichText: true), findsOneWidget);
+
+    await tester.tap(find.text('Change'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your working hours'), findsOneWidget);
+    expect(find.text('8h 30m a day • 42h 30m a week'), findsOneWidget);
+    await tester.tap(find.byTooltip('Sat'));
+    await tester.pumpAndSettle();
+    expect(find.text('8h 30m a day • 51h a week'), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    final s = AppStore.instance;
+    expect(s.workDays, [1, 2, 3, 4, 5, 6]);
+    expect(s.workHoursSet, isTrue);
+    expect(s.weekMinutes, 51 * 60);
+    expect(find.textContaining('Mon–Sat', findRichText: true), findsOneWidget);
+    s
+      ..workDays = AppStore.defaultWorkDays
+      ..workHoursSet = false;
+  });
 }

@@ -6,8 +6,8 @@ import 'task_repository.dart';
 
 // Daily planner / rescue: how much work is planned for a day against the
 // time available in the work day, and a plan to fix an overloaded day
-// (move flexible low-priority work to tomorrow, bring overdue work in, give
-// every flexible task a time slot).
+// (move flexible low-priority work to the next work day that has room, bring
+// overdue work in, give every flexible task a time slot).
 
 /// Minutes a task takes when it has no estimate and no times.
 const kDefaultTaskMinutes = 30;
@@ -51,13 +51,28 @@ class DayPlan {
   final List<PlanEntry> before;
   final List<RescueSuggestion> suggestions;
 
+  /// The work day settings and all my tasks, to find where moved tasks go.
+  final int workStart;
+  final int workEnd;
+
+  /// Work days (DateTime.monday..sunday); null: every day.
+  final List<int>? workDays;
+  final List<TaskRef> all;
+
   const DayPlan({
     required this.day,
     required this.windowStart,
     required this.windowEnd,
     required this.before,
     required this.suggestions,
+    this.workStart = 9 * 60,
+    this.workEnd = 17 * 60 + 30,
+    this.workDays,
+    this.all = const [],
   });
+
+  /// False on a day off (not one of my work days).
+  bool get isWorkDay => workDays == null || workDays!.contains(day.weekday);
 
   int get availableMinutes => max(0, windowEnd.difference(windowStart).inMinutes);
   int get plannedMinutes => before.fold(0, (s, e) => s + e.minutes);
@@ -185,12 +200,14 @@ List<PlanEntry> _layout(
 /// The plan for [day] from my tasks ([all], e.g. [TaskRepository.myTasks]).
 /// The work day is [workStart]..[workEnd] minutes after midnight; today it
 /// starts no earlier than [now].
+/// On a day that is not in [workDays] there is no work time.
 DayPlan planDay(List<TaskRef> all, DateTime day, DateTime now,
-    {int workStart = 9 * 60, int workEnd = 17 * 60 + 30}) {
+    {int workStart = 9 * 60, int workEnd = 17 * 60 + 30, List<int>? workDays}) {
   final d = dateOnly(day);
   final isToday = d == dateOnly(now);
+  final dayOff = workDays != null && !workDays.contains(d.weekday);
   final dayStart = d.add(Duration(minutes: workStart));
-  final windowEnd = d.add(Duration(minutes: max(workEnd, workStart)));
+  final windowEnd = dayOff ? dayStart : d.add(Duration(minutes: max(workEnd, workStart)));
   var windowStart = isToday && now.isAfter(dayStart) ? _roundUp(now) : dayStart;
   if (windowStart.isAfter(windowEnd)) windowStart = windowEnd;
 
@@ -254,24 +271,59 @@ DayPlan planDay(List<TaskRef> all, DateTime day, DateTime now,
     windowEnd: windowEnd,
     before: before,
     suggestions: suggestions,
+    workStart: workStart,
+    workEnd: workEnd,
+    workDays: workDays,
+    all: all,
   );
+}
+
+/// Where each moved task goes: the next work day after the plan's day that
+/// still has room for it (its own tasks plus what was moved there). When no
+/// day in the next 60 has room, the next work day.
+Map<String, DateTime> moveTargets(DayPlan plan, List<TaskRef> moving) {
+  final perDay = max(0, plan.workEnd - plan.workStart);
+  final ids = moving.map((r) => r.task.id).toSet();
+  final load = <DateTime, int>{};
+  for (final r in plan.all) {
+    final t = r.task;
+    if (t.status != TaskStatus.pending || ids.contains(t.id)) continue;
+    final d = dateOnly(t.startAt);
+    if (!d.isAfter(plan.day)) continue;
+    load[d] = (load[d] ?? 0) + taskMinutes(t).$1;
+  }
+  bool works(DateTime d) => plan.workDays == null || plan.workDays!.contains(d.weekday);
+  final days = <DateTime>[];
+  for (var i = 1; days.length < 60 && i <= 400; i++) {
+    final d = DateTime(plan.day.year, plan.day.month, plan.day.day + i);
+    if (works(d)) days.add(d);
+  }
+  if (days.isEmpty) days.add(DateTime(plan.day.year, plan.day.month, plan.day.day + 1));
+  final out = <String, DateTime>{};
+  for (final r in moving) {
+    final mins = taskMinutes(r.task).$1;
+    final d = days.firstWhere((d) => (load[d] ?? 0) + mins <= perDay, orElse: () => days.first);
+    load[d] = (load[d] ?? 0) + mins;
+    out[r.task.id] = d;
+  }
+  return out;
 }
 
 /// The changes to save for the chosen suggestions: task → new start/end
 /// (null end keeps it all day).
 Map<TaskRef, (DateTime, DateTime?)> rescueChanges(DayPlan plan, Set<RescueKind> chosen) {
   final out = <TaskRef, (DateTime, DateTime?)>{};
-  final tomorrow = plan.day.add(const Duration(days: 1));
   for (final s in plan.suggestions) {
     if (!chosen.contains(s.kind) || s.kind != RescueKind.moveLow) continue;
+    final targets = moveTargets(plan, s.tasks);
     for (final r in s.tasks) {
       final t = r.task;
+      final to = targets[t.id]!;
       if (t.isAllDay) {
-        out[r] = (tomorrow, DateTime(tomorrow.year, tomorrow.month, tomorrow.day, 23, 59));
+        out[r] = (to, DateTime(to.year, to.month, to.day, 23, 59));
       } else {
         final len = (t.endAt ?? t.startAt).difference(t.startAt);
-        final s0 =
-            DateTime(tomorrow.year, tomorrow.month, tomorrow.day, t.startAt.hour, t.startAt.minute);
+        final s0 = DateTime(to.year, to.month, to.day, t.startAt.hour, t.startAt.minute);
         out[r] = (s0, s0.add(len));
       }
     }

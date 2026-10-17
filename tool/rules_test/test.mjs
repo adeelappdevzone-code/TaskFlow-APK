@@ -85,6 +85,10 @@ await t('team: member can read', assertSucceeds(getDoc(doc(adeel, `teams/${T}`))
 await t('team: member cannot rename', assertFails(updateDoc(doc(adeel, `teams/${T}`), { name: 'Hacked' })));
 await t('team: member cannot make self manager', assertFails(updateDoc(doc(adeel, `teams/${T}`), { manager_ids: ['adl'] })));
 await t('team: member updates own name', assertSucceeds(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com' }, updated_at: now })));
+await t('team: member sets own work week', assertSucceeds(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', week_min: 2400 }, updated_at: now })));
+await t('team: work week over 7 days denied', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', week_min: 20000 }, updated_at: now })));
+await t('team: work week must be a number', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', week_min: '40h' }, updated_at: now })));
+await t('team: member cannot set others work week', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.own': { name: 'Owner', email: 'o@x.com', week_min: 600 }, updated_at: now })));
 await t('team: member cannot change others name', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.sar': { name: 'x', email: 'x' } })));
 
 await t('task: owner creates task for adeel', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/a1`), ttask('a1', 'adl'))));
@@ -145,6 +149,8 @@ await t('estimate: personal task with estimate', assertSucceeds(setDoc(d(me,'use
 await t('estimate: zero denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, estimate_min: 0 })));
 await t('estimate: text denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, estimate_min: '1h' })));
 await t('profile: work hours', assertSucceeds(setDoc(d(me,'users/u1'), { work_start: 540, work_end: 1050 }, { merge: true })));
+await t('profile: work days', assertSucceeds(setDoc(d(me,'users/u1'), { work_days: [1, 2, 3, 4, 5, 6] }, { merge: true })));
+await t('profile: work days must be a list', assertFails(setDoc(d(me,'users/u1'), { work_days: 'mon-fri' }, { merge: true })));
 await t('extras: too many links denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, links: Array(21).fill({ title: '', url: 'https://a.com' }) })));
 await t('extras: links must be a list', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, links: 'https://a.com' })));
 await t('timer: adeel starts timer on own task', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { timer_by: 'adl', timer_at: now, stage: 'doing', history: arrayUnion(ev('stage', 'adl', { to: 'doing' })), updated_at: now })));

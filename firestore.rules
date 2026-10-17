@@ -119,7 +119,8 @@ service cloud.firestore {
           && (!('notif_approvals' in d) || d.notif_approvals is bool)
           && (!('notif_comments' in d) || d.notif_comments is bool)
           && optNum(d, 'last_backup_at')
-          && optNum(d, 'work_start') && optNum(d, 'work_end');
+          && optNum(d, 'work_start') && optNum(d, 'work_end')
+          && (!('work_days' in d) || (d.work_days is list && d.work_days.size() <= 7));
     }
 
     function valid(collection, d, docId) {
@@ -197,9 +198,11 @@ service cloud.firestore {
               && d.week_hours <= 100));
     }
     function validMemberInfo(info) {
-      return info is map && info.keys().hasOnly(['name', 'email'])
+      return info is map && info.keys().hasOnly(['name', 'email', 'week_min'])
           && info.name is string && info.name.size() <= 200
-          && info.email is string && info.email.size() <= 320;
+          && info.email is string && info.email.size() <= 320
+          && (!('week_min' in info) || (info.week_min is int
+              && info.week_min > 0 && info.week_min <= 10080));
     }
 
     match /teams/{teamId} {

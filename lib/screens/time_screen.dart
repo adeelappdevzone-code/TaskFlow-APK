@@ -427,7 +427,7 @@ class _MyTime extends StatelessWidget {
     final now = DateTime.now();
     final rows = timeRows(refs, start, end, by: _me);
     final totals = timeTotals(rows);
-    final work = workMinutesSoFar(start, end, now, store.workStart, store.workEnd);
+    final work = workMinutesSoFar(start, end, now, store.workStart, store.workEnd, store.workDays);
     final pct = work == 0 ? null : (totals.total * 100 / work).round();
     final today = rows.where((r) => isSameDay(r.entry.start, now)).toList();
 

@@ -583,6 +583,17 @@ class _QuickSettingsCard extends StatelessWidget {
       child: Column(children: [
         _cardHead('Quick Settings'),
         _SettingRow(
+          icon: Icons.work_history_outlined,
+          title: 'Working hours',
+          subtitle: '${workHoursText(context)} • ${workDaysText(store.workDays)}'
+              '${store.workHoursSet ? '' : ' (default)'}',
+          trailing: OutlinedButton(
+            onPressed: () => editWorkHours(context),
+            child: const Text('Change'),
+          ),
+        ),
+        const Divider(height: 1),
+        _SettingRow(
           icon: Icons.dark_mode_outlined,
           title: 'Theme',
           subtitle: 'Dark mode is coming soon',

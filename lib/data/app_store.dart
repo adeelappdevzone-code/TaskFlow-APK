@@ -80,6 +80,19 @@ class AppStore extends ChangeNotifier {
   int workStart = 9 * 60;
   int workEnd = 17 * 60 + 30;
 
+  /// Work days (DateTime.monday..DateTime.sunday).
+  List<int> workDays = defaultWorkDays;
+
+  /// True once I saved my own work hours (Team Workload then uses them).
+  bool workHoursSet = false;
+
+  static const defaultWorkDays = [1, 2, 3, 4, 5];
+
+  bool isWorkDay(DateTime d) => workDays.contains(d.weekday);
+
+  /// Minutes I work in a week.
+  int get weekMinutes => (workEnd - workStart).clamp(0, 24 * 60) * workDays.length;
+
   Timer? _reminderTimer;
   Timer? _phoneReminderSync;
   final List<StreamSubscription<dynamic>> _subs = [];
@@ -190,6 +203,8 @@ class AppStore extends ChangeNotifier {
     notifComments = true;
     workStart = 9 * 60;
     workEnd = 17 * 60 + 30;
+    workDays = defaultWorkDays;
+    workHoursSet = false;
     savedViews = [];
     lastBackupAt = null;
   }
@@ -219,6 +234,14 @@ class AppStore extends ChangeNotifier {
       ];
       workStart = (d['work_start'] as int?) ?? 9 * 60;
       workEnd = (d['work_end'] as int?) ?? 17 * 60 + 30;
+      final days = {
+        for (final x in (d['work_days'] as List?) ?? const [])
+          if (x is int && x >= 1 && x <= 7) x
+      }.toList()
+        ..sort();
+      workDays = days.isEmpty ? defaultWorkDays : days;
+      workHoursSet = d['work_start'] is int;
+      TeamStore.instance.setMyWeekMinutes(workHoursSet ? weekMinutes : null);
       final backup = d['last_backup_at'];
       lastBackupAt = backup is int ? DateTime.fromMillisecondsSinceEpoch(backup) : null;
       schedulePhoneReminders();
@@ -586,10 +609,13 @@ class AppStore extends ChangeNotifier {
     _savePrefs({'saved_views': savedViews.map((x) => x.toMap()).toList()});
   }
 
-  void setWorkHours(int start, int end) {
+  void setWorkHours(int start, int end, [List<int>? days]) {
     workStart = start;
     workEnd = end;
-    _savePrefs({'work_start': start, 'work_end': end});
+    if (days != null && days.isNotEmpty) workDays = ([...days.toSet()]..sort());
+    workHoursSet = true;
+    _savePrefs({'work_start': start, 'work_end': end, 'work_days': workDays});
+    TeamStore.instance.setMyWeekMinutes(weekMinutes);
   }
 
   void setNotif(String which, bool on) {

@@ -68,12 +68,13 @@ List<(String, int, int)> minutesBySource(Iterable<TimeRow> rows) {
 }
 
 /// Work minutes in the days of [start, end) that have started by [now]
-/// (Monday–Friday, the user's work hours).
-int workMinutesSoFar(DateTime start, DateTime end, DateTime now, int workStart, int workEnd) {
+/// (the user's work days, Monday–Friday by default, and work hours).
+int workMinutesSoFar(DateTime start, DateTime end, DateTime now, int workStart, int workEnd,
+    [List<int> workDays = const [1, 2, 3, 4, 5]]) {
   var total = 0;
   final perDay = (workEnd - workStart).clamp(0, 24 * 60);
   for (var d = start; d.isBefore(end); d = d.add(const Duration(days: 1))) {
-    if (d.weekday > 5 || d.isAfter(now)) continue;
+    if (!workDays.contains(d.weekday) || d.isAfter(now)) continue;
     if (isSameDay(d, now)) {
       final done = now.hour * 60 + now.minute - workStart;
       total += done.clamp(0, perDay);

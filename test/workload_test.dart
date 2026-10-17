@@ -84,6 +84,20 @@ void main() {
     expect({for (final m in next.members) m.uid: m.minutes}['own'], 8 * 60);
   });
 
+  test("a member's own work week is their capacity", () {
+    final mine = Team.fromMap(team.toMap())
+      ..members['sk'] =
+          const TeamMemberInfo(name: 'Sara Khan', email: 's@x.com', weekMinutes: 1200);
+    final by = {
+      for (final m in buildWorkload([mine], (_) => tasks, WorkloadPeriod.thisWeek, now).members)
+        m.uid: m
+    };
+    expect(by['sk']!.capacityMinutes, 1200); // 20h, her own
+    expect(by['hm']!.capacityMinutes, 40 * 60); // not set: team hours
+    expect(Team.fromMap(mine.toMap()).members['sk']!.weekMinutes, 1200);
+    expect(Team.fromMap(mine.toMap()).members['hm']!.weekMinutes, isNull);
+  });
+
   test('team hours per week survive toMap / fromMap', () {
     team.weekHours = 30;
     expect(Team.fromMap(team.toMap()).weekHours, 30);

@@ -107,6 +107,12 @@ Sakht karna ho to baad mein rule lagana.
 - Neeche nav: Home | My Tasks | (+) | Chats | Menu. Menu (ya left edge swipe) = laptop wala side menu drawer mein.
 - Drawer se khulne wale pages par upar title + ☰. Home header se Time/Planner/Capture icons hata diye (bell + avatar baqi).
 
+## Working hours (Oct 2026, branch par, main par abhi nahi)
+- Settings → Preferences → Quick Settings → "Working hours": start/end + kaam ke din (users/{uid} work_start, work_end, work_days). Planner ka "Change"/"Work hours" bhi wahi dialog.
+- Planner ke upar: "Your work day: 9:00 AM – 5:30 PM • Mon–Fri • 3h left today". Chhutti ke din available 0.
+- Rescue: low/medium tasks agle **work day jahan jagah ho** par (chhutti aur bhare din skip, 60 work days tak).
+- Team Workload: member ki capacity uske apne hafte ke minutes (teams/{id}.members.{uid}.week_min, khud set karta hai); set na ho to team ke weekHours.
+
 ## Setup (sab chal raha hai)
 
 - **App:** Flutter 3.47.7 (CI mein fix), Firebase project `taskflow-ce905` (Spark/free plan, card nahi).
