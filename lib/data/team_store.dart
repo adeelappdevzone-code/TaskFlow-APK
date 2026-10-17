@@ -133,31 +133,55 @@ class TeamStore extends ChangeNotifier {
     _knownMembers.clear();
     _teamsLoaded = false;
     _weekMin = null;
+    _dayMin = null;
+    _workDays = null;
+    _busy = const {};
     notifyListeners();
   }
 
-  /// My weekly work minutes (from my work hours), shown in Team Workload.
+  /// My work week (from my work hours) and how busy I am per day, shown to
+  /// my teams in Team Workload and when someone assigns me a task.
   int? _weekMin;
+  int? _dayMin;
+  List<int>? _workDays;
+  Map<String, int> _busy = const {};
 
-  TeamMemberInfo _myInfo() => TeamMemberInfo(name: _name, email: _email, weekMinutes: _weekMin);
+  TeamMemberInfo _myInfo() => TeamMemberInfo(
+      name: _name,
+      email: _email,
+      weekMinutes: _weekMin,
+      dayMinutes: _dayMin,
+      workDays: _workDays,
+      busy: _busy);
 
-  /// Sets my weekly work minutes in all my teams (null: use the team's).
-  void setMyWeekMinutes(int? minutes) {
-    _weekMin = minutes;
+  /// My work hours (null: not set, the team's hours are used).
+  void setMyWork({int? weekMinutes, int? dayMinutes, List<int>? workDays}) {
+    _weekMin = weekMinutes;
+    _dayMin = dayMinutes;
+    _workDays = workDays;
     updateMyName(_name);
   }
 
-  /// Keeps my name (and work week) in my teams up to date (shown to the
-  /// other members).
+  /// How busy I am per day (see [TeamMemberInfo.busy]).
+  void setMyBusy(Map<String, int> busy) {
+    _busy = busy;
+    updateMyName(_name);
+  }
+
+  /// Keeps my name, work hours and busy time in my teams up to date (shown
+  /// to the other members). Writes only teams that are out of date.
   void updateMyName(String name) {
     _name = name;
     final me = _uid;
     if (me == null || name.isEmpty) return;
+    final mine = _myInfo();
     for (final t in teams) {
       final info = t.members[me];
-      if (info?.name != name || info?.weekMinutes != _weekMin) {
+      if (info == null || !info.sameAs(mine)) {
+        t.members[me] = mine;
+        if (_testing) continue;
         _write(_teamDoc(t.id).update({
-          'members.$me': _myInfo().toMap(),
+          'members.$me': mine.toMap(),
           'updated_at': nowMs(),
         }));
       }
@@ -309,6 +333,22 @@ class TeamStore extends ChangeNotifier {
         } else if (e.kind == HistoryKind.approved && t.assigneeId == me) {
           _notify(NotifKind.approved, '$who approved ${t.title}', 'Nice work, it is done.',
               taskId: t.id, teamId: teamId, actor: who);
+        } else if (e.kind == HistoryKind.moveAsked && team.isAdmin(me) && t.moveAskedTo != null) {
+          _notify(NotifKind.moveAsked, '$who asked to move ${t.title}',
+              'New date: ${_dayText(e.to)}${e.note == null ? '' : '. ${e.note}'}',
+              taskId: t.id, teamId: teamId, actor: who);
+        } else if ((e.kind == HistoryKind.moveOk || e.kind == HistoryKind.moveNo) &&
+            t.assigneeId == me) {
+          final ok = e.kind == HistoryKind.moveOk;
+          _notify(
+              NotifKind.moveAnswer,
+              ok
+                  ? '$who moved ${t.title} to ${_dayText(e.to)}'
+                  : '$who kept the date of ${t.title}',
+              ok ? 'Your date change was approved.' : (e.note ?? 'Your date change was declined.'),
+              taskId: t.id,
+              teamId: teamId,
+              actor: who);
         } else if (e.kind == HistoryKind.changes && t.assigneeId == me) {
           _notify(NotifKind.changes, '$who requested changes on ${t.title}',
               'The task is back in progress. See the comments.',
@@ -386,6 +426,15 @@ class TeamStore extends ChangeNotifier {
     }
     out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     return out;
+  }
+
+  static String _dayText(String? ms) {
+    final v = int.tryParse(ms ?? '');
+    if (v == null) return 'another day';
+    final d = DateTime.fromMillisecondsSinceEpoch(v);
+    const m = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const w = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return '${w[d.weekday - 1]} ${d.day} ${m[d.month - 1]}';
   }
 
   void _markSeen(int until) {
@@ -842,6 +891,71 @@ class TeamStore extends ChangeNotifier {
   void requestChanges(Team team, TaskItem task, String note) {
     moveTo(team, task, TaskStage.doing, eventKind: HistoryKind.changes, note: note);
     if (note.trim().isNotEmpty) addComment(team, task, note);
+  }
+
+  // ------------------------------------------------------ date change
+
+  /// Waiting date change requests in teams I run.
+  List<(Team, TaskItem)> get moveRequestsForMe => [
+        for (final team in teams)
+          if (isAdmin(team))
+            for (final t in tasksOf(team.id))
+              if (t.moveAskedTo != null && t.status == TaskStatus.pending) (team, t),
+      ];
+
+  /// Assignee: ask the owner/manager to move [task] to [day], saying [why].
+  void askMove(Team team, TaskItem task, DateTime day, String why) {
+    final me = _uid;
+    if (me == null || task.assigneeId != me) return;
+    final d = DateTime(day.year, day.month, day.day);
+    task
+      ..moveAskedTo = d
+      ..updatedAt = DateTime.now();
+    final event = task.addHistory(HistoryKind.moveAsked, me,
+        to: '${d.millisecondsSinceEpoch}', note: why.trim());
+    notifyListeners();
+    if (_testing) return;
+    _write(_tasksCol(team.id).doc(task.id).update({
+      'move_to': d.millisecondsSinceEpoch,
+      'history': _historyField(task, event),
+      'updated_at': nowMs(),
+    }));
+  }
+
+  /// Assignee: take back my request.
+  void cancelMove(Team team, TaskItem task) {
+    if (task.moveAskedTo == null || task.assigneeId != _uid) return;
+    task.moveAskedTo = null;
+    notifyListeners();
+    if (_testing) return;
+    _write(_tasksCol(team.id).doc(task.id).update({'move_to': null, 'updated_at': nowMs()}));
+  }
+
+  /// Owner/manager: agree (the task moves to the asked day, same time) or
+  /// say no (with [note]).
+  void answerMove(Team team, TaskItem task, bool ok, {String note = ''}) {
+    final to = task.moveAskedTo;
+    if (to == null || !isAdmin(team)) return;
+    final now = DateTime.now();
+    final update = <String, dynamic>{'move_to': null, 'updated_at': now.millisecondsSinceEpoch};
+    if (ok) {
+      final start = DateTime(to.year, to.month, to.day, task.startAt.hour, task.startAt.minute);
+      final shift = start.difference(task.startAt);
+      task
+        ..startAt = start
+        ..endAt = task.endAt?.add(shift);
+      update['start_at'] = start.millisecondsSinceEpoch;
+      update['end_at'] = task.endAt?.millisecondsSinceEpoch;
+    }
+    task
+      ..moveAskedTo = null
+      ..updatedAt = now;
+    final event = task.addHistory(ok ? HistoryKind.moveOk : HistoryKind.moveNo, _uid,
+        to: '${to.millisecondsSinceEpoch}', note: note.trim());
+    notifyListeners();
+    if (_testing) return;
+    update['history'] = _historyField(task, event);
+    _write(_tasksCol(team.id).doc(task.id).update(update));
   }
 
   // ------------------------------------------------------------ time

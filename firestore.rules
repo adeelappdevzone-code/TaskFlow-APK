@@ -59,7 +59,7 @@ service cloud.firestore {
           && optList(d, 'links', 20)
           && optList(d, 'history', 150)
           && optList(d, 'time_log', 1000)
-          && optStr(d, 'timer_by', 100) && optNum(d, 'timer_at')
+          && optStr(d, 'timer_by', 100) && optNum(d, 'timer_at') && optNum(d, 'move_to')
           && (!('estimate_min' in d) || d.estimate_min == null
               || (d.estimate_min is int && d.estimate_min > 0 && d.estimate_min <= 1440));
     }
@@ -198,11 +198,17 @@ service cloud.firestore {
               && d.week_hours <= 100));
     }
     function validMemberInfo(info) {
-      return info is map && info.keys().hasOnly(['name', 'email', 'week_min'])
+      return info is map
+          && info.keys().hasOnly(['name', 'email', 'week_min', 'day_min', 'work_days', 'busy'])
           && info.name is string && info.name.size() <= 200
           && info.email is string && info.email.size() <= 320
           && (!('week_min' in info) || (info.week_min is int
-              && info.week_min > 0 && info.week_min <= 10080));
+              && info.week_min > 0 && info.week_min <= 10080))
+          && (!('day_min' in info) || (info.day_min is int
+              && info.day_min > 0 && info.day_min <= 1440))
+          && (!('work_days' in info) || (info.work_days is list && info.work_days.size() <= 7))
+          // Busy minutes per day for the next 14 days (totals only).
+          && (!('busy' in info) || (info.busy is map && info.busy.size() <= 15));
     }
 
     match /teams/{teamId} {
@@ -279,7 +285,8 @@ service cloud.firestore {
               && resource.data.assignee_id == request.auth.uid
               && request.resource.data.diff(resource.data).affectedKeys()
                   .hasOnly(['status', 'completed_at', 'completed_by', 'checklist', 'stage',
-                      'history', 'time_log', 'timer_by', 'timer_at', 'links', 'updated_at'])
+                      'history', 'time_log', 'timer_by', 'timer_at', 'links', 'move_to',
+                      'updated_at'])
               && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['timer_by'])
                   || request.resource.data.timer_by == null
                   || request.resource.data.timer_by == request.auth.uid)

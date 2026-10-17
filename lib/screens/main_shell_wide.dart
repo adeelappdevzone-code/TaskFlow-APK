@@ -59,7 +59,8 @@ extension on _MainShellState {
               invites: TeamStore.instance.invites.length,
               inbox: InboxStore.instance.count,
               unread: AppStore.instance.unreadCount,
-              approvals: TeamStore.instance.awaitingMyApproval.length,
+              approvals: TeamStore.instance.awaitingMyApproval.length +
+                  TeamStore.instance.moveRequestsForMe.length,
               messages: ChatStore.instance.unreadCount,
               onNewTask: _addTask,
               onSelect: (tab) {
@@ -140,7 +141,8 @@ extension on _MainShellState {
           invites: TeamStore.instance.invites.length,
           inbox: InboxStore.instance.count,
           unread: AppStore.instance.unreadCount,
-          approvals: TeamStore.instance.awaitingMyApproval.length,
+          approvals: TeamStore.instance.awaitingMyApproval.length +
+              TeamStore.instance.moveRequestsForMe.length,
           messages: ChatStore.instance.unreadCount,
           onNewTask: () {
             close();

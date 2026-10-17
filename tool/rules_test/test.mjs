@@ -88,10 +88,18 @@ await t('team: member updates own name', assertSucceeds(updateDoc(doc(adeel, `te
 await t('team: member sets own work week', assertSucceeds(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', week_min: 2400 }, updated_at: now })));
 await t('team: work week over 7 days denied', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', week_min: 20000 }, updated_at: now })));
 await t('team: work week must be a number', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', week_min: '40h' }, updated_at: now })));
+await t('team: member shares busy time and work day', assertSucceeds(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', week_min: 2550, day_min: 510, work_days: [1, 2, 3, 4, 5], busy: { '20261016': 210, '20261019': 90 } }, updated_at: now })));
+await t('team: busy for too many days denied', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', busy: Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`2026100${i}`, 60])) }, updated_at: now })));
+await t('team: day over 24h denied', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', day_min: 2000 }, updated_at: now })));
+await t('team: unknown member field denied', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', salary: 1 }, updated_at: now })));
 await t('team: member cannot set others work week', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.own': { name: 'Owner', email: 'o@x.com', week_min: 600 }, updated_at: now })));
 await t('team: member cannot change others name', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.sar': { name: 'x', email: 'x' } })));
 
 await t('task: owner creates task for adeel', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/a1`), ttask('a1', 'adl'))));
+await t('move: assignee asks to move', assertSucceeds(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { move_to: now + 86400000, history: arrayUnion({ kind: 'move_asked', by: 'adl', at: now, to: String(now + 86400000), note: 'Overloaded' }), updated_at: now })));
+await t('move: assignee cannot move it himself', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { start_at: now + 86400000, updated_at: now })));
+await t('move: date must be a number', assertFails(updateDoc(doc(adeel, `teams/${T}/tasks/a1`), { move_to: 'tomorrow', updated_at: now })));
+await t('move: owner moves it', assertSucceeds(updateDoc(doc(owner, `teams/${T}/tasks/a1`), { start_at: now + 86400000, move_to: null, history: arrayUnion({ kind: 'move_ok', by: 'own', at: now, to: String(now + 86400000) }), updated_at: now })));
 await t('task: owner creates task for sara', assertSucceeds(setDoc(doc(owner, `teams/${T}/tasks/s1`), ttask('s1', 'sar'))));
 await t('task: assign to non-member denied', assertFails(setDoc(doc(owner, `teams/${T}/tasks/x1`), ttask('x1', 'out'))));
 await t('task: member creates own task', assertSucceeds(setDoc(doc(adeel, `teams/${T}/tasks/a2`), ttask('a2', 'adl', 'adl'))));

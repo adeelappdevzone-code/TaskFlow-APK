@@ -399,6 +399,12 @@ class HistoryKind {
 
   /// Sent for approval (moved to Review & Feedback, maybe with a note).
   static const submitted = 'submitted';
+
+  /// The assignee asked to move the date ([TaskEvent.to] = new day in ms,
+  /// note = why); the owner/manager agreed or said no.
+  static const moveAsked = 'move_asked';
+  static const moveOk = 'move_ok';
+  static const moveNo = 'move_no';
 }
 
 /// One line in a task's history: who did what and when. [to] is the new
@@ -541,6 +547,10 @@ class TaskItem {
   /// How long the work should take, in minutes (null: not estimated).
   int? estimateMinutes;
 
+  /// Team task: the assignee asked to move it to this day (waiting for the
+  /// owner/manager).
+  DateTime? moveAskedTo;
+
   TaskItem({
     required this.id,
     required this.title,
@@ -570,6 +580,7 @@ class TaskItem {
     this.timerBy,
     this.timerAt,
     this.estimateMinutes,
+    this.moveAskedTo,
   })  : checklist = checklist ?? [],
         links = links ?? [],
         history = history ?? [],
@@ -703,6 +714,7 @@ class TaskItem {
         'timer_by': timerBy,
         'timer_at': _ms(timerAt),
         'estimate_min': estimateMinutes,
+        'move_to': _ms(moveAskedTo),
         'is_synced': 0,
       };
 
@@ -736,6 +748,7 @@ class TaskItem {
         estimateMinutes: m['estimate_min'] is int && (m['estimate_min'] as int) > 0
             ? m['estimate_min'] as int
             : null,
+        moveAskedTo: _dt(m['move_to']),
       );
 
   /// The next copy of a repeating task: same details, new date, unchecked
@@ -790,13 +803,15 @@ class NotifKind {
   static const changes = 'changes'; // changes requested on my task
   static const invite = 'invite';
   static const report = 'report';
+  static const moveAsked = 'move_asked'; // asked me to move a task's date
+  static const moveAnswer = 'move_answer'; // my date change request answered
 
   /// Tabs: mentions | assignments | reminders | approvals.
   static String? tabOf(String kind) => switch (kind) {
         mention || comment => 'mentions',
         assigned => 'assignments',
         reminder => 'reminders',
-        approval || approved || changes => 'approvals',
+        approval || approved || changes || moveAsked || moveAnswer => 'approvals',
         _ => null,
       };
 }

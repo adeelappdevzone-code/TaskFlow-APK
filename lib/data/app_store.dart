@@ -18,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/utils.dart';
+import 'capacity.dart';
 import 'chat_store.dart';
 import 'inbox.dart';
 import 'models.dart';
@@ -177,6 +178,7 @@ class AppStore extends ChangeNotifier {
     TeamStore.instance.start(uid: u.uid, email: email, name: currentUser!.name);
     InboxStore.instance.start(u.uid);
     ChatStore.instance.start(uid: u.uid, email: email, name: currentUser!.name);
+    BusySync.instance.start();
     notifyListeners();
   }
 
@@ -187,6 +189,7 @@ class AppStore extends ChangeNotifier {
     TeamStore.instance.stop();
     InboxStore.instance.stop();
     ChatStore.instance.stop();
+    BusySync.instance.stop();
     _cancelSubs();
     currentUser = null;
     categories = [];
@@ -241,7 +244,7 @@ class AppStore extends ChangeNotifier {
         ..sort();
       workDays = days.isEmpty ? defaultWorkDays : days;
       workHoursSet = d['work_start'] is int;
-      TeamStore.instance.setMyWeekMinutes(workHoursSet ? weekMinutes : null);
+      _shareWorkHours();
       final backup = d['last_backup_at'];
       lastBackupAt = backup is int ? DateTime.fromMillisecondsSinceEpoch(backup) : null;
       schedulePhoneReminders();
@@ -615,8 +618,16 @@ class AppStore extends ChangeNotifier {
     if (days != null && days.isNotEmpty) workDays = ([...days.toSet()]..sort());
     workHoursSet = true;
     _savePrefs({'work_start': start, 'work_end': end, 'work_days': workDays});
-    TeamStore.instance.setMyWeekMinutes(weekMinutes);
+    _shareWorkHours();
   }
+
+  /// My teams see my work week (Team Workload, assign warnings).
+  void _shareWorkHours() => workHoursSet
+      ? TeamStore.instance.setMyWork(
+          weekMinutes: weekMinutes,
+          dayMinutes: (workEnd - workStart).clamp(1, 24 * 60),
+          workDays: workDays)
+      : TeamStore.instance.setMyWork();
 
   void setNotif(String which, bool on) {
     switch (which) {

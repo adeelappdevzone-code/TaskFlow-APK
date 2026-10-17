@@ -28,21 +28,79 @@ class TeamMemberInfo {
   /// Minutes the person works in a week (their own work hours × work days).
   /// Null until they set their work hours: the team's [Team.weekHours] is used.
   final int? weekMinutes;
-  const TeamMemberInfo({required this.name, required this.email, this.weekMinutes});
+
+  /// Their work day length in minutes and work days (1 = Monday), once set.
+  final int? dayMinutes;
+  final List<int>? workDays;
+
+  /// How busy they are per day ("yyyymmdd" -> minutes of open work), counting
+  /// all their tasks (personal and every team), for the next 14 days. Only
+  /// totals: no titles. Updated by their own app.
+  final Map<String, int> busy;
+
+  const TeamMemberInfo({
+    required this.name,
+    required this.email,
+    this.weekMinutes,
+    this.dayMinutes,
+    this.workDays,
+    this.busy = const {},
+  });
 
   Map<String, dynamic> toMap() => {
         'name': name,
         'email': email,
         if (weekMinutes != null) 'week_min': weekMinutes,
+        if (dayMinutes != null) 'day_min': dayMinutes,
+        if (workDays != null) 'work_days': workDays,
+        if (busy.isNotEmpty) 'busy': busy,
       };
 
-  factory TeamMemberInfo.fromMap(Map<String, dynamic> m) => TeamMemberInfo(
-        name: (m['name'] as String?) ?? '',
-        email: (m['email'] as String?) ?? '',
-        weekMinutes:
-            m['week_min'] is int && (m['week_min'] as int) > 0 ? m['week_min'] as int : null,
-      );
+  factory TeamMemberInfo.fromMap(Map<String, dynamic> m) {
+    int? pos(dynamic v) => v is int && v > 0 ? v : null;
+    final days = m['work_days'];
+    final busy = m['busy'];
+    return TeamMemberInfo(
+      name: (m['name'] as String?) ?? '',
+      email: (m['email'] as String?) ?? '',
+      weekMinutes: pos(m['week_min']),
+      dayMinutes: pos(m['day_min']),
+      workDays: days is List
+          ? [
+              for (final d in days)
+                if (d is int && d >= 1 && d <= 7) d
+            ]
+          : null,
+      busy: busy is Map
+          ? {
+              for (final e in busy.entries)
+                if (e.key is String && e.value is int) e.key as String: e.value as int
+            }
+          : const {},
+    );
+  }
+
+  /// Same values (to skip writing what the team already has).
+  bool sameAs(TeamMemberInfo o) =>
+      name == o.name &&
+      email == o.email &&
+      weekMinutes == o.weekMinutes &&
+      dayMinutes == o.dayMinutes &&
+      _sameList(workDays, o.workDays) &&
+      _sameMap(busy, o.busy);
 }
+
+bool _sameList(List<int>? a, List<int>? b) {
+  if (a == null || b == null) return a == b;
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+bool _sameMap(Map<String, int> a, Map<String, int> b) =>
+    a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
 
 class Team {
   final String id;

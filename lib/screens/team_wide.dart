@@ -786,6 +786,12 @@ List<_TeamEvent> _teamEvents(Team team, List<TaskItem> tasks, List<TeamInvite> i
         HistoryKind.approved => ('approved a task', Icons.verified_outlined, AppColors.success),
         HistoryKind.changes => ('asked for changes on', Icons.replay_rounded, AppColors.warning),
         HistoryKind.submitted => ('sent for approval', Icons.send_outlined, AppColors.primary),
+        HistoryKind.moveAsked => (
+            'asked to move a task',
+            Icons.event_repeat_rounded,
+            AppColors.purple
+          ),
+        HistoryKind.moveOk => ('moved a task date', Icons.event_repeat_rounded, AppColors.purple),
         HistoryKind.reopened => ('reopened a task', Icons.undo_rounded, AppColors.warning),
         HistoryKind.cancelled => ('cancelled a task', Icons.close_rounded, AppColors.danger),
         HistoryKind.restored => ('restored a task', Icons.undo_rounded, AppColors.primary),

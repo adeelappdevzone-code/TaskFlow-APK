@@ -11,7 +11,10 @@ import '../data/team_models.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
 import '../widgets/dashboard.dart';
+import '../widgets/approval.dart' show approveMove, declineMove, moveReason;
 import '../widgets/task_extras.dart';
+import '../data/task_repository.dart';
+import 'task_open.dart';
 import 'task_comments.dart';
 import 'task_ui.dart';
 
@@ -392,6 +395,14 @@ class _ApprovalsScreenState extends State<ApprovalsScreen> {
                   childAspectRatio: 2.2,
                   children: tiles,
                 ),
+              ...() {
+                final moves = store.moveRequestsForMe
+                    .where((x) => _team == null || x.$1.id == _team)
+                    .toList();
+                return moves.isEmpty
+                    ? const <Widget>[]
+                    : [const SizedBox(height: 16), _MoveRequests(items: moves)];
+              }(),
               const SizedBox(height: 16),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1269,6 +1280,62 @@ class ApprovalHistoryScreen extends _TaskPage {
         padding: const EdgeInsets.all(16),
         child: _Summary(stats: approvalStats([task]), title: 'Summary'),
       ),
+    );
+  }
+}
+
+/// Members asking to move a task's date (overloaded that day).
+class _MoveRequests extends StatelessWidget {
+  final List<(Team, TaskItem)> items;
+  const _MoveRequests({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final f = DateFormat('EEE d MMM');
+    return DashCard(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          const Icon(Icons.event_repeat_rounded, color: AppColors.purple),
+          const SizedBox(width: 8),
+          Text('Date change requests (${items.length})',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        ]),
+        const SizedBox(height: 4),
+        for (final (team, t) in items)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                InkWell(
+                  onTap: () => openTaskRef(context, TaskRef(t, team)),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(t.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(
+                        '${team.nameOf(t.assigneeId)} • ${team.name} • '
+                        '${f.format(t.startAt)} → ${f.format(t.moveAskedTo!)}',
+                        style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+                    if ((moveReason(t) ?? '').isNotEmpty)
+                      Text('"${moveReason(t)}"',
+                          style: const TextStyle(fontSize: 12.5, fontStyle: FontStyle.italic)),
+                  ]),
+                ),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  OutlinedButton(
+                      onPressed: () => declineMove(context, team, t),
+                      child: const Text('Keep date')),
+                  const SizedBox(width: 8),
+                  FilledButton(
+                      onPressed: () => approveMove(context, team, t), child: const Text('Move')),
+                ]),
+              ],
+            ),
+          ),
+      ]),
     );
   }
 }

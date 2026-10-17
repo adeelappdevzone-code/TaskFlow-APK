@@ -6,7 +6,9 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../data/app_store.dart';
+import '../data/capacity.dart';
 import '../data/models.dart';
+import '../data/planner.dart' show taskMinutes;
 import '../data/team_models.dart';
 import '../data/team_store.dart';
 import '../widgets/common.dart';
@@ -88,6 +90,7 @@ class _CreateTaskFormState extends State<_CreateTaskForm> {
   late DateTime _date = dateOnly(widget.date ?? DateTime.now());
   late TimeOfDay? _time = widget.time;
   Priority _priority = Priority.medium;
+  int? _estimate;
   bool _addToCalendar = false;
   String? _titleError;
   String? _teamError;
@@ -155,6 +158,7 @@ class _CreateTaskFormState extends State<_CreateTaskForm> {
       stage: TaskStage.all.contains(widget.stage) ? widget.stage! : TaskStage.todo,
       createdAt: now,
       updatedAt: now,
+      estimateMinutes: _estimate,
     );
   }
 
@@ -267,6 +271,20 @@ class _CreateTaskFormState extends State<_CreateTaskForm> {
             (p, p.label, Icons.flag_rounded, _priorityColor(p)),
         ],
         onChanged: (p) => setState(() => _priority = p),
+      ),
+    );
+
+    final estimateField = _Field(
+      label: 'Estimate (optional)',
+      child: _Menu<int?>(
+        value: _estimate,
+        leading: Icons.hourglass_empty_rounded,
+        items: [
+          (null, 'Not set', Icons.block_rounded, AppColors.textMuted),
+          for (final m in const [15, 30, 60, 90, 120, 180, 240, 360, 480])
+            (m, _hm(m), Icons.timelapse_rounded, AppColors.primary),
+        ],
+        onChanged: (m) => setState(() => _estimate = m),
       ),
     );
 
@@ -453,18 +471,32 @@ class _CreateTaskFormState extends State<_CreateTaskForm> {
               Expanded(child: timeField),
             ]),
             const SizedBox(height: 14),
-            priorityField,
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(child: priorityField),
+              const SizedBox(width: 12),
+              Expanded(child: estimateField),
+            ]),
           ],
           const SizedBox(height: 16),
           // Phone: only the fields that apply to this kind of task.
           if (wide) ...[
             pair(whereField, assignField),
             const SizedBox(height: 16),
-            labelField,
+            pair(labelField, estimateField),
           ] else ...[
             whereField,
             const SizedBox(height: 14),
             if (_isTeam) assignField else labelField,
+          ],
+          if (_isTeam && team != null && _assigneeId != null) ...[
+            const SizedBox(height: 14),
+            _LoadWarning(
+              team: team,
+              uid: _assigneeId!,
+              day: _date,
+              minutes: taskMinutes(_build()).$1,
+              onMove: (d) => setState(() => _date = d),
+            ),
           ],
           const SizedBox(height: 14),
           InkWell(
@@ -520,6 +552,103 @@ class _CreateTaskFormState extends State<_CreateTaskForm> {
           ),
         ],
       ),
+    );
+  }
+}
+
+String _hm(int m) {
+  final h = m ~/ 60, r = m % 60;
+  if (h == 0) return '$r min';
+  return r == 0 ? (h == 1 ? '1 hour' : '$h hours') : '${h}h ${r}m';
+}
+
+String _short(int m) {
+  final h = m ~/ 60, r = m % 60;
+  if (h == 0) return '${r}m';
+  return r == 0 ? '${h}h' : '${h}h ${r}m';
+}
+
+/// How busy the person is on the chosen day (all their work, not only this
+/// team), and a warning with a better day when this task overloads them.
+class _LoadWarning extends StatelessWidget {
+  final Team team;
+  final String uid;
+  final DateTime day;
+  final int minutes;
+  final ValueChanged<DateTime> onMove;
+  const _LoadWarning(
+      {required this.team,
+      required this.uid,
+      required this.day,
+      required this.minutes,
+      required this.onMove});
+
+  @override
+  Widget build(BuildContext context) {
+    final store = TeamStore.instance;
+    final now = DateTime.now();
+    final teams = store.teams;
+    final load = loadOn(uid, day, teams, store.tasksOf, now, team: team);
+    final me = uid == store.uid;
+    final who = me ? 'You' : team.nameOf(uid);
+    final has = me ? 'have' : 'has';
+    final dayText = DateFormat('EEE d MMM').format(day);
+    final over = load.overloadWith(minutes);
+    final off = load.capacity == 0;
+    final bad = off || over > 0;
+    final next = bad ? nextFreeDay(uid, day, minutes, teams, store.tasksOf, now, team: team) : null;
+    final color = bad ? AppColors.warning : AppColors.success;
+    final lines = <String>[
+      if (off)
+        '$dayText is not one of ${me ? 'your' : '$who\'s'} work days.'
+      else ...[
+        '$who already $has ${_short(load.total)} of work on $dayText '
+            '(work day ${_short(load.capacity)}).',
+        if (load.elsewhere > 0)
+          '${_short(load.elsewhere)} of it is outside this team (personal or other teams).',
+        bad
+            ? 'This task (${_short(minutes)}) makes it ${_short(load.total + minutes)}: '
+                '${_short(over)} over.'
+            : 'After this task (${_short(minutes)}): ${_short(load.capacity - load.total - minutes)} free.',
+      ],
+    ];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withAlpha(90)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(bad ? Icons.warning_amber_rounded : Icons.check_circle_outline_rounded,
+              color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(bad ? '$who will be overloaded' : '$who ${me ? 'have' : 'has'} time',
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        for (final l in lines)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: Text(l, style: const TextStyle(fontSize: 13, color: Color(0xFF4B5563))),
+          ),
+        if (bad) ...[
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 6, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            if (next != null)
+              FilledButton.tonalIcon(
+                onPressed: () => onMove(next),
+                icon: const Icon(Icons.event_available_rounded, size: 18),
+                label: Text('Move to ${DateFormat('EEE d MMM').format(next)}'),
+              ),
+            const Text('You can still create it, or pick someone else.',
+                style: TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+          ]),
+        ],
+      ]),
     );
   }
 }

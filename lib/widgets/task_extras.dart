@@ -248,6 +248,9 @@ String historyText(TaskEvent e, String Function(String? id) nameOf) {
     HistoryKind.approved => '$who approved it',
     HistoryKind.changes => '$who asked for changes',
     HistoryKind.submitted => '$who sent it for approval',
+    HistoryKind.moveAsked => '$who asked to move it to ${_msDay(e.to)}',
+    HistoryKind.moveOk => '$who moved it to ${_msDay(e.to)}',
+    HistoryKind.moveNo => '$who kept the date',
     _ => '$who changed the task',
   };
 }
@@ -261,10 +264,21 @@ IconData historyIcon(String kind) => switch (kind) {
       HistoryKind.approved => Icons.verified_outlined,
       HistoryKind.changes => Icons.replay_rounded,
       HistoryKind.submitted => Icons.send_outlined,
+      HistoryKind.moveAsked ||
+      HistoryKind.moveOk ||
+      HistoryKind.moveNo =>
+        Icons.event_repeat_rounded,
       HistoryKind.reopened || HistoryKind.restored => Icons.undo_rounded,
       HistoryKind.cancelled => Icons.cancel_outlined,
       _ => Icons.history_rounded,
     };
+
+/// A day stored as milliseconds text ("Mon 20 Oct").
+String _msDay(String? ms) {
+  final v = int.tryParse(ms ?? '');
+  if (v == null) return 'another day';
+  return DateFormat('EEE d MMM').format(DateTime.fromMillisecondsSinceEpoch(v));
+}
 
 String _when(DateTime d) {
   final now = DateTime.now();

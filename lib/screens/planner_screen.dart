@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../data/app_store.dart';
+import '../data/capacity.dart';
 import '../data/planner.dart';
 import '../data/task_repository.dart';
 import '../data/team_store.dart';
@@ -28,6 +29,17 @@ void _saveTask(TaskRef r) {
 String _hm(int minutes) {
   final h = minutes ~/ 60, m = minutes % 60;
   return '${h}h ${m.toString().padLeft(2, '0')}m';
+}
+
+/// "SEO 2h 00m • Personal 1h 30m • SMM 6h 00m": where the day's work comes
+/// from.
+String _sources(DayPlan plan) {
+  final by = <String, int>{};
+  for (final e in plan.before) {
+    final k = e.ref.team?.name ?? 'Personal';
+    by[k] = (by[k] ?? 0) + e.minutes;
+  }
+  return by.entries.map((e) => '${e.key} ${_hm(e.value)}').join('  •  ');
 }
 
 /// Planner / Daily Rescue: today's work against the time in the work day,
@@ -137,6 +149,10 @@ class _PlannerScreenState extends State<PlannerScreen> {
                 onCustomize: _customize,
                 onApply: plan.suggestions.isEmpty ? null : () => _apply(plan, chosen),
               ),
+              if (plan.overloadMinutes > 0 && _locked(plan).isNotEmpty) ...[
+                const SizedBox(height: 14),
+                _AskMoveCard(plan: plan),
+              ],
               const SizedBox(height: 14),
               _Tiles(plan: plan, wide: wide),
               const SizedBox(height: 14),
@@ -250,6 +266,167 @@ class _WorkDayLine extends StatelessWidget {
   }
 }
 
+/// Team tasks in the day whose date only the owner/manager can change.
+List<TaskRef> _locked(DayPlan plan) => [
+      for (final e in plan.before)
+        if (e.ref.team != null && !e.ref.canEdit && e.ref.task.assigneeId == TeamStore.instance.uid)
+          e.ref
+    ];
+
+/// Overloaded with team work I can't move: ask the manager to move it.
+class _AskMoveCard extends StatelessWidget {
+  final DayPlan plan;
+  const _AskMoveCard({required this.plan});
+
+  @override
+  Widget build(BuildContext context) {
+    final rescue = plan.savedMinutes({RescueKind.moveLow});
+    final left = plan.overloadMinutes - rescue;
+    return DashCard(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Row(children: [
+          const IconBox(icon: Icons.forward_to_inbox_rounded, color: AppColors.purple),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Team tasks you can\'t move yourself',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              Text(
+                  left > 0
+                      ? 'Even after the rescue plan you are ${_hm(left)} over. Ask the manager to '
+                          'move a team task to another day.'
+                      : 'Their dates are set by the team manager. Ask them if one should move.',
+                  style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        for (final r in _locked(plan)) _AskMoveRow(r: r, plan: plan),
+      ]),
+    );
+  }
+}
+
+class _AskMoveRow extends StatelessWidget {
+  final TaskRef r;
+  final DayPlan plan;
+  const _AskMoveRow({required this.r, required this.plan});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = r.task;
+    final team = r.team!;
+    final asked = t.moveAskedTo;
+    return Padding(
+      key: ValueKey('ask_${t.id}'),
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(children: [
+        Container(
+            width: 4,
+            height: 34,
+            decoration:
+                BoxDecoration(color: Color(team.color), borderRadius: BorderRadius.circular(2))),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(t.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(
+                '${team.name} • ${_hm(taskMinutes(t).$1)}'
+                '${asked == null ? '' : ' • asked for ${DateFormat('EEE d MMM').format(asked)}'}',
+                style: const TextStyle(fontSize: 12.5, color: AppColors.textMuted)),
+          ]),
+        ),
+        const SizedBox(width: 8),
+        asked == null
+            ? OutlinedButton(
+                onPressed: () => askToMove(context, r, plan.day), child: const Text('Ask to move'))
+            : TextButton(
+                onPressed: () => TeamStore.instance.cancelMove(team, t),
+                child: const Text('Cancel request')),
+      ]),
+    );
+  }
+}
+
+/// My next work day after [from] with room for [minutes] (all my work).
+DateTime nextFreeWorkDay(DateTime from, int minutes) {
+  final store = AppStore.instance;
+  final busy = busyByDay(TaskRepository.myTasks(), DateTime.now());
+  final perDay = store.workEnd - store.workStart;
+  DateTime? first;
+  for (var i = 1; i <= 30; i++) {
+    final d = DateTime(from.year, from.month, from.day + i);
+    if (!store.isWorkDay(d)) continue;
+    first ??= d;
+    if ((busy[dayKey(d)] ?? 0) + minutes <= perDay) return d;
+  }
+  return first ?? DateTime(from.year, from.month, from.day + 1);
+}
+
+/// Ask the team's owner/manager to move [r] to another day.
+Future<void> askToMove(BuildContext context, TaskRef r, DateTime from) async {
+  final team = r.team;
+  if (team == null) return;
+  var day = nextFreeWorkDay(from, taskMinutes(r.task).$1);
+  final why = TextEditingController();
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: const Text('Ask to move this task'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('"${r.task.title}" in ${team.name}. The owner or a manager decides.',
+                  style: const TextStyle(color: AppColors.textMuted)),
+              const SizedBox(height: 12),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event_rounded),
+                title: const Text('New date'),
+                subtitle: const Text('Your next work day with free time'),
+                trailing: Text(DateFormat('EEE d MMM').format(day),
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                onTap: () async {
+                  final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: day,
+                      firstDate: dateOnly(DateTime.now()),
+                      lastDate: DateTime.now().add(const Duration(days: 365)));
+                  if (d != null) setState(() => day = d);
+                },
+              ),
+              TextField(
+                controller: why,
+                maxLines: 3,
+                maxLength: 300,
+                decoration: const InputDecoration(
+                    hintText: 'Why? e.g. I have 2 urgent SEO tasks today',
+                    border: OutlineInputBorder()),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true), child: const Text('Send request')),
+        ],
+      ),
+    ),
+  );
+  if (ok != true) return;
+  TeamStore.instance.askMove(team, r.task, day, why.text);
+  if (context.mounted) showSnack(context, 'Request sent to ${team.name}\'s manager');
+}
+
 class _DaySwitch extends StatelessWidget {
   final bool tomorrow;
   final ValueChanged<bool> onChanged;
@@ -326,6 +503,11 @@ class _Banner extends StatelessWidget {
                             color: bad ? AppColors.danger : AppColors.text)),
                     const SizedBox(height: 3),
                     Text(text, style: const TextStyle(color: Color(0xFF4B5563))),
+                    if (plan.before.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Text(_sources(plan),
+                          style: const TextStyle(fontSize: 13, color: AppColors.textMuted)),
+                    ],
                     if (plan.unestimatedCount > 0) ...[
                       const SizedBox(height: 6),
                       Row(children: [

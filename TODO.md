@@ -113,6 +113,14 @@ Sakht karna ho to baad mein rule lagana.
 - Rescue: low/medium tasks agle **work day jahan jagah ho** par (chhutti aur bhare din skip, 60 work days tak).
 - Team Workload: member ki capacity uske apne hafte ke minutes (teams/{id}.members.{uid}.week_min, khud set karta hai); set na ho to team ke weekHours.
 
+## Overload across teams (Oct 2026, branch par, main par abhi nahi)
+- Busy time: har banda apni app se agle 14 din ka "kitna busy" (personal + saari teams, sirf totals) apni teams mein share karta hai: teams/{id}.members.{uid}.busy {"yyyymmdd": min}, day_min, work_days (`lib/data/capacity.dart`, BusySync).
+- Assign warning: Create task dialog mein assignee + date + estimate par "Adeel already has 3h 30m… 1h over" + "Move to <next free day>". Estimate field dialog mein add.
+- Team Workload: "busy elsewhere" (purple) bar/legend; ratio = yahan + elsewhere.
+- Planner: "SEO 2h • Personal 1h 30m • SMM 6h" breakdown; overload par "Team tasks you can't move yourself" → "Ask to move" (date + wajah). Task `move_to` + history move_asked.
+- Manager: Approvals mein "Date change requests" + task page par bar (Move / Keep date), notifications dono taraf (move_asked / move_answer). Approvals badge mein count.
+- Baqi: Task edit form (assignee/date badalna) mein abhi warning nahi, sirf Create dialog mein.
+
 ## Setup (sab chal raha hai)
 
 - **App:** Flutter 3.47.7 (CI mein fix), Firebase project `taskflow-ce905` (Spark/free plan, card nahi).

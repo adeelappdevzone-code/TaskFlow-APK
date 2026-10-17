@@ -182,7 +182,8 @@ class _MainShellState extends State<MainShell> {
                     activeIcon: Icons.menu_rounded,
                     label: 'Menu',
                     badge: TeamStore.instance.invites.length +
-                        TeamStore.instance.awaitingMyApproval.length,
+                        TeamStore.instance.awaitingMyApproval.length +
+                        TeamStore.instance.moveRequestsForMe.length,
                     active: _index != 0 && _index != 1 && _index != 13,
                     onTap: () => _phoneScaffold.currentState?.openDrawer()),
               ],

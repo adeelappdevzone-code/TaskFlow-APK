@@ -155,6 +155,7 @@ class _TaskPageState extends State<TaskPage> {
       children: [
         _Header(ref: ref, wide: true),
         const SizedBox(height: 14),
+        MoveRequestBar(ref: ref),
         ApprovalBar(ref: ref),
         _tabs(ref),
         const SizedBox(height: 14),
@@ -212,6 +213,7 @@ class _TaskPageState extends State<TaskPage> {
         children: [
           _Header(ref: ref, wide: false),
           const SizedBox(height: 12),
+          MoveRequestBar(ref: ref),
           ApprovalBar(ref: ref),
           _tabs(ref),
           const SizedBox(height: 12),

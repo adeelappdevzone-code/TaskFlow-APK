@@ -103,7 +103,8 @@ class _WorkloadScreenState extends State<WorkloadScreen> {
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(m.name, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                     Text(
-                        '${_h(m.minutes)} of ${_h(m.capacityMinutes)} • ${m.open.length} open tasks',
+                        '${_h(m.totalMinutes)} of ${_h(m.capacityMinutes)} • ${m.open.length} open tasks'
+                        '${m.elsewhereMinutes > 0 ? ' • ${_h(m.elsewhereMinutes)} busy elsewhere' : ''}',
                         style: const TextStyle(color: AppColors.textMuted)),
                   ]),
                 ),
@@ -429,27 +430,40 @@ class _PersonRow extends StatelessWidget {
                 children: [
                   Row(children: [
                     Expanded(
-                      child: Text('${m.open.length} tasks',
+                      child: Text(
+                          '${m.open.length} tasks'
+                          '${m.elsewhereMinutes > 0 ? ' • +${_h(m.elsewhereMinutes)} elsewhere' : ''}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
                     ),
                     Flexible(
-                      child: Text('${_h(m.minutes)} / ${_h(m.capacityMinutes)}',
+                      child: Text('${_h(m.totalMinutes)} / ${_h(m.capacityMinutes)}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 11.5, color: AppColors.textMuted)),
                     ),
                   ]),
                   const SizedBox(height: 4),
+                  // Work here in the load color; busy elsewhere behind it.
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: m.ratio.clamp(0, 1).toDouble(),
-                      minHeight: 8,
-                      color: color,
-                      backgroundColor: const Color(0xFFEEF1F6),
-                    ),
+                    child: Stack(children: [
+                      LinearProgressIndicator(
+                        value: m.ratio.clamp(0, 1).toDouble(),
+                        minHeight: 8,
+                        color: _elsewhereColor,
+                        backgroundColor: const Color(0xFFEEF1F6),
+                      ),
+                      LinearProgressIndicator(
+                        value: (m.capacityMinutes == 0 ? 0 : m.minutes / m.capacityMinutes)
+                            .clamp(0, 1)
+                            .toDouble(),
+                        minHeight: 8,
+                        color: color,
+                        backgroundColor: Colors.transparent,
+                      ),
+                    ]),
                   ),
                 ],
               ),
@@ -489,15 +503,22 @@ class _Chart extends StatelessWidget {
     List<(Color, String)> legend;
     switch (view) {
       case _View.workload:
+        final elsewhere = members.any((m) => m.elsewhereMinutes > 0);
         for (final m in members) {
           groups.add([
             (m.minutes / 60, AppColors.primary),
+            if (elsewhere) (m.elsewhereMinutes / 60, _elsewhereColor),
             (m.capacityMinutes / 60, const Color(0xFFC7D2FE)),
           ]);
         }
-        top = members.fold(0.0, (a, m) => max(a, max(m.minutes, m.capacityMinutes) / 60));
+        top = members.fold(
+            0.0, (a, m) => max(a, max(max(m.minutes, m.elsewhereMinutes), m.capacityMinutes) / 60));
         unit = 'h';
-        legend = [(AppColors.primary, 'Task hours'), (const Color(0xFFC7D2FE), 'Capacity')];
+        legend = [
+          (AppColors.primary, 'Task hours'),
+          if (elsewhere) (_elsewhereColor, 'Busy elsewhere'),
+          (const Color(0xFFC7D2FE), 'Capacity'),
+        ];
       case _View.tasks:
         for (final m in members) {
           groups.add([
@@ -676,7 +697,7 @@ class _BalanceCard extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 3),
               child: Text(
-                  '• ${m.name}: ${_h(m.minutes)} of work for ${_h(m.capacityMinutes)} '
+                  '• ${m.name}: ${_h(m.totalMinutes)} of work for ${_h(m.capacityMinutes)} '
                   '(${(m.ratio * 100).round()}%)',
                   style: const TextStyle(color: Color(0xFF4B5563))),
             ),
@@ -743,3 +764,6 @@ class _BalanceCard extends StatelessWidget {
     );
   }
 }
+
+/// Work a person has outside the teams shown (personal, other teams).
+const _elsewhereColor = Color(0xFFB4A7F5);

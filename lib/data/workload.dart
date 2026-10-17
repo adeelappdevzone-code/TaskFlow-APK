@@ -1,4 +1,5 @@
 import '../core/utils.dart';
+import 'capacity.dart' show dayKey, isOpenWork, workDayOf;
 import 'models.dart';
 import 'planner.dart' show taskMinutes;
 import 'task_repository.dart';
@@ -49,12 +50,19 @@ class MemberLoad {
   int capacityMinutes = 0;
   int unestimated = 0;
 
+  /// Their other work in the period (personal tasks and teams not shown
+  /// here), from the busy time they share.
+  int elsewhereMinutes = 0;
+
   MemberLoad(this.uid, this.name, this.role);
 
   int get overdueCount => open.where((r) => r.task.isOverdue).length;
 
-  /// Work / capacity (1.0 = full).
-  double get ratio => capacityMinutes == 0 ? 0 : minutes / capacityMinutes;
+  /// Work here plus elsewhere.
+  int get totalMinutes => minutes + elsewhereMinutes;
+
+  /// All work / capacity (1.0 = full).
+  double get ratio => capacityMinutes == 0 ? 0 : totalMinutes / capacityMinutes;
 }
 
 /// A suggestion to even out the load: give [task] from [from] to [to].
@@ -73,7 +81,7 @@ class WorkloadReport {
   const WorkloadReport(this.members, this.unassigned, this.start, this.end);
 
   int get openTasks => members.fold(0, (s, m) => s + m.open.length);
-  int get totalMinutes => members.fold(0, (s, m) => s + m.minutes);
+  int get totalMinutes => members.fold(0, (s, m) => s + m.totalMinutes);
   int get capacityMinutes => members.fold(0, (s, m) => s + m.capacityMinutes);
   double get averageRatio => capacityMinutes == 0 ? 0 : totalMinutes / capacityMinutes;
   List<MemberLoad> get overloaded => members.where((m) => m.ratio > 1).toList();
@@ -95,7 +103,7 @@ class WorkloadReport {
         final mins = taskMinutes(r.task).$1;
         for (final other in members) {
           if (other.uid == m.uid || !team.memberIds.contains(other.uid)) continue;
-          final after = other.minutes + (extra[other.uid] ?? 0) + mins;
+          final after = other.totalMinutes + (extra[other.uid] ?? 0) + mins;
           if (other.capacityMinutes == 0 || other.ratio >= 0.8) continue;
           if (after > other.capacityMinutes) continue;
           if (best == null || other.ratio < best.to.ratio) best = Rebalance(m, other, r);
@@ -156,6 +164,28 @@ WorkloadReport buildWorkload(List<Team> teams, List<TaskItem> Function(String te
       m.open.add(ref);
       m.minutes += mins;
       if (unest) m.unestimated++;
+    }
+  }
+  // Other work they told us about (from today on, days in the period).
+  final today = dateOnly(now);
+  for (final m in byUid.values) {
+    final visible = <String, int>{};
+    for (final r in m.open) {
+      if (!isOpenWork(r.task)) continue;
+      final k = dayKey(workDayOf(r.task, today));
+      visible[k] = (visible[k] ?? 0) + taskMinutes(r.task).$1;
+    }
+    for (var d = start.isAfter(today) ? start : today;
+        d.isBefore(end);
+        d = DateTime(d.year, d.month, d.day + 1)) {
+      final k = dayKey(d);
+      var shared = 0;
+      for (final t in teams) {
+        final b = t.members[m.uid]?.busy[k] ?? 0;
+        if (b > shared) shared = b;
+      }
+      final extra = shared - (visible[k] ?? 0);
+      if (extra > 0) m.elsewhereMinutes += extra;
     }
   }
   final members = byUid.values.toList()..sort((a, b) => b.ratio.compareTo(a.ratio));
