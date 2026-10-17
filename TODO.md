@@ -103,6 +103,10 @@ Sakht karna ho to baad mein rule lagana.
 - Members tab mein "Message" option. Rules: chats/{id} + messages (27 rule tests).
 - Baad mein: push notification server ke baghair sirf app khuli ho to alert (Spark plan).
 
+## Phone menu (Oct 2026, branch par, main par abhi nahi)
+- Neeche nav: Home | My Tasks | (+) | Chats | Menu. Menu (ya left edge swipe) = laptop wala side menu drawer mein.
+- Drawer se khulne wale pages par upar title + ☰. Home header se Time/Planner/Capture icons hata diye (bell + avatar baqi).
+
 ## Setup (sab chal raha hai)
 
 - **App:** Flutter 3.47.7 (CI mein fix), Firebase project `taskflow-ce905` (Spark/free plan, card nahi).

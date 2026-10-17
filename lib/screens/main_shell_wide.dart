@@ -50,8 +50,7 @@ extension on _MainShellState {
       body: Row(
         children: [
           ListenableBuilder(
-            listenable:
-                Listenable.merge(
+            listenable: Listenable.merge(
                 [TeamStore.instance, InboxStore.instance, AppStore.instance, ChatStore.instance]),
             builder: (context, _) => _SideMenu(
               onOpenTeam: _showTeam,
@@ -123,6 +122,44 @@ extension on _MainShellState {
   }
 }
 
+extension on _MainShellState {
+  /// Phone: the same side menu, in a drawer.
+  Widget _buildDrawer(BuildContext context) {
+    void close() => Navigator.of(context).pop();
+    return Drawer(
+      width: 280,
+      backgroundColor: _Side.bg,
+      shape: const RoundedRectangleBorder(),
+      child: ListenableBuilder(
+        listenable: Listenable.merge(
+            [TeamStore.instance, InboxStore.instance, AppStore.instance, ChatStore.instance]),
+        builder: (_, __) => _SideMenu(
+          width: 280,
+          compact: false,
+          current: _index,
+          invites: TeamStore.instance.invites.length,
+          inbox: InboxStore.instance.count,
+          unread: AppStore.instance.unreadCount,
+          approvals: TeamStore.instance.awaitingMyApproval.length,
+          messages: ChatStore.instance.unreadCount,
+          onNewTask: () {
+            close();
+            _addTask();
+          },
+          onSelect: (tab) {
+            close();
+            setTab(tab);
+          },
+          onOpenTeam: (team) {
+            close();
+            openTeam(context, team);
+          },
+        ),
+      ),
+    );
+  }
+}
+
 class _SideMenu extends StatelessWidget {
   final bool compact;
   final int current;
@@ -134,7 +171,11 @@ class _SideMenu extends StatelessWidget {
   final VoidCallback onNewTask;
   final ValueChanged<int> onSelect;
   final ValueChanged<Team> onOpenTeam;
+
+  /// Phone drawer width (laptop: from [compact]).
+  final double? width;
   const _SideMenu({
+    this.width,
     required this.onOpenTeam,
     required this.compact,
     required this.current,
@@ -150,7 +191,7 @@ class _SideMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: compact ? 84 : 248,
+      width: width ?? (compact ? 84 : 248),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -158,7 +199,8 @@ class _SideMenu extends StatelessWidget {
           colors: [_Side.bg2, _Side.bg],
         ),
       ),
-      padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 18, vertical: 18),
+      padding: EdgeInsets.fromLTRB(compact ? 12 : 18, 18 + MediaQuery.paddingOf(context).top,
+          compact ? 12 : 18, 18 + MediaQuery.paddingOf(context).bottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

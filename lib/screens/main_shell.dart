@@ -31,8 +31,8 @@ import 'create_task_dialog.dart';
 
 part 'main_shell_wide.dart';
 
-/// Bottom navigation: Home | Tasks | (+) | Teams | Chats. Profile opens from
-/// the avatar on Home.
+/// Phone: bottom navigation Home | Tasks | (+) | Chats | Menu. Menu (or a
+/// swipe from the left edge) opens the laptop side menu as a drawer.
 /// Calendar (index 2) opens from the shortcut on Home.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -67,6 +67,9 @@ class _MainShellState extends State<MainShell> {
   /// Laptop: the task opened over the pages.
   final _panelKey = GlobalKey<DetailPanelHostState>();
 
+  /// Phone: opens the menu drawer.
+  final _phoneScaffold = GlobalKey<ScaffoldState>();
+
   void setTab(int i) {
     _panelKey.currentState?.close();
     setState(() => _index = i);
@@ -82,6 +85,22 @@ class _MainShellState extends State<MainShell> {
 
   Future<void> _addTask() => showCreateTask(context);
 
+  /// Phone: a page opened from the menu drawer, with its title and a menu
+  /// button.
+  Widget _menuPage(String title, Widget child) => Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          leading: IconButton(
+            tooltip: 'Menu',
+            icon: const Icon(Icons.menu_rounded),
+            onPressed: () => _phoneScaffold.currentState?.openDrawer(),
+          ),
+          title: Text(title),
+        ),
+        body: child,
+      );
+
   @override
   Widget build(BuildContext context) {
     if (isWideScreen(context)) return _buildWide(context);
@@ -91,23 +110,25 @@ class _MainShellState extends State<MainShell> {
         if (!didPop) setTab(0);
       },
       child: Scaffold(
+        key: _phoneScaffold,
+        drawer: _buildDrawer(context),
         body: IndexedStack(
           index: _index,
-          children: const [
-            HomeScreen(),
-            TasksScreen(),
-            CalendarScreen(),
-            ProfileScreen(),
-            TeamsScreen(),
-            SafeArea(child: InboxScreen()),
-            SafeArea(child: NotificationsScreen(page: false)),
-            SafeArea(child: ApprovalsScreen()),
-            SafeArea(child: PlannerScreen()),
-            SafeArea(child: WorkloadScreen()),
-            SafeArea(child: TimeScreen()),
-            SafeArea(child: ReportsScreen()),
-            SafeArea(child: TemplatesScreen()),
-            SafeArea(child: MessagesScreen()),
+          children: [
+            const HomeScreen(),
+            const TasksScreen(),
+            const CalendarScreen(),
+            const ProfileScreen(),
+            const TeamsScreen(),
+            _menuPage('Capture', const InboxScreen()),
+            _menuPage('Notifications', const NotificationsScreen(page: false)),
+            _menuPage('Approvals', const ApprovalsScreen()),
+            _menuPage('Daily Planner', const PlannerScreen()),
+            _menuPage('Team Workload', const WorkloadScreen()),
+            _menuPage('Time Tracking', const TimeScreen()),
+            _menuPage('Reports', const ReportsScreen()),
+            _menuPage('Templates', const TemplatesScreen()),
+            const SafeArea(child: MessagesScreen()),
           ],
         ),
         floatingActionButton: SizedBox(
@@ -150,19 +171,20 @@ class _MainShellState extends State<MainShell> {
                     onTap: () => setTab(1)),
                 const SizedBox(width: 64),
                 _NavItem(
-                    icon: Icons.groups_outlined,
-                    activeIcon: Icons.groups_rounded,
-                    label: 'Teams',
-                    badge: TeamStore.instance.invites.length,
-                    active: _index == 4,
-                    onTap: () => setTab(4)),
-                _NavItem(
                     icon: Icons.forum_outlined,
                     activeIcon: Icons.forum_rounded,
                     label: 'Chats',
                     badge: ChatStore.instance.unreadCount,
                     active: _index == 13,
                     onTap: () => setTab(13)),
+                _NavItem(
+                    icon: Icons.menu_rounded,
+                    activeIcon: Icons.menu_rounded,
+                    label: 'Menu',
+                    badge: TeamStore.instance.invites.length +
+                        TeamStore.instance.awaitingMyApproval.length,
+                    active: _index != 0 && _index != 1 && _index != 13,
+                    onTap: () => _phoneScaffold.currentState?.openDrawer()),
               ],
             ),
           ),

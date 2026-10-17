@@ -1,9 +1,5 @@
 import 'reports_screen.dart';
 import 'templates_screen.dart';
-import '../data/inbox.dart';
-import 'inbox_screen.dart';
-import 'planner_screen.dart';
-import 'time_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -1096,34 +1092,6 @@ class _PhoneHome extends StatelessWidget {
                     Text(data.greetingLine,
                         style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
                   ],
-                ),
-              ),
-              IconButton(
-                tooltip: 'Time Tracking',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => const TimeScreen(page: true))),
-                icon: const Icon(Icons.timer_outlined, size: 26),
-              ),
-              IconButton(
-                tooltip: 'Planner',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => Navigator.push(
-                    context, MaterialPageRoute(builder: (_) => const PlannerScreen(page: true))),
-                icon: const Icon(Icons.event_note_outlined, size: 26),
-              ),
-              ListenableBuilder(
-                listenable: InboxStore.instance,
-                builder: (context, _) => IconButton(
-                  tooltip: 'Capture',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => Navigator.push(
-                      context, MaterialPageRoute(builder: (_) => const InboxScreen(page: true))),
-                  icon: Badge(
-                    isLabelVisible: InboxStore.instance.count > 0,
-                    label: Text('${InboxStore.instance.count}'),
-                    child: const Icon(Icons.edit_note_rounded, size: 27),
-                  ),
                 ),
               ),
               _BellButton(count: AppStore.instance.unreadCount),
