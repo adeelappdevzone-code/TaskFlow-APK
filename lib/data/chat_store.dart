@@ -547,21 +547,48 @@ class ChatStore extends ChangeNotifier {
     if (!_testing) _write(_chats.doc(c.id).delete());
   }
 
-  /// Last 300 messages, oldest first.
-  Stream<List<ChatMessage>> messagesOf(String chatId) => _testing
-      ? Stream.value([...?_testMessages[chatId]])
-      : _chats
+  /// Last 300 messages, oldest first. A chat I just started may not be on
+  /// the server yet (reading it is refused until it is), so on an error it
+  /// tries again a moment later instead of staying empty.
+  Stream<List<ChatMessage>> messagesOf(String chatId) {
+    if (_testing) return Stream.value([...?_testMessages[chatId]]);
+    late StreamController<List<ChatMessage>> out;
+    StreamSubscription<dynamic>? sub;
+    Timer? retry;
+    var wait = 1;
+    void listen() {
+      sub?.cancel();
+      sub = _chats
           .doc(chatId)
           .collection('messages')
           .orderBy('at', descending: true)
           .limit(300)
           .snapshots()
-          .map((s) => s.docs
-              .map((d) => ChatMessage.tryFrom(d.data()))
-              .whereType<ChatMessage>()
-              .toList()
-              .reversed
-              .toList());
+          .listen((s) {
+        wait = 1;
+        out.add(s.docs
+            .map((d) => ChatMessage.tryFrom(d.data()))
+            .whereType<ChatMessage>()
+            .toList()
+            .reversed
+            .toList());
+      }, onError: (Object e) {
+        debugPrint('Messages error ($chatId), retrying: $e');
+        retry?.cancel();
+        retry = Timer(Duration(seconds: wait), listen);
+        if (wait < 30) wait *= 2;
+      });
+    }
+
+    out = StreamController<List<ChatMessage>>(
+      onListen: listen,
+      onCancel: () {
+        retry?.cancel();
+        sub?.cancel();
+      },
+    );
+    return out.stream;
+  }
 
   /// Sends a message (text, links and/or a task).
   void send(Chat c, String text,
