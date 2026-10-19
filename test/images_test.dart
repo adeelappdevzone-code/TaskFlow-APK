@@ -92,4 +92,22 @@ void main() {
     expect(find.text('AA'), findsOneWidget); // no network in tests: letters
     AppStore.instance.tasks = [];
   });
+
+  testWidgets('image opens in a popup with close and new tab', (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: Builder(
+          builder: (context) =>
+              TextButton(onPressed: () => openImage(context, img), child: const Text('open')),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.byTooltip('Open in new tab'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
+  });
 }

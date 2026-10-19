@@ -1,16 +1,16 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/theme.dart';
 import '../data/app_store.dart';
 import '../data/images.dart';
 import 'common.dart';
 
-/// Pick a photo (gallery, or the camera on a phone), shrink it and upload it.
-/// Returns its address, or null when cancelled or it failed (a message is
-/// shown).
-Future<String?> pickAndUploadImage(BuildContext context, {double maxSide = 1600}) async {
+/// Pick a photo (gallery, or the camera on a phone), already made smaller.
+/// Null when cancelled.
+Future<XFile?> pickImageFile(BuildContext context, {double maxSide = 1600}) async {
   ImageSource? source = ImageSource.gallery;
   if (!kIsWeb) {
     source = await showModalBottomSheet<ImageSource>(
@@ -32,14 +32,20 @@ Future<String?> pickAndUploadImage(BuildContext context, {double maxSide = 1600}
     );
     if (source == null) return null;
   }
-  XFile? file;
   try {
-    file = await ImagePicker()
+    return await ImagePicker()
         .pickImage(source: source, maxWidth: maxSide, maxHeight: maxSide, imageQuality: 82);
   } catch (_) {
     if (context.mounted) showSnack(context, 'Could not open the photos.');
     return null;
   }
+}
+
+/// Pick a photo, shrink it and upload it (with a "Uploading" dialog).
+/// Returns its address, or null when cancelled or it failed (a message is
+/// shown).
+Future<String?> pickAndUploadImage(BuildContext context, {double maxSide = 1600}) async {
+  final file = await pickImageFile(context, maxSide: maxSide);
   if (file == null || !context.mounted) return null;
 
   final nav = Navigator.of(context, rootNavigator: true);
@@ -108,24 +114,40 @@ class NetImage extends StatelessWidget {
       );
 }
 
-/// Full screen, zoomable.
+/// The picture in a popup over the page, zoomable, with "Open in new tab".
 void openImage(BuildContext context, String url) {
-  Navigator.of(context).push(MaterialPageRoute(
-    fullscreenDialog: true,
-    builder: (_) => Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-          backgroundColor: Colors.black, foregroundColor: Colors.white, title: const Text('Image')),
-      body: Center(
-        child: InteractiveViewer(
-          maxScale: 5,
-          child: Image.network(url,
-              errorBuilder: (context, _, __) =>
-                  const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 48)),
+  showDialog<void>(
+    context: context,
+    barrierColor: Colors.black87,
+    builder: (ctx) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(20),
+      child: Stack(alignment: Alignment.topRight, children: [
+        Center(
+          child: InteractiveViewer(
+            maxScale: 5,
+            child: Image.network(url,
+                errorBuilder: (context, _, __) =>
+                    const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 48)),
+          ),
         ),
-      ),
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          IconButton.filledTonal(
+            tooltip: 'Open in new tab',
+            onPressed: () => launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)
+                .catchError((_) => false),
+            icon: const Icon(Icons.open_in_new_rounded),
+          ),
+          const SizedBox(width: 6),
+          IconButton.filledTonal(
+            tooltip: 'Close',
+            onPressed: () => Navigator.pop(ctx),
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ]),
+      ]),
     ),
-  ));
+  );
 }
 
 /// A small clickable picture (opens full screen); [onRemove] shows an ×.

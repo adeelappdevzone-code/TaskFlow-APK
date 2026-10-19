@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import '../data/images.dart';
 import '../widgets/images.dart';
@@ -553,7 +555,25 @@ class _ChatViewState extends State<ChatView> {
   final _text = TextEditingController();
   final _focus = FocusNode();
   final List<TaskLink> _links = [];
+  final List<_PendingPhoto> _photos = [];
   TaskRef? _task;
+
+  bool get _uploading => _photos.any((p) => p.url == null && p.error == null);
+
+  /// Pick a photo: it shows in the composer and uploads while you type.
+  Future<void> _addPhoto() async {
+    final file = await pickImageFile(context);
+    if (file == null || !mounted) return;
+    final p = _PendingPhoto(await file.readAsBytes());
+    setState(() => _photos.add(p));
+    try {
+      final url = await uploadImage(file);
+      if (mounted) setState(() => p.url = url);
+    } catch (e) {
+      if (mounted) setState(() => p.error = e.toString());
+    }
+  }
+
   late final Stream<List<ChatMessage>> _stream = ChatStore.instance.messagesOf(widget.chatId);
 
   @override
@@ -571,51 +591,68 @@ class _ChatViewState extends State<ChatView> {
   }
 
   void _send(Chat chat) {
+    if (_uploading) {
+      showSnack(context, 'Wait a moment, the photo is still uploading.');
+      return;
+    }
     final t = _task;
-    ChatStore.instance
-        .send(chat, _text.text, links: [..._links], task: t?.task, taskTeamId: t?.team?.id);
+    final photos = [
+      for (final p in _photos)
+        if (p.url != null) TaskLink(title: 'Photo', url: p.url!)
+    ];
+    ChatStore.instance.send(chat, _text.text,
+        links: [...photos, ..._links], task: t?.task, taskTeamId: t?.team?.id);
     setState(() {
       _text.clear();
       _links.clear();
+      _photos.clear();
       _task = null;
     });
     _focus.requestFocus();
   }
 
   Future<void> _attach(Chat chat) async {
-    final pick = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.image_outlined),
-            title: const Text('Send a photo'),
-            subtitle: const Text('Screenshot, design, a picture of the work...'),
-            onTap: () => Navigator.pop(ctx, 'photo'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.link_rounded),
-            title: const Text('Add a link'),
-            subtitle: const Text('Google Drive, Sheets, Figma, a website...'),
-            onTap: () => Navigator.pop(ctx, 'link'),
-          ),
-          ListTile(
-            leading: const Icon(Icons.task_alt_rounded),
-            title: const Text('Share a task'),
-            onTap: () => Navigator.pop(ctx, 'task'),
-          ),
-        ]),
+    final options = [
+      (
+        'photo',
+        Icons.image_outlined,
+        'Send a photo',
+        'Screenshot, design, a picture of the work...'
       ),
-    );
+      ('link', Icons.link_rounded, 'Add a link', 'Google Drive, Sheets, Figma, a website...'),
+      ('task', Icons.task_alt_rounded, 'Share a task', null),
+    ];
+    Widget tile(BuildContext ctx, (String, IconData, String, String?) o) => ListTile(
+          leading: Icon(o.$2),
+          title: Text(o.$3),
+          subtitle: o.$4 == null ? null : Text(o.$4!),
+          onTap: () => Navigator.pop(ctx, o.$1),
+        );
+    // Laptop: a small box in the middle; phone: from the bottom.
+    final pick = MediaQuery.sizeOf(context).width >= 700
+        ? await showDialog<String>(
+            context: context,
+            builder: (ctx) => SimpleDialog(
+              title: const Text('Attach'),
+              children: [
+                SizedBox(
+                    width: 380, child: Column(children: [for (final o in options) tile(ctx, o)])),
+              ],
+            ),
+          )
+        : await showModalBottomSheet<String>(
+            context: context,
+            showDragHandle: true,
+            backgroundColor: Colors.white,
+            builder: (ctx) => SafeArea(
+              child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [for (final o in options) tile(ctx, o)]),
+            ),
+          );
     if (!mounted || pick == null) return;
     if (pick == 'photo') {
-      final url = await pickAndUploadImage(context);
-      if (url == null || !mounted) return;
-      final c = ChatStore.instance.byId(widget.chatId) ?? chat;
-      ChatStore.instance.send(c, _text.text, links: [TaskLink(title: 'Photo', url: url)]);
-      setState(_text.clear);
+      await _addPhoto();
     } else if (pick == 'link') {
       final l = await linkDialog(context);
       if (l != null) setState(() => _links.add(l));
@@ -806,6 +843,8 @@ class _ChatViewState extends State<ChatView> {
               );
 
         final pending = [
+          for (final p in _photos)
+            _PhotoChip(photo: p, onRemove: () => setState(() => _photos.remove(p))),
           for (final l in _links)
             InputChip(
               avatar: const Icon(Icons.link_rounded, size: 16),
@@ -900,9 +939,9 @@ class _ChatViewState extends State<ChatView> {
                       ),
                       const SizedBox(width: 8),
                       FilledButton(
-                        onPressed: () => _send(chat),
+                        onPressed: _uploading ? null : () => _send(chat),
                         style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
-                        child: const Text('Send'),
+                        child: Text(_uploading ? 'Uploading...' : 'Send'),
                       ),
                     ]),
                   ]),
@@ -912,6 +951,64 @@ class _ChatViewState extends State<ChatView> {
           children: [header, Expanded(child: body), composer],
         );
       },
+    );
+  }
+}
+
+/// A photo waiting in the composer (uploading, ready or failed).
+class _PendingPhoto {
+  final Uint8List bytes;
+  String? url;
+  String? error;
+  _PendingPhoto(this.bytes);
+}
+
+class _PhotoChip extends StatelessWidget {
+  final _PendingPhoto photo;
+  final VoidCallback onRemove;
+  const _PhotoChip({required this.photo, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    final busy = photo.url == null && photo.error == null;
+    return Tooltip(
+      message: photo.error ?? (busy ? 'Uploading...' : 'Ready to send'),
+      child: Stack(children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.memory(photo.bytes, width: 72, height: 72, fit: BoxFit.cover),
+        ),
+        if (busy || photo.error != null)
+          Positioned.fill(
+            child: Container(
+              decoration:
+                  BoxDecoration(color: Colors.black38, borderRadius: BorderRadius.circular(10)),
+              alignment: Alignment.center,
+              child: busy
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                  : const Icon(Icons.error_outline_rounded, color: Colors.white),
+            ),
+          ),
+        Positioned(
+          top: 2,
+          right: 2,
+          child: Material(
+            color: Colors.black54,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onRemove,
+              child: const Padding(
+                padding: EdgeInsets.all(3),
+                child: Icon(Icons.close_rounded, size: 15, color: Colors.white),
+              ),
+            ),
+          ),
+        ),
+      ]),
     );
   }
 }
@@ -982,7 +1079,7 @@ class _Bubble extends StatelessWidget {
               borderRadius: BorderRadius.circular(10),
               onTap: () => openImage(context, l.url),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 260, maxHeight: 260),
+                constraints: const BoxConstraints(maxWidth: 200, maxHeight: 200),
                 child: NetImage(thumbUrl(l.url, width: 600), fit: BoxFit.cover),
               ),
             ),

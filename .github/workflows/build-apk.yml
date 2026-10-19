@@ -166,7 +166,8 @@ jobs:
           flutter create --platforms=web --org com.potens --project-name taskflow . 2>&1 | tee -a web.log
           bash tool/setup_web.sh 2>&1 | tee -a web.log
           flutter pub get 2>&1 | tee -a web.log
-          flutter build web --release 2>&1 | tee -a web.log
+          # No offline cache: the service worker kept showing an old version.
+          flutter build web --release --pwa-strategy=none 2>&1 | tee -a web.log
 
       - uses: actions/setup-node@v4
         with:
