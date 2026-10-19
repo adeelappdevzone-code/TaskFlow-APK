@@ -507,7 +507,7 @@ class ChatStore extends ChangeNotifier {
       if (!_testing) {
         _write(_chats.doc(c.id).update({
           'status': 'active',
-          'read.$me': DateTime.now().millisecondsSinceEpoch,
+          'read.$me': (c.lastAt ?? DateTime.now()).millisecondsSinceEpoch,
         }));
       }
       return;
@@ -518,7 +518,7 @@ class ChatStore extends ChangeNotifier {
       'member_ids': FieldValue.arrayUnion([me]),
       'names.$me': _name,
       'status': 'active',
-      'read.$me': DateTime.now().millisecondsSinceEpoch,
+      'read.$me': (c.lastAt ?? DateTime.now()).millisecondsSinceEpoch,
     }));
   }
 
@@ -667,7 +667,9 @@ class ChatStore extends ChangeNotifier {
     if (me == null || at == null || _testing) return;
     if ((c.read[me] ?? 0) >= at.millisecondsSinceEpoch) return;
     if (c.isTeam && !_teamChats.containsKey(c.teamId)) return;
-    _write(_chats.doc(c.id).update({'read.$me': DateTime.now().millisecondsSinceEpoch}));
+    // The message's own time (the sender's clock), not this device's clock:
+    // two devices whose clocks differ would otherwise hide new messages.
+    _write(_chats.doc(c.id).update({'read.$me': at.millisecondsSinceEpoch}));
   }
 
   void deleteMessage(Chat c, ChatMessage m) {

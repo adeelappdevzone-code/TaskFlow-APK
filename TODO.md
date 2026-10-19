@@ -201,6 +201,8 @@ Dhyan: key badalne ke baad phone se purani app ek dafa uninstall karni hogi
 
 ## Notes
 
+- Web build `--pwa-strategy=none` (purana version cache se na dikhe). Flutter ne ye flag deprecate kiya hai: upgrade par hat jaye to service worker band karne ka naya tareeqa dekhna.
+
 - Flutter CI mein 3.47.7 par fix hai. Upgrade karte waqt CI log check karo. "plugins that apply
   Kotlin Gradle Plugin (KGP): firebase_auth, firebase_core" wali warning ghalat alarm hai (Firebase
   plugins KGP tabhi lagate hain jab AGP < 9; hamara 9.1). Build fail ho to firebase packages update karo.

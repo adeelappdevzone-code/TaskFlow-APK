@@ -442,7 +442,7 @@ class _ChatTile extends StatelessWidget {
                   if (chat.lastAt != null)
                     Text(_time(chat.lastAt!),
                         style: TextStyle(
-                            fontSize: 12, color: unread ? AppColors.primary : AppColors.textMuted)),
+                            fontSize: 12, color: unread ? AppColors.danger : AppColors.textMuted)),
                 ]),
                 const SizedBox(height: 3),
                 Row(children: [
@@ -457,10 +457,10 @@ class _ChatTile extends StatelessWidget {
                   ),
                   if (unread)
                     Container(
-                      width: 10,
-                      height: 10,
+                      width: 12,
+                      height: 12,
                       decoration:
-                          const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
+                          const BoxDecoration(color: AppColors.danger, shape: BoxShape.circle),
                     ),
                 ]),
               ]),
@@ -575,12 +575,6 @@ class _ChatViewState extends State<ChatView> {
   }
 
   late final Stream<List<ChatMessage>> _stream = ChatStore.instance.messagesOf(widget.chatId);
-
-  @override
-  void initState() {
-    super.initState();
-    ChatStore.instance.openChatId = widget.chatId;
-  }
 
   @override
   void dispose() {
@@ -701,8 +695,16 @@ class _ChatViewState extends State<ChatView> {
         final me = store.uid ?? '';
         // An email request: they can't read it until they accept.
         final incoming = chat.isPending && chat.createdBy != me && !chat.isTeammateRequest;
-        if (chat.unreadFor(me)) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => store.markRead(chat));
+        // Only a chat really on screen counts as read (the Messages page stays
+        // alive, hidden, while another page is open).
+        final visible = Visibility.of(context);
+        if (visible) {
+          store.openChatId = widget.chatId;
+          if (chat.unreadFor(me)) {
+            WidgetsBinding.instance.addPostFrameCallback((_) => store.markRead(chat));
+          }
+        } else if (store.openChatId == widget.chatId) {
+          store.openChatId = null;
         }
         final title = store.titleOf(chat);
         final team = teamOfChat(chat);

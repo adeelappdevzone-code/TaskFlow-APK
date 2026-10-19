@@ -287,4 +287,30 @@ void main() {
       expect(find.byTooltip('Message Adeel'), findsNothing); // not myself
     });
   });
+
+  testWidgets('a chat hidden behind another page is not marked as open/read', (tester) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    seed();
+    ChatStore.instance.openChatId = null;
+    Widget app(int index) => MaterialApp(
+          theme: buildAppTheme(),
+          home: Scaffold(
+            body: IndexedStack(index: index, children: [
+              ChatView(chatId: waChat.id),
+              const Text('Another page'),
+            ]),
+          ),
+        );
+    await tester.pumpWidget(app(1));
+    await tester.pumpAndSettle();
+    expect(ChatStore.instance.openChatId, isNull);
+    await tester.pumpWidget(app(0));
+    await tester.pumpAndSettle();
+    expect(ChatStore.instance.openChatId, waChat.id);
+    await tester.pumpWidget(app(1));
+    await tester.pumpAndSettle();
+    expect(ChatStore.instance.openChatId, isNull);
+  });
 }
