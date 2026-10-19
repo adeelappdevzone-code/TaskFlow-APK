@@ -611,7 +611,9 @@ class ChatStore extends ChangeNotifier {
     );
     final preview = clean.isNotEmpty
         ? clean
-        : (task != null ? 'Shared a task: ${task.title}' : 'Shared a link');
+        : (task != null
+            ? 'Shared a task: ${task.title}'
+            : (links.any((l) => l.title == 'Photo') ? '📷 Photo' : 'Shared a link'));
     final last = {
       'last_text': preview.length > 200 ? '${preview.substring(0, 197)}...' : preview,
       'last_at': ms,

@@ -136,6 +136,7 @@ class TeamStore extends ChangeNotifier {
     _dayMin = null;
     _workDays = null;
     _busy = const {};
+    _photo = '';
     notifyListeners();
   }
 
@@ -145,6 +146,7 @@ class TeamStore extends ChangeNotifier {
   int? _dayMin;
   List<int>? _workDays;
   Map<String, int> _busy = const {};
+  String _photo = '';
 
   TeamMemberInfo _myInfo() => TeamMemberInfo(
       name: _name,
@@ -152,13 +154,21 @@ class TeamStore extends ChangeNotifier {
       weekMinutes: _weekMin,
       dayMinutes: _dayMin,
       workDays: _workDays,
-      busy: _busy);
+      busy: _busy,
+      photo: _photo);
 
   /// My work hours (null: not set, the team's hours are used).
   void setMyWork({int? weekMinutes, int? dayMinutes, List<int>? workDays}) {
     _weekMin = weekMinutes;
     _dayMin = dayMinutes;
     _workDays = workDays;
+    updateMyName(_name);
+  }
+
+  /// My profile picture, shown to my teams.
+  void setMyPhoto(String url) {
+    if (url == _photo) return;
+    _photo = url;
     updateMyName(_name);
   }
 
@@ -1157,4 +1167,16 @@ class TeamStore extends ChangeNotifier {
     _tasks[teamId] = list;
     notifyListeners();
   }
+}
+
+/// [uid]'s profile picture ('' when none): mine from my profile, others from
+/// a team we share.
+String photoOfUser(String uid) {
+  final store = TeamStore.instance;
+  if (uid == store.uid) return AppStore.instance.photoUrl;
+  for (final t in store.teams) {
+    final p = t.members[uid]?.photo ?? '';
+    if (p.isNotEmpty) return p;
+  }
+  return '';
 }

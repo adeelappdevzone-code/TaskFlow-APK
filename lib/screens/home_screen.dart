@@ -1101,7 +1101,7 @@ class _PhoneHome extends StatelessWidget {
                 onTap: () => MainShell.switchTab(context, 3),
                 child: Tooltip(
                   message: 'Profile & settings',
-                  child: Avatar(name: AppStore.instance.currentUser?.name ?? '', size: 34),
+                  child: myAvatar(size: 34),
                 ),
               ),
             ],

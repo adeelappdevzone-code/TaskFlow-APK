@@ -92,6 +92,8 @@ await t('team: member shares busy time and work day', assertSucceeds(updateDoc(d
 await t('team: busy for too many days denied', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', busy: Object.fromEntries(Array.from({ length: 16 }, (_, i) => [`2026100${i}`, 60])) }, updated_at: now })));
 await t('team: day over 24h denied', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', day_min: 2000 }, updated_at: now })));
 await t('team: unknown member field denied', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', salary: 1 }, updated_at: now })));
+await t('team: member shares profile photo', assertSucceeds(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', photo: 'https://res.cloudinary.com/voejff1h/image/upload/v1/taskflow/a.jpg' }, updated_at: now })));
+await t('team: photo from another site denied', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.adl': { name: 'Adeel', email: 'adeel@x.com', photo: 'http://x.com/a.png' }, updated_at: now })));
 await t('team: member cannot set others work week', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.own': { name: 'Owner', email: 'o@x.com', week_min: 600 }, updated_at: now })));
 await t('team: member cannot change others name', assertFails(updateDoc(doc(adeel, `teams/${T}`), { 'members.sar': { name: 'x', email: 'x' } })));
 
@@ -157,6 +159,9 @@ await t('estimate: personal task with estimate', assertSucceeds(setDoc(d(me,'use
 await t('estimate: zero denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, estimate_min: 0 })));
 await t('estimate: text denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, estimate_min: '1h' })));
 await t('profile: work hours', assertSucceeds(setDoc(d(me,'users/u1'), { work_start: 540, work_end: 1050 }, { merge: true })));
+await t('profile: cloudinary photo', assertSucceeds(setDoc(d(me,'users/u1'), { photo_url: 'https://res.cloudinary.com/voejff1h/image/upload/v1/taskflow/a.jpg' }, { merge: true })));
+await t('profile: photo from another site denied', assertFails(setDoc(d(me,'users/u1'), { photo_url: 'https://evil.example.com/track.png' }, { merge: true })));
+await t('profile: remove photo', assertSucceeds(setDoc(d(me,'users/u1'), { photo_url: '' }, { merge: true })));
 await t('profile: work days', assertSucceeds(setDoc(d(me,'users/u1'), { work_days: [1, 2, 3, 4, 5, 6] }, { merge: true })));
 await t('profile: work days must be a list', assertFails(setDoc(d(me,'users/u1'), { work_days: 'mon-fri' }, { merge: true })));
 await t('extras: too many links denied', assertFails(setDoc(d(me,'users/u1/tasks/t1'), { ...task, links: Array(21).fill({ title: '', url: 'https://a.com' }) })));

@@ -108,6 +108,11 @@ service cloud.firestore {
           && optNum(d, 'organized_at') && optStr(d, 'organized_to', 300)
           && optStr(d, 'task_id', 100) && optStr(d, 'task_team', 100);
     }
+    // Profile pictures are on Cloudinary (or none).
+    function validPhoto(u) {
+      return u is string && u.size() <= 500
+          && (u == '' || u.matches('https://res[.]cloudinary[.]com/.*'));
+    }
     function validProfile(d) {
       return d.size() <= 20 && optStr(d, 'name', 200) && optStr(d, 'email', 320)
           && optNum(d, 'created_at')
@@ -120,6 +125,7 @@ service cloud.firestore {
           && (!('notif_comments' in d) || d.notif_comments is bool)
           && optNum(d, 'last_backup_at')
           && optNum(d, 'work_start') && optNum(d, 'work_end')
+          && (!('photo_url' in d) || validPhoto(d.photo_url))
           && (!('work_days' in d) || (d.work_days is list && d.work_days.size() <= 7));
     }
 
@@ -199,7 +205,9 @@ service cloud.firestore {
     }
     function validMemberInfo(info) {
       return info is map
-          && info.keys().hasOnly(['name', 'email', 'week_min', 'day_min', 'work_days', 'busy'])
+          && info.keys().hasOnly(['name', 'email', 'week_min', 'day_min', 'work_days', 'busy',
+              'photo'])
+          && (!('photo' in info) || validPhoto(info.photo))
           && info.name is string && info.name.size() <= 200
           && info.email is string && info.email.size() <= 320
           && (!('week_min' in info) || (info.week_min is int

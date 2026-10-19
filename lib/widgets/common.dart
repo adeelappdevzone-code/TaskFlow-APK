@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../core/theme.dart';
 import '../core/utils.dart';
 import '../data/app_store.dart';
+import '../data/images.dart' show thumbUrl;
+import '../data/team_store.dart' show photoOfUser;
 import '../data/models.dart';
 
 class AppLogo extends StatelessWidget {
@@ -422,12 +424,23 @@ class Avatar extends StatelessWidget {
   final String name;
   final double size;
   final Color color;
+
+  /// Shows this person's profile picture when they have one.
+  final String? uid;
+
+  /// A picture address to show (wins over [uid]).
+  final String? url;
   const Avatar(
-      {super.key, required this.name, this.size = 40, this.color = AppColors.primary});
+      {super.key,
+      required this.name,
+      this.size = 40,
+      this.color = AppColors.primary,
+      this.uid,
+      this.url});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final letters = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(color: color.withAlpha(35), shape: BoxShape.circle),
@@ -438,8 +451,27 @@ class Avatar extends StatelessWidget {
             color: color, fontWeight: FontWeight.w700, fontSize: size * 0.36),
       ),
     );
+    final photo = url ?? (uid == null ? '' : photoOfUser(uid!));
+    if (photo.isEmpty) return letters;
+    return ClipOval(
+      child: Image.network(
+        thumbUrl(photo, width: (size * 3).round()),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, _, __) => letters,
+        loadingBuilder: (context, child, p) => p == null ? child : letters,
+      ),
+    );
   }
 }
+
+/// My own avatar.
+Widget myAvatar({double size = 40, Color color = AppColors.primary}) => Avatar(
+    name: AppStore.instance.currentUser?.name ?? '',
+    size: size,
+    color: color,
+    url: AppStore.instance.photoUrl);
 
 Future<bool> confirmDialog(
   BuildContext context, {

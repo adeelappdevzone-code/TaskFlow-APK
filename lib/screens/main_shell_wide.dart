@@ -470,7 +470,7 @@ class _TopBar extends StatelessWidget {
                     ],
                     child: Row(
                       children: [
-                        Avatar(name: name.isEmpty ? '?' : name, size: 38),
+                        Avatar(name: name.isEmpty ? '?' : name, size: 38, url: store.photoUrl),
                         const SizedBox(width: 10),
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 160),

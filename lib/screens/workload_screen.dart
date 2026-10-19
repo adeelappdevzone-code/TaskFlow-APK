@@ -97,7 +97,7 @@ class _WorkloadScreenState extends State<WorkloadScreen> {
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
             children: [
               Row(children: [
-                Avatar(name: m.name, size: 40),
+                Avatar(name: m.name, size: 40, uid: m.uid),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -409,7 +409,11 @@ class _PersonRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
         child: Row(
           children: [
-            Avatar(name: m.name, size: 38, color: me ? AppColors.primary : AppColors.purple),
+            Avatar(
+                name: m.name,
+                size: 38,
+                uid: m.uid,
+                color: me ? AppColors.primary : AppColors.purple),
             const SizedBox(width: 12),
             SizedBox(
               width: 104,

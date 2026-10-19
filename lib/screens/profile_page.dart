@@ -160,7 +160,7 @@ class _Header extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Avatar(name: d.user.name, size: wide ? 118 : 64),
+          EditableAvatar(size: wide ? 118 : 64),
           SizedBox(width: wide ? 32 : 14),
           Expanded(
             child: Column(
@@ -457,7 +457,7 @@ class _ProfileInfoCardState extends State<_ProfileInfoCard> {
           LayoutBuilder(builder: (context, box) {
             final two = box.maxWidth >= 560;
             final avatar = Column(children: [
-              Avatar(name: user.name, size: 110),
+              const EditableAvatar(size: 110),
               const SizedBox(height: 10),
               Text('Member since ${DateFormat('MMM yyyy').format(user.createdAt)}',
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 12.5)),

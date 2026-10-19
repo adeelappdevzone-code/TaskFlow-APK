@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../data/images.dart';
+import '../widgets/images.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -634,8 +636,14 @@ class _Details extends StatelessWidget {
             padding: const EdgeInsets.only(top: 14),
             child: Row(
               children: [
-                const Expanded(child: Text('Links', style: label)),
-                if (ref.canComplete)
+                const Expanded(child: Text('Links & images', style: label)),
+                if (ref.canComplete) ...[
+                  IconButton(
+                    tooltip: 'Add image',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => addTaskImage(context, ref),
+                    icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
+                  ),
                   TextButton.icon(
                     onPressed: () async {
                       final l = await linkDialog(context);
@@ -644,14 +652,14 @@ class _Details extends StatelessWidget {
                     icon: const Icon(Icons.add_rounded, size: 18),
                     label: const Text('Add link'),
                   ),
+                ],
               ],
             ),
           ),
           if (t.links.isEmpty)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 6),
-              child: Text('No links. Add Google Drive, Docs or website links.',
-                  style: TextStyle(color: AppColors.textMuted)),
+              child: Text('No links or images yet.', style: TextStyle(color: AppColors.textMuted)),
             )
           else
             _LinkList(ref: ref),
@@ -731,6 +739,14 @@ class _AddButton extends StatelessWidget {
 
 // ===================================================================== links
 
+/// Pick and upload a photo, then add it to the task's links.
+Future<void> addTaskImage(BuildContext context, TaskRef ref) async {
+  final url = await pickAndUploadImage(context);
+  if (url == null) return;
+  ref.setLinks([...ref.task.links, TaskLink(title: 'Image', url: url)]);
+  if (context.mounted) showSnack(context, 'Image added');
+}
+
 class _LinkList extends StatelessWidget {
   final TaskRef ref;
   const _LinkList({required this.ref});
@@ -738,55 +754,81 @@ class _LinkList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final links = ref.task.links;
+    final images = [
+      for (final (i, l) in links.indexed)
+        if (isImageUrl(l.url)) (i, l)
+    ];
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final (i, l) in links.indexed)
+        if (images.isNotEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Material(
-              color: Colors.white,
-              child: ListTile(
-                shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: Color(0xFFEEF1F6)),
-                  borderRadius: BorderRadius.circular(12),
+            child: Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final (i, l) in images)
+                ImageThumb(
+                  url: l.url,
+                  onRemove: ref.canComplete
+                      ? () async {
+                          final ok = await confirmDialog(context,
+                              title: 'Remove this image?',
+                              message: 'It is removed from the task.',
+                              confirmLabel: 'Remove',
+                              danger: true);
+                          if (ok) ref.setLinks([...links]..removeAt(i));
+                        }
+                      : null,
                 ),
-                onTap: () => openLink(context, l.url),
-                leading: IconBox(icon: linkIcon(l.url), color: AppColors.primary, size: 40),
-                title: Text(l.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(l.url, maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: PopupMenuButton<String>(
-                  tooltip: 'More',
-                  icon: const Icon(Icons.more_vert_rounded),
-                  onSelected: (a) async {
-                    switch (a) {
-                      case 'open':
-                        openLink(context, l.url);
-                      case 'copy':
-                        Clipboard.setData(ClipboardData(text: l.url));
-                        showSnack(context, 'Link copied');
-                      case 'edit':
-                        final n = await linkDialog(context, initial: l);
-                        if (n != null) ref.setLinks([...links]..[i] = n);
-                      case 'remove':
-                        ref.setLinks([...links]..removeAt(i));
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'open', child: Text('Open')),
-                    const PopupMenuItem(value: 'copy', child: Text('Copy link')),
-                    if (ref.canComplete) const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                    if (ref.canComplete)
-                      const PopupMenuItem(
-                          value: 'remove',
-                          child: Text('Remove', style: TextStyle(color: AppColors.danger))),
-                  ],
+            ]),
+          ),
+        for (final (i, l) in links.indexed)
+          if (!isImageUrl(l.url))
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Material(
+                color: Colors.white,
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                    side: const BorderSide(color: Color(0xFFEEF1F6)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  onTap: () => openLink(context, l.url),
+                  leading: IconBox(icon: linkIcon(l.url), color: AppColors.primary, size: 40),
+                  title: Text(l.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                  subtitle: Text(l.url, maxLines: 1, overflow: TextOverflow.ellipsis),
+                  trailing: PopupMenuButton<String>(
+                    tooltip: 'More',
+                    icon: const Icon(Icons.more_vert_rounded),
+                    onSelected: (a) async {
+                      switch (a) {
+                        case 'open':
+                          openLink(context, l.url);
+                        case 'copy':
+                          Clipboard.setData(ClipboardData(text: l.url));
+                          showSnack(context, 'Link copied');
+                        case 'edit':
+                          final n = await linkDialog(context, initial: l);
+                          if (n != null) ref.setLinks([...links]..[i] = n);
+                        case 'remove':
+                          ref.setLinks([...links]..removeAt(i));
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(value: 'open', child: Text('Open')),
+                      const PopupMenuItem(value: 'copy', child: Text('Copy link')),
+                      if (ref.canComplete) const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                      if (ref.canComplete)
+                        const PopupMenuItem(
+                            value: 'remove',
+                            child: Text('Remove', style: TextStyle(color: AppColors.danger))),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
       ],
     );
   }
@@ -805,7 +847,13 @@ class _Links extends StatelessWidget {
           children: [
             const Expanded(
                 child: Text('Links', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700))),
-            if (ref.canComplete)
+            if (ref.canComplete) ...[
+              OutlinedButton.icon(
+                onPressed: () => addTaskImage(context, ref),
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: const Text('Image'),
+              ),
+              const SizedBox(width: 8),
               FilledButton.tonalIcon(
                 onPressed: () async {
                   final l = await linkDialog(context);
@@ -814,10 +862,11 @@ class _Links extends StatelessWidget {
                 icon: const Icon(Icons.add_link_rounded),
                 label: const Text('Add link'),
               ),
+            ],
           ],
         ),
         const SizedBox(height: 6),
-        const Text('Google Drive, Docs, Sheets or any website — instead of file uploads.',
+        const Text('Photos and screenshots, or Google Drive, Docs, Sheets and website links.',
             style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
         if (ref.task.links.isEmpty)
           const Padding(

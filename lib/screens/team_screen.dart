@@ -539,7 +539,7 @@ class _MembersTab extends StatelessWidget {
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Avatar(name: team.nameOf(uid), size: 42),
+      leading: Avatar(name: team.nameOf(uid), size: 42, uid: uid),
       title: Text(isMe ? '${team.nameOf(uid)} (you)' : team.nameOf(uid),
           style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: Text(

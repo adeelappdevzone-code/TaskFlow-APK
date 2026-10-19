@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/images.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -453,7 +454,7 @@ class _AccountScreenState extends State<AccountScreen> {
             child: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                Center(child: Avatar(name: user.name, size: 80)),
+                const Center(child: EditableAvatar(size: 80)),
                 const SizedBox(height: 8),
                 Center(
                   child: Text('Member since ${formatShortDate(user.createdAt)}',

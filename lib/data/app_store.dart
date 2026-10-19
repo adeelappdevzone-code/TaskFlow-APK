@@ -65,6 +65,9 @@ class AppStore extends ChangeNotifier {
   // Profile extras and preferences, saved in users/{uid} so they are the
   // same on every phone / browser.
   String jobTitle = '';
+
+  /// Profile picture address (Cloudinary), empty when none.
+  String photoUrl = '';
   int reminderMinutes = 15; // 0 = no reminders
   bool teamAlerts = true; // phone notifications for team events
   DateTime? lastBackupAt;
@@ -199,6 +202,7 @@ class AppStore extends ChangeNotifier {
     notifications = [];
     templates = [];
     jobTitle = '';
+    photoUrl = '';
     reminderMinutes = 15;
     teamAlerts = true;
     notifAssign = true;
@@ -227,6 +231,8 @@ class AppStore extends ChangeNotifier {
     _subs.add(_userDoc.snapshots().listen((s) {
       final d = s.data() ?? const {};
       jobTitle = (d['title'] as String?) ?? '';
+      photoUrl = (d['photo_url'] as String?) ?? '';
+      TeamStore.instance.setMyPhoto(photoUrl);
       reminderMinutes = (d['reminder_minutes'] as int?) ?? 15;
       teamAlerts = (d['team_alerts'] as bool?) ?? true;
       notifAssign = (d['notif_assign'] as bool?) ?? true;
@@ -574,6 +580,13 @@ class AppStore extends ChangeNotifier {
     }
     _write(_userDoc.set(data, SetOptions(merge: true)));
     notifyListeners();
+  }
+
+  /// New profile picture ('' removes it); my teams see it too.
+  void setPhoto(String url) {
+    photoUrl = url;
+    _savePrefs({'photo_url': url});
+    TeamStore.instance.setMyPhoto(url);
   }
 
   void updateJobTitle(String title) {

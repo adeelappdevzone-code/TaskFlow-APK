@@ -26,6 +26,8 @@ dependencies:
   # Open task links (Google Drive, Docs, websites)
   url_launcher: ^6.3.3
   pdf: ^3.13.1
+  image_picker: ^1.2.4
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

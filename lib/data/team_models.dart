@@ -38,6 +38,9 @@ class TeamMemberInfo {
   /// totals: no titles. Updated by their own app.
   final Map<String, int> busy;
 
+  /// Profile picture address, '' when none.
+  final String photo;
+
   const TeamMemberInfo({
     required this.name,
     required this.email,
@@ -45,6 +48,7 @@ class TeamMemberInfo {
     this.dayMinutes,
     this.workDays,
     this.busy = const {},
+    this.photo = '',
   });
 
   Map<String, dynamic> toMap() => {
@@ -54,6 +58,7 @@ class TeamMemberInfo {
         if (dayMinutes != null) 'day_min': dayMinutes,
         if (workDays != null) 'work_days': workDays,
         if (busy.isNotEmpty) 'busy': busy,
+        if (photo.isNotEmpty) 'photo': photo,
       };
 
   factory TeamMemberInfo.fromMap(Map<String, dynamic> m) {
@@ -77,6 +82,7 @@ class TeamMemberInfo {
                 if (e.key is String && e.value is int) e.key as String: e.value as int
             }
           : const {},
+      photo: (m['photo'] as String?) ?? '',
     );
   }
 
@@ -87,7 +93,8 @@ class TeamMemberInfo {
       weekMinutes == o.weekMinutes &&
       dayMinutes == o.dayMinutes &&
       _sameList(workDays, o.workDays) &&
-      _sameMap(busy, o.busy);
+      _sameMap(busy, o.busy) &&
+      photo == o.photo;
 }
 
 bool _sameList(List<int>? a, List<int>? b) {

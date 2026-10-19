@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../data/images.dart';
+import '../widgets/images.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -77,7 +79,7 @@ Future<String?> newChatDialog(BuildContext context) async {
                     for (final c in list.take(30))
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: Avatar(name: c.name, size: 36),
+                        leading: Avatar(name: c.name, size: 36, uid: c.uid),
                         title: Text(c.name),
                         subtitle: Text(
                             c.teamIds
@@ -423,7 +425,7 @@ class _ChatTile extends StatelessWidget {
                     backgroundColor: Color(team?.color ?? 0xFF1F6FEB).withAlpha(30),
                     child: Icon(Icons.groups_rounded, color: Color(team?.color ?? 0xFF1F6FEB)),
                   )
-                : Avatar(name: title, size: 44, color: AppColors.purple),
+                : Avatar(name: title, size: 44, color: AppColors.purple, uid: chat.otherOf(me)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -489,7 +491,7 @@ class _RequestTile extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.all(10),
           child: Row(children: [
-            Avatar(name: name, size: 40, color: AppColors.warning),
+            Avatar(name: name, size: 40, color: AppColors.warning, uid: chat.createdBy),
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -588,6 +590,12 @@ class _ChatViewState extends State<ChatView> {
       builder: (ctx) => SafeArea(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           ListTile(
+            leading: const Icon(Icons.image_outlined),
+            title: const Text('Send a photo'),
+            subtitle: const Text('Screenshot, design, a picture of the work...'),
+            onTap: () => Navigator.pop(ctx, 'photo'),
+          ),
+          ListTile(
             leading: const Icon(Icons.link_rounded),
             title: const Text('Add a link'),
             subtitle: const Text('Google Drive, Sheets, Figma, a website...'),
@@ -602,7 +610,13 @@ class _ChatViewState extends State<ChatView> {
       ),
     );
     if (!mounted || pick == null) return;
-    if (pick == 'link') {
+    if (pick == 'photo') {
+      final url = await pickAndUploadImage(context);
+      if (url == null || !mounted) return;
+      final c = ChatStore.instance.byId(widget.chatId) ?? chat;
+      ChatStore.instance.send(c, _text.text, links: [TaskLink(title: 'Photo', url: url)]);
+      setState(_text.clear);
+    } else if (pick == 'link') {
       final l = await linkDialog(context);
       if (l != null) setState(() => _links.add(l));
     } else {
@@ -667,7 +681,7 @@ class _ChatViewState extends State<ChatView> {
                     backgroundColor: Color(team?.color ?? 0xFF1F6FEB).withAlpha(30),
                     child: Icon(Icons.groups_rounded, color: Color(team?.color ?? 0xFF1F6FEB)),
                   )
-                : Avatar(name: title, size: 44, color: AppColors.purple),
+                : Avatar(name: title, size: 44, color: AppColors.purple, uid: chat.otherOf(me)),
             const SizedBox(width: 12),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -961,7 +975,19 @@ class _Bubble extends StatelessWidget {
       children: [
         if (msg.text.isNotEmpty)
           SelectableText(msg.text, style: const TextStyle(fontSize: 14.5, height: 1.35)),
-        for (final l in msg.links)
+        for (final l in msg.links.where((l) => isImageUrl(l.url)))
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () => openImage(context, l.url),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 260, maxHeight: 260),
+                child: NetImage(thumbUrl(l.url, width: 600), fit: BoxFit.cover),
+              ),
+            ),
+          ),
+        for (final l in msg.links.where((l) => !isImageUrl(l.url)))
           Padding(
             padding: const EdgeInsets.only(top: 6),
             child: InkWell(
@@ -1047,7 +1073,9 @@ class _Bubble extends StatelessWidget {
           if (!mine) ...[
             SizedBox(
                 width: 36,
-                child: grouped ? null : Avatar(name: name, size: 34, color: AppColors.purple)),
+                child: grouped
+                    ? null
+                    : Avatar(name: name, size: 34, color: AppColors.purple, uid: msg.from)),
             const SizedBox(width: 8),
           ],
           Flexible(

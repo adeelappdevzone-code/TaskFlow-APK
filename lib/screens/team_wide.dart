@@ -244,7 +244,7 @@ extension _WideTeam on _TeamScreenState {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Row(children: [
-              Avatar(name: team.nameOf(me), size: 40),
+              Avatar(name: team.nameOf(me), size: 40, uid: me),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1026,7 +1026,7 @@ class _WideOverview extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 7),
             child: Row(children: [
-              Avatar(name: team.nameOf(m.uid), size: 38),
+              Avatar(name: team.nameOf(m.uid), size: 38, uid: m.uid),
               const SizedBox(width: 12),
               Expanded(
                   flex: 4,

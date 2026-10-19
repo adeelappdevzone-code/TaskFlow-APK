@@ -121,6 +121,11 @@ Sakht karna ho to baad mein rule lagana.
 - Manager: Approvals mein "Date change requests" + task page par bar (Move / Keep date), notifications dono taraf (move_asked / move_answer). Approvals badge mein count.
 - Baqi: Task edit form (assignee/date badalna) mein abhi warning nahi, sirf Create dialog mein.
 
+## Images (Oct 2026, main par push)
+- Cloudinary free (card nahi): cloud `voejff1h`, unsigned preset `taskflow` (folder taskflow, Disallow public ID ON). Code: `lib/data/images.dart`, `lib/widgets/images.dart`. Firebase Storage paid hai is liye nahi.
+- Task: "Add image" → task ke links mein Cloudinary URL (thumbnails grid). Chat: attach → "Send a photo". Profile: camera badge (users/{uid}.photo_url + teams members.{uid}.photo; rules sirf res.cloudinary.com).
+- Upload se pehle 1600px (profile 600px), quality 82. Delete Cloudinary se nahi hota (secret key app mein nahi rakh sakte) — baad mein apni hosting par script.
+
 ## Setup (sab chal raha hai)
 
 - **App:** Flutter 3.47.7 (CI mein fix), Firebase project `taskflow-ce905` (Spark/free plan, card nahi).
