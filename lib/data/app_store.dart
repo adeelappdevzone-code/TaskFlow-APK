@@ -1250,18 +1250,53 @@ class AppStore extends ChangeNotifier {
     addAll('projects', rows('projects'));
     addAll('members', rows('members'));
     addAll('notifications', rows('notifications'));
-    final taskRows = rows('tasks');
-    for (final t in taskRows) {
+    final taskRows = <_Json>[];
+    var skipped = 0;
+    for (final t in rows('tasks')) {
       final id = t['id'];
       if (id is String && t['checklist'] == null) {
         t['checklist'] = oldChecklist[id] ?? <_Json>[];
+      }
+      final fixed = fixTaskRow(t);
+      if (fixed == null) {
+        skipped++;
+      } else {
+        taskRows.add(fixed);
       }
     }
     addAll('tasks', taskRows);
 
     if (ops.isEmpty) return 'The backup is empty.';
     _runBatched(ops);
-    return null;
+    return skipped == 0
+        ? null
+        : 'Added ${taskRows.length} tasks. $skipped could not be read and were skipped.';
+  }
+
+  /// Fills in what a task from a hand-made or older backup may lack (no
+  /// date: an all-day task today), so one bad row can't make the whole
+  /// import fail. Null when it can't be used.
+  static _Json? fixTaskRow(_Json t) {
+    if (t['id'] is! String || (t['title'] is! String) || (t['title'] as String).trim().isEmpty) {
+      return null;
+    }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (t['created_at'] is! int) t['created_at'] = now;
+    if (t['updated_at'] is! int) t['updated_at'] = t['created_at'];
+    if (t['priority'] is! int) t['priority'] = 2;
+    if (!const ['pending', 'completed', 'cancelled'].contains(t['status'])) t['status'] = 'pending';
+    if (t['start_at'] is! int) {
+      final n = DateTime.now();
+      t['start_at'] = DateTime(n.year, n.month, n.day).millisecondsSinceEpoch;
+      t['end_at'] = DateTime(n.year, n.month, n.day, 23, 59).millisecondsSinceEpoch;
+    }
+    if (t['end_at'] != null && t['end_at'] is! int) t['end_at'] = null;
+    try {
+      taskFromMap(t);
+    } catch (_) {
+      return null;
+    }
+    return t;
   }
 
   /// Deletes all tasks, projects, categories, members and notifications of
